@@ -118,13 +118,13 @@ function ProductsPage() {
         </ul>
       </div>
 
-      <button
-        type="button"
+      <Link
+        to="/products/new"
         className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
         aria-label="إضافة منتج"
       >
         <Plus className="size-7" />
-      </button>
+      </Link>
     </AppShell>
   );
 }

@@ -1,43 +1,60 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Search, Filter, Plus, ArrowUpDown } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { useEffect } from "react";
+import { Search, Filter, Plus, ArrowUpDown, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { products } from "@/data/mock";
 import { formatNumber } from "@/lib/format";
+import { useProducts, type SortKey } from "@/hooks/use-products";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+
+const searchSchema = z.object({
+  q: fallback(z.string(), "").default(""),
+  sort: fallback(z.enum(["name", "quantity", "sale_price"]), "name").default("name"),
+  asc: fallback(z.boolean(), true).default(true),
+});
 
 export const Route = createFileRoute("/products")({
-  head: () => ({
-    meta: [{ title: "مخزن المنتجات — المهندس" }],
-  }),
+  validateSearch: zodValidator(searchSchema),
+  head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),
   component: ProductsPage,
 });
 
-type SortKey = "name" | "qty" | "price";
-
 function ProductsPage() {
-  const [q, setQ] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [asc, setAsc] = useState(true);
+  const { q, sort, asc } = Route.useSearch();
+  const navigate = useNavigate({ from: "/products" });
+  const queryClient = useQueryClient();
+  const { data: rows = [], isLoading, isError, error } = useProducts({ q, sort, asc });
 
-  const rows = useMemo(() => {
-    const filtered = products.filter((p) => p.name.includes(q.trim()));
-    const sorted = [...filtered].sort((a, b) => {
-      const va = a[sortKey];
-      const vb = b[sortKey];
-      if (typeof va === "number" && typeof vb === "number") return asc ? va - vb : vb - va;
-      return asc
-        ? String(va).localeCompare(String(vb), "ar")
-        : String(vb).localeCompare(String(va), "ar");
-    });
-    return sorted;
-  }, [q, sortKey, asc]);
+  // Realtime sync
+  useEffect(() => {
+    const channel = supabase
+      .channel("products-feed")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "products" },
+        () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  function setQ(value: string) {
+    navigate({ search: (prev) => ({ ...prev, q: value }), replace: true });
+  }
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) setAsc((v) => !v);
-    else {
-      setSortKey(key);
-      setAsc(true);
-    }
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        sort: key,
+        asc: prev.sort === key ? !prev.asc : true,
+      }),
+      replace: true,
+    });
   }
 
   return (
@@ -61,7 +78,7 @@ function ProductsPage() {
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="ادخل اسم المنتج"
+              placeholder="ادخل اسم المنتج أو الباركود"
               className="w-full h-12 rounded-xl border border-border bg-card pr-9 pl-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
           </div>
@@ -70,21 +87,32 @@ function ProductsPage() {
 
       <div className="mt-4 rounded-2xl overflow-hidden border border-border bg-card shadow-card">
         <div className="grid grid-cols-[1fr_auto_auto] bg-muted text-muted-foreground text-xs font-bold">
-          <SortHeader label="المنتج" active={sortKey === "name"} asc={asc} onClick={() => toggleSort("name")} className="text-end" />
-          <SortHeader label="الكمية" active={sortKey === "qty"} asc={asc} onClick={() => toggleSort("qty")} className="w-24 text-center" />
-          <SortHeader label="السعر" active={sortKey === "price"} asc={asc} onClick={() => toggleSort("price")} className="w-28 text-center" />
+          <SortHeader label="المنتج" active={sort === "name"} asc={asc} onClick={() => toggleSort("name")} className="text-end" />
+          <SortHeader label="الكمية" active={sort === "quantity"} asc={asc} onClick={() => toggleSort("quantity")} className="w-24 text-center" />
+          <SortHeader label="السعر" active={sort === "sale_price"} asc={asc} onClick={() => toggleSort("sale_price")} className="w-28 text-center" />
         </div>
         <ul className="divide-y divide-border">
-          {rows.map((p) => (
-            <li key={p.id} className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3.5 text-sm">
-              <span className="text-foreground font-semibold text-end leading-tight">{p.name}</span>
-              <span className="w-24 text-center text-foreground nums">{formatNumber(p.qty)}</span>
-              <span className="w-28 text-center text-foreground font-bold nums">{formatNumber(p.price)}</span>
+          {isLoading ? (
+            <li className="py-10 grid place-items-center text-sm text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
             </li>
-          ))}
-          {rows.length === 0 ? (
-            <li className="py-10 text-center text-sm text-muted-foreground">لا توجد منتجات مطابقة</li>
-          ) : null}
+          ) : isError ? (
+            <li className="py-10 text-center text-sm text-destructive">
+              {(error as Error)?.message || "تعذّر تحميل المنتجات"}
+            </li>
+          ) : rows.length === 0 ? (
+            <li className="py-10 text-center text-sm text-muted-foreground">
+              {q ? "لا توجد منتجات مطابقة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
+            </li>
+          ) : (
+            rows.map((p) => (
+              <li key={p.id} className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3.5 text-sm">
+                <span className="text-foreground font-semibold text-end leading-tight">{p.name}</span>
+                <span className="w-24 text-center text-foreground nums">{formatNumber(p.quantity)}</span>
+                <span className="w-28 text-center text-foreground font-bold nums">{formatNumber(p.salePrice)}</span>
+              </li>
+            ))
+          )}
         </ul>
       </div>
 

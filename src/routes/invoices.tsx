@@ -125,7 +125,7 @@ function InvoicesPage() {
               defaultValue={q}
               onChange={(e) => {
                 const value = e.target.value;
-                navigate({ search: (prev) => ({ ...prev, q: value }) });
+                navigate({ search: (prev: InvoicesSearch) => ({ ...prev, q: value }) });
               }}
               placeholder="بحث برقم الفاتورة أو اسم/هاتف العميل"
               className="w-full h-10 rounded-md border border-input bg-background pr-9 pl-3 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -136,7 +136,7 @@ function InvoicesPage() {
             {(["all", "paid", "partial", "unpaid"] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => navigate({ search: (prev) => ({ ...prev, status: s }) })}
+                onClick={() => navigate({ search: (prev: InvoicesSearch) => ({ ...prev, status: s }) })}
                 className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
                   status === s
                     ? "bg-primary text-primary-foreground border-primary"
@@ -156,7 +156,7 @@ function InvoicesPage() {
                 value={from}
                 onChange={(e) => {
                   const value = e.target.value;
-                  navigate({ search: (prev) => ({ ...prev, from: value }) });
+                  navigate({ search: (prev: InvoicesSearch) => ({ ...prev, from: value }) });
                 }}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm"
               />
@@ -168,7 +168,7 @@ function InvoicesPage() {
                 value={to}
                 onChange={(e) => {
                   const value = e.target.value;
-                  navigate({ search: (prev) => ({ ...prev, to: value }) });
+                  navigate({ search: (prev: InvoicesSearch) => ({ ...prev, to: value }) });
                 }}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm"
               />

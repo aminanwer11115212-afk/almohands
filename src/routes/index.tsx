@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   Package,
   ShoppingCart,
@@ -12,12 +13,15 @@ import {
   RotateCcw,
   Settings,
   ShieldCheck,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { formatSDG } from "@/lib/format";
 import { accountSummary } from "@/data/mock";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,8 +34,34 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
+  const [email, setEmail] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setEmail(session?.user?.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   return (
-    <AppShell title="المهندس">
+    <AppShell
+      title="المهندس"
+      rightAction={
+        email ? (
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="p-2 rounded-md hover:bg-white/10 transition"
+            aria-label="تسجيل الخروج"
+          >
+            <LogOut className="size-5" />
+          </button>
+        ) : (
+          <Link to="/auth" className="p-2 rounded-md hover:bg-white/10 transition" aria-label="تسجيل الدخول">
+            <LogIn className="size-5" />
+          </Link>
+        )
+      }
+    >
       <div className="flex flex-col items-center text-center pt-2 pb-6">
         <img
           src={logo}

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect } from "react";
@@ -118,13 +118,13 @@ function ProductsPage() {
         </ul>
       </div>
 
-      <button
-        type="button"
+      <Link
+        to="/products/new"
         className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
         aria-label="إضافة منتج"
       >
         <Plus className="size-7" />
-      </button>
+      </Link>
     </AppShell>
   );
 }

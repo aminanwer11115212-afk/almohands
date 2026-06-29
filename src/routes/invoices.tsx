@@ -17,6 +17,9 @@ const searchSchema = z.object({
   to: fallback(z.string(), "").default(""),
 });
 
+type InvoicesSearch = z.infer<typeof searchSchema>;
+
+
 type InvoiceRow = {
   id: string;
   invoice_number: number;

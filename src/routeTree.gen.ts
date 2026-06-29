@@ -23,6 +23,7 @@ import { Route as CashierRouteImport } from './routes/cashier'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsNewRouteImport } from './routes/products.new'
 
 const SuppliersRoute = SuppliersRouteImport.update({
   id: '/suppliers',
@@ -94,6 +95,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsNewRoute = ProductsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => ProductsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -106,10 +112,11 @@ export interface FileRoutesByFullPath {
   '/invoices': typeof InvoicesRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
+  '/products/new': typeof ProductsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -122,10 +129,11 @@ export interface FileRoutesByTo {
   '/invoices': typeof InvoicesRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
+  '/products/new': typeof ProductsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -139,10 +147,11 @@ export interface FileRoutesById {
   '/invoices': typeof InvoicesRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
+  '/products/new': typeof ProductsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/returns'
     | '/settings'
     | '/suppliers'
+    | '/products/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/returns'
     | '/settings'
     | '/suppliers'
+    | '/products/new'
   id:
     | '__root__'
     | '/'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/returns'
     | '/settings'
     | '/suppliers'
+    | '/products/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -206,7 +218,7 @@ export interface RootRouteChildren {
   InvoicesRoute: typeof InvoicesRoute
   PermissionsRoute: typeof PermissionsRoute
   PricesRoute: typeof PricesRoute
-  ProductsRoute: typeof ProductsRoute
+  ProductsRoute: typeof ProductsRouteWithChildren
   ReturnsRoute: typeof ReturnsRoute
   SettingsRoute: typeof SettingsRoute
   SuppliersRoute: typeof SuppliersRoute
@@ -312,8 +324,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products/new': {
+      id: '/products/new'
+      path: '/new'
+      fullPath: '/products/new'
+      preLoaderRoute: typeof ProductsNewRouteImport
+      parentRoute: typeof ProductsRoute
+    }
   }
 }
+
+interface ProductsRouteChildren {
+  ProductsNewRoute: typeof ProductsNewRoute
+}
+
+const ProductsRouteChildren: ProductsRouteChildren = {
+  ProductsNewRoute: ProductsNewRoute,
+}
+
+const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
+  ProductsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -326,7 +357,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvoicesRoute: InvoicesRoute,
   PermissionsRoute: PermissionsRoute,
   PricesRoute: PricesRoute,
-  ProductsRoute: ProductsRoute,
+  ProductsRoute: ProductsRouteWithChildren,
   ReturnsRoute: ReturnsRoute,
   SettingsRoute: SettingsRoute,
   SuppliersRoute: SuppliersRoute,

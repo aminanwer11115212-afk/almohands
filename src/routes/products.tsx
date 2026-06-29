@@ -15,6 +15,8 @@ const searchSchema = z.object({
   asc: fallback(z.boolean(), true).default(true),
 });
 
+type ProductsSearch = z.infer<typeof searchSchema>;
+
 export const Route = createFileRoute("/products")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),

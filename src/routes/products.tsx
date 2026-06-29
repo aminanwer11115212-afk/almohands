@@ -45,12 +45,12 @@ function ProductsPage() {
   }, [queryClient]);
 
   function setQ(value: string) {
-    navigate({ search: (prev) => ({ ...prev, q: value }), replace: true });
+    navigate({ search: (prev: ProductsSearch) => ({ ...prev, q: value }), replace: true });
   }
 
   function toggleSort(key: SortKey) {
     navigate({
-      search: (prev) => ({
+      search: (prev: ProductsSearch) => ({
         ...prev,
         sort: key,
         asc: prev.sort === key ? !prev.asc : true,

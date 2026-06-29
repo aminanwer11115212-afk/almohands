@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   Package,
   ShoppingCart,
@@ -12,12 +13,15 @@ import {
   RotateCcw,
   Settings,
   ShieldCheck,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { formatSDG } from "@/lib/format";
 import { accountSummary } from "@/data/mock";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({

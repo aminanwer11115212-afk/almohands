@@ -15,6 +15,8 @@ const searchSchema = z.object({
   asc: fallback(z.boolean(), true).default(true),
 });
 
+type ProductsSearch = z.infer<typeof searchSchema>;
+
 export const Route = createFileRoute("/products")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),
@@ -43,12 +45,12 @@ function ProductsPage() {
   }, [queryClient]);
 
   function setQ(value: string) {
-    navigate({ search: (prev) => ({ ...prev, q: value }), replace: true });
+    navigate({ search: (prev: ProductsSearch) => ({ ...prev, q: value }), replace: true });
   }
 
   function toggleSort(key: SortKey) {
     navigate({
-      search: (prev) => ({
+      search: (prev: ProductsSearch) => ({
         ...prev,
         sort: key,
         asc: prev.sort === key ? !prev.asc : true,

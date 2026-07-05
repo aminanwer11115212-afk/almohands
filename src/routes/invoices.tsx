@@ -8,7 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 
-const statusEnum = z.enum(["all", "paid", "partial", "unpaid"]);
+const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -35,13 +35,22 @@ type InvoiceRow = {
 const statusLabels: Record<string, string> = {
   paid: "مدفوعة",
   partial: "جزئية",
-  unpaid: "معلّقة",
+  pending: "معلّقة",
 };
 const statusClasses: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-700",
   partial: "bg-amber-100 text-amber-700",
-  unpaid: "bg-rose-100 text-rose-700",
+  pending: "bg-rose-100 text-rose-700",
 };
+
+/**
+ * Sanitize a search term for use inside PostgREST `.or()` filter values.
+ * Commas, parentheses, and colons have special meaning and could break the
+ * filter or be abused; strip them and cap length.
+ */
+function sanitizeOrTerm(raw: string): string {
+  return raw.replace(/[,()*:%\\]/g, " ").trim().slice(0, 80);
+}
 
 export const Route = createFileRoute("/invoices")({
   head: () => ({ meta: [{ title: "الفواتير — المهندس" }] }),

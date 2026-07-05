@@ -219,11 +219,39 @@ function CashierPage() {
 
       const status = remaining <= 0 ? "paid" : paidNum > 0 ? "partial" : "pending";
 
+      // Resolve/save customer: reuse selected, or auto-create when a name is entered.
+      let customerId: string | null = selectedCustomerId;
+      const trimmedName = customerName.trim();
+      if (!customerId && trimmedName) {
+        const { data: existing } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("user_id", userId)
+          .ilike("name", trimmedName)
+          .limit(1)
+          .maybeSingle();
+        if (existing?.id) {
+          customerId = existing.id;
+          if (phone) {
+            await supabase.from("customers").update({ phone }).eq("id", existing.id);
+          }
+        } else {
+          const { data: created, error: cErr } = await supabase
+            .from("customers")
+            .insert({ user_id: userId, name: trimmedName, phone: phone || null })
+            .select("id")
+            .single();
+          if (cErr) throw cErr;
+          customerId = created?.id ?? null;
+        }
+      }
+
       const { data: inv, error: e1 } = await supabase
         .from("invoices")
         .insert({
           user_id: userId,
-          customer_name: customerName.trim() || null,
+          customer_id: customerId,
+          customer_name: trimmedName || null,
           customer_phone: phone || null,
           source: "pos",
           status,

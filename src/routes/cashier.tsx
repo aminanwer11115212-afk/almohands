@@ -40,6 +40,8 @@ function CashierPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [showCustomerList, setShowCustomerList] = useState(false);
   const [discount, setDiscount] = useState("0");
   const [paid, setPaid] = useState("");
   const [saving, setSaving] = useState(false);

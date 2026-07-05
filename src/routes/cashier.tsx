@@ -253,7 +253,7 @@ function CashierPage() {
         throw e2;
       }
 
-      setLastInvoiceNo(inv.invoice_number);
+      setLastInvoice({ id: inv.id, number: inv.invoice_number });
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
@@ -262,6 +262,16 @@ function CashierPage() {
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
+
+      // Auto-print: navigate directly to preview with autoprint flag
+      if (storeProfile?.auto_print) {
+        navigate({
+          to: "/invoices/$invoiceId",
+          params: { invoiceId: inv.id },
+          search: { autoprint: 1 },
+        });
+        return;
+      }
       searchRef.current?.focus();
     } catch (err) {
       const msg = getErrorMessage(err, "تعذّر إتمام البيع");

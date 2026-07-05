@@ -60,6 +60,14 @@ function InvoiceDetailPage() {
     },
   });
 
+  // Auto-open print dialog when arriving with ?autoprint=1 (once data + format ready)
+  useEffect(() => {
+    if (autoprint && formatReady && data?.inv) {
+      const t = setTimeout(() => window.print(), 350);
+      return () => clearTimeout(t);
+    }
+  }, [autoprint, formatReady, data?.inv]);
+
   if (isLoading) {
     return (
       <AppShell title="فاتورة" showBack>

@@ -120,6 +120,8 @@ function ProductsPage() {
                 </Link>
               </li>
             ))
+          )}
+        </ul>
       </div>
 
       <Link

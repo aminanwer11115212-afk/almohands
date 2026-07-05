@@ -289,10 +289,12 @@ function CashierPage() {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
+      setSelectedCustomerId(null);
       setDiscount("0");
       setPaid("");
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
 
       // Auto-print: navigate directly to preview with autoprint flag

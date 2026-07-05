@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMyRoles, useAuditLogs, ROLE_LABELS } from "@/hooks/use-permissions";
+import { useRequireAdmin } from "@/hooks/use-require-admin";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {

@@ -43,7 +43,7 @@ function CashierPage() {
   const [paid, setPaid] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastInvoiceNo, setLastInvoiceNo] = useState<number | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<{ id: string; number: number } | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 

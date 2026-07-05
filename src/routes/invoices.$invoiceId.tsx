@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { Printer, ArrowRight, FileText, Receipt } from "lucide-react";
 import logo from "@/assets/logo.png";
-import { useStoreProfile } from "@/hooks/use-store-profile";
+import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
@@ -22,6 +22,7 @@ function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
   const { autoprint } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
+  const saveProfile = useSaveStoreProfile();
 
   const [format, setFormat] = useState<PrintFormat>("a4");
   const [formatReady, setFormatReady] = useState(false);
@@ -33,6 +34,14 @@ function InvoiceDetailPage() {
     }
     setFormatReady(true);
   }, [storeProfile?.print_size]);
+
+  const changeFormat = (next: PrintFormat) => {
+    setFormat(next);
+    const nextSize = next === "thermal" ? "80mm" : "A4";
+    if (storeProfile && storeProfile.print_size !== nextSize) {
+      saveProfile.mutate({ print_size: nextSize });
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -105,13 +114,13 @@ function InvoiceDetailPage() {
 
           <div className="flex items-center rounded-lg bg-white/10 p-0.5 text-sm">
             <button
-              onClick={() => setFormat("a4")}
+              onClick={() => changeFormat("a4")}
               className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "a4" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
               <FileText className="size-4" /> A4
             </button>
             <button
-              onClick={() => setFormat("thermal")}
+              onClick={() => changeFormat("thermal")}
               className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "thermal" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
               <Receipt className="size-4" /> حراري

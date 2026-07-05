@@ -248,6 +248,7 @@ function CashierPage() {
         }
       }
 
+      let savedInvoice: { id: string; number: number } | null = null;
       try {
         const { data: inv, error: e1 } = await supabase
           .from("invoices")
@@ -288,7 +289,8 @@ function CashierPage() {
           throw e2;
         }
 
-        setLastInvoice({ id: inv.id, number: inv.invoice_number });
+        savedInvoice = { id: inv.id, number: inv.invoice_number };
+        setLastInvoice(savedInvoice);
       } catch (invErr) {
         // Roll back a customer we just created; leave pre-existing ones untouched.
         if (createdCustomerId) {

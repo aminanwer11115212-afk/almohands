@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      customers: {
+        Row: {
+          balance: number
+          created_at: string
+          credit_limit: number
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+          workshop: string | null
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          credit_limit?: number
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+          workshop?: string | null
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          credit_limit?: number
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+          workshop?: string | null
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           cost_price: number
@@ -174,6 +213,42 @@ export type Database = {
           quantity?: number
           sale_price?: number
           unit?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          balance: number
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          balance?: number
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }

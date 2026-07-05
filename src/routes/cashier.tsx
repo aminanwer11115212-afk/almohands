@@ -329,20 +329,25 @@ function CashierPage() {
     }
   }
 
-  // Keyboard shortcuts
+  // Keep the latest checkout in a ref so the global keydown handler always
+  // calls the current version (avoids stale-closure bugs on payment/discount
+  // changes without rebinding the listener).
+  const checkoutRef = useRef(checkout);
+  useEffect(() => {
+    checkoutRef.current = checkout;
+  });
+
+  // Keyboard shortcuts — bound once.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // F2 → checkout
       if (e.key === "F2") {
         e.preventDefault();
-        if (!saving && cart.length > 0) checkout();
+        checkoutRef.current();
       }
-      // Esc → clear search or focus back
       if (e.key === "Escape") {
         if (query) setQuery("");
         else searchRef.current?.focus();
       }
-      // Ctrl+K / / → focus search
       if ((e.ctrlKey && e.key === "k") || (e.key === "/" && document.activeElement?.tagName !== "INPUT")) {
         e.preventDefault();
         searchRef.current?.focus();

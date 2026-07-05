@@ -5,6 +5,7 @@ import { useExpenses, useAddExpense, useDeleteExpense } from "@/hooks/use-expens
 import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "المصروفات — المهندس" }] }),
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/expenses")({
 });
 
 function ExpensesPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("expenses.write");
+  if (__permChk || !__permOk) return null;
   const today = new Date().toISOString().slice(0, 10);
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");

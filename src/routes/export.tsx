@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Download, FileText, Database, Trash2, FileSpreadsheet } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "تصدير البيانات — المهندس" }] }),
@@ -53,6 +54,8 @@ async function fetchTable(name: TableKey) {
 }
 
 function ExportPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("import_export");
+  if (__permChk || !__permOk) return null;
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<TableKey>>(new Set(["products"]));
 

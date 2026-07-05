@@ -79,11 +79,9 @@ function PermissionsPage() {
           </div>
         </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="users" className="mt-4">
-            <AdminUsersPanel />
-          </TabsContent>
-        )}
+        <TabsContent value="users" className="mt-4">
+          <AdminUsersPanel />
+        </TabsContent>
 
         <TabsContent value="logs" className="mt-4">
           {logsLoading ? (

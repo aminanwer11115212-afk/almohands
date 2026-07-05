@@ -2,13 +2,14 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User,
+  Wallet, Landmark, Package, X, User, Printer, Eye,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/use-products";
 import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
+import { useStoreProfile } from "@/hooks/use-store-profile";
 import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
@@ -42,7 +43,7 @@ function CashierPage() {
   const [paid, setPaid] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastInvoiceNo, setLastInvoiceNo] = useState<number | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<{ id: string; number: number } | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 
@@ -50,6 +51,7 @@ function CashierPage() {
 
   const { data: products = [] } = useProducts({ q: query, sort: "name", asc: true });
   const { data: paymentMethods = [] } = usePaymentMethods(true);
+  const { data: storeProfile } = useStoreProfile();
 
   // Auto-focus search on mount
   useEffect(() => {
@@ -251,7 +253,7 @@ function CashierPage() {
         throw e2;
       }
 
-      setLastInvoiceNo(inv.invoice_number);
+      setLastInvoice({ id: inv.id, number: inv.invoice_number });
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
@@ -260,6 +262,16 @@ function CashierPage() {
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
+
+      // Auto-print: navigate directly to preview with autoprint flag
+      if (storeProfile?.auto_print) {
+        navigate({
+          to: "/invoices/$invoiceId",
+          params: { invoiceId: inv.id },
+          search: { autoprint: 1 },
+        });
+        return;
+      }
       searchRef.current?.focus();
     } catch (err) {
       const msg = getErrorMessage(err, "تعذّر إتمام البيع");
@@ -295,26 +307,43 @@ function CashierPage() {
 
   return (
     <AppShell title="الكاشير" showBack>
-      {lastInvoiceNo !== null && (
-        <div className="mb-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 flex items-center gap-3">
+      {lastInvoice !== null && (
+        <div className="mb-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 flex items-center flex-wrap gap-2">
           <CheckCircle2 className="size-5 shrink-0" />
-          <div className="text-sm flex-1">
-            تم حفظ الفاتورة رقم <span className="font-bold nums">#{lastInvoiceNo}</span> بنجاح.
+          <div className="text-sm flex-1 min-w-[180px]">
+            تم حفظ الفاتورة رقم <span className="font-bold nums">#{lastInvoice.number}</span> بنجاح.
           </div>
-          <Link
-            to="/invoices/$invoiceId"
-            params={{ invoiceId: "" }}
-            className="text-xs underline hidden"
+          <button
+            onClick={() =>
+              navigate({
+                to: "/invoices/$invoiceId",
+                params: { invoiceId: lastInvoice.id },
+                search: { autoprint: 0 },
+              })
+            }
+            className="flex items-center gap-1.5 text-xs font-bold bg-white border border-emerald-300 hover:bg-emerald-100 rounded-lg px-3 py-1.5"
           >
-            .
-          </Link>
+            <Eye className="size-3.5" /> معاينة
+          </button>
+          <button
+            onClick={() =>
+              navigate({
+                to: "/invoices/$invoiceId",
+                params: { invoiceId: lastInvoice.id },
+                search: { autoprint: 1 },
+              })
+            }
+            className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg px-3 py-1.5"
+          >
+            <Printer className="size-3.5" /> طباعة
+          </button>
           <button
             onClick={() => navigate({ to: "/invoices" })}
-            className="text-xs underline font-bold"
+            className="text-xs underline"
           >
-            عرض الفواتير
+            كل الفواتير
           </button>
-          <button onClick={() => setLastInvoiceNo(null)} className="p-1">
+          <button onClick={() => setLastInvoice(null)} className="p-1" aria-label="إغلاق">
             <X className="size-4" />
           </button>
         </div>

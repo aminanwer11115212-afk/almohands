@@ -10,6 +10,9 @@ import { useStoreProfile } from "@/hooks/use-store-profile";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
+  }),
   component: InvoiceDetailPage,
 });
 
@@ -17,15 +20,18 @@ type PrintFormat = "a4" | "thermal";
 
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
+  const { autoprint } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
 
   const [format, setFormat] = useState<PrintFormat>("a4");
+  const [formatReady, setFormatReady] = useState(false);
 
   useEffect(() => {
     if (storeProfile?.print_size) {
       const size = String(storeProfile.print_size).toLowerCase();
       setFormat(size.includes("mm") ? "thermal" : "a4");
     }
+    setFormatReady(true);
   }, [storeProfile?.print_size]);
 
   const { data, isLoading } = useQuery({
@@ -53,6 +59,14 @@ function InvoiceDetailPage() {
       return { inv, items: items ?? [], paymentMethod };
     },
   });
+
+  // Auto-open print dialog when arriving with ?autoprint=1 (once data + format ready)
+  useEffect(() => {
+    if (autoprint && formatReady && data?.inv) {
+      const t = setTimeout(() => window.print(), 350);
+      return () => clearTimeout(t);
+    }
+  }, [autoprint, formatReady, data?.inv]);
 
   if (isLoading) {
     return (

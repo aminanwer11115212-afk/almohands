@@ -59,7 +59,12 @@ function InvoiceDetailPage() {
     );
   }
 
-  const { inv, items } = data;
+  const { inv, items, paymentMethod, store } = data;
+  const storeName = store?.name || "المهندس";
+  const storePhone = store?.phone || "0960514233";
+  const storeAddress = store?.address || "";
+  const invoiceFooter = store?.invoice_footer || "شكراً لتعاملكم معنا";
+  const paymentLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
 
   return (
     <div className="min-h-dvh bg-background print:bg-white">
@@ -80,10 +85,10 @@ function InvoiceDetailPage() {
 
       <main id="print-area" className="mx-auto max-w-2xl px-4 py-6 print:p-4">
         <div className="text-center border-b pb-4 mb-4">
-          <img src={logo} alt="المهندس" className="mx-auto size-24 object-contain" />
-          <h2 className="text-xl font-extrabold text-brand mt-2">المهندس</h2>
-          <p className="text-xs text-muted-foreground">نظام إدارة قطع غيار السيارات</p>
-          <p className="text-xs text-muted-foreground nums">0960514233</p>
+          <img src={logo} alt={storeName} className="mx-auto size-24 object-contain" />
+          <h2 className="text-xl font-extrabold text-brand mt-2">{storeName}</h2>
+          {storeAddress && <p className="text-xs text-muted-foreground">{storeAddress}</p>}
+          <p className="text-xs text-muted-foreground nums" dir="ltr">{storePhone}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm mb-4">
@@ -104,6 +109,10 @@ function InvoiceDetailPage() {
           <div>
             <div className="text-xs text-muted-foreground">الهاتف</div>
             <div className="font-bold nums">{inv.customer_phone || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">طريقة الدفع</div>
+            <div className="font-bold">{paymentLabel}</div>
           </div>
         </div>
 
@@ -145,8 +154,21 @@ function InvoiceDetailPage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-8">شكراً لتعاملكم معنا</p>
+        {paymentMethod && paymentMethod.type === "bank" && (
+          <div className="mt-4 border border-blue-300 bg-blue-50 rounded-lg p-3 text-sm">
+            <div className="font-bold text-blue-800 mb-1">تفاصيل التحويل البنكي</div>
+            <div className="space-y-0.5 text-blue-900">
+              {paymentMethod.bank_name && <div>البنك: <span className="font-bold">{paymentMethod.bank_name}</span></div>}
+              {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-bold">{paymentMethod.account_holder}</span></div>}
+              {paymentMethod.account_number && <div dir="ltr" className="text-right">رقم الحساب: <span className="font-bold nums">{paymentMethod.account_number}</span></div>}
+              {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-bold nums">{paymentMethod.iban}</span></div>}
+            </div>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-muted-foreground mt-8 whitespace-pre-line">{invoiceFooter}</p>
       </main>
+
 
       <style>{`
         @media print {

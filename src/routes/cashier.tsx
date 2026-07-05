@@ -168,6 +168,8 @@ function CashierPage() {
           total,
           paid: paidNum,
           remaining,
+          payment_method: paymentType,
+          payment_method_id: paymentType === "bank" ? (paymentMethodId || null) : (paymentMethodId || null),
         })
         .select("id, invoice_number")
         .single();

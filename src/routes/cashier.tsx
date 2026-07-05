@@ -51,6 +51,7 @@ function CashierPage() {
 
   const { data: products = [] } = useProducts({ q: query, sort: "name", asc: true });
   const { data: paymentMethods = [] } = usePaymentMethods(true);
+  const { data: storeProfile } = useStoreProfile();
 
   // Auto-focus search on mount
   useEffect(() => {

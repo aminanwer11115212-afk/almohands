@@ -1,5 +1,63 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { ReactNode } from "react";
+
+/* =========================================================================
+ * Role-based permissions (client-side UI gating).
+ * Server-side enforcement still lives in RLS + admin server fns.
+ * =======================================================================*/
+
+export type Permission =
+  | "products.view"
+  | "products.write"    // create / edit / delete / bulk price update
+  | "cashier.use"
+  | "invoices.view"
+  | "invoices.write"    // edit or delete existing invoices
+  | "customers.view"
+  | "customers.write"
+  | "suppliers.view"
+  | "suppliers.write"
+  | "expenses.view"
+  | "expenses.write"
+  | "payment_methods.view"
+  | "payment_methods.write"
+  | "returns.view"
+  | "returns.write"
+  | "reports.view"
+  | "accounts.view"
+  | "settings.write"
+  | "permissions.manage"
+  | "import_export";
+
+// admin implicitly gets everything.
+const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
+  seller: [
+    "cashier.use",
+    "products.view",
+    "invoices.view",
+    "customers.view", "customers.write",
+    "payment_methods.view",
+    "returns.view",
+  ],
+  accountant: [
+    "products.view",
+    "invoices.view",
+    "customers.view",
+    "suppliers.view",
+    "expenses.view", "expenses.write",
+    "payment_methods.view",
+    "returns.view",
+    "reports.view",
+    "accounts.view",
+  ],
+  warehouse: [
+    "products.view", "products.write",
+    "suppliers.view", "suppliers.write",
+    "returns.view", "returns.write",
+    "invoices.view",
+  ],
+};
+
 
 export type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 

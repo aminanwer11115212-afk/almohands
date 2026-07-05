@@ -175,7 +175,9 @@ function InvoiceDetailPage() {
           .print\\:hidden { display: none !important; }
           .print-a4 { width: 210mm; min-height: 297mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
           .print-thermal { width: 80mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
-          @page { margin: 8mm; }
+          ${format === "thermal"
+            ? "@page { size: 80mm auto; margin: 2mm; }"
+            : "@page { size: A4; margin: 8mm; }"}
         }
       `}</style>
     </div>

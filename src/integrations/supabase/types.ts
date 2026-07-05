@@ -209,6 +209,7 @@ export type Database = {
       invoices: {
         Row: {
           created_at: string
+          customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           discount: number
@@ -228,6 +229,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount?: number
@@ -247,6 +249,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount?: number
@@ -265,6 +268,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_payment_method_id_fkey"
             columns: ["payment_method_id"]

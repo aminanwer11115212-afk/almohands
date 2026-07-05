@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Loader2, LogIn, UserPlus } from "lucide-react";
@@ -16,13 +16,10 @@ function safeNext(next: string | undefined): string {
   return next;
 }
 
-
-type Mode = "signin" | "signup";
-
 function AuthPage() {
-  const navigate = useNavigate();
   const search = Route.useSearch();
   const nextPath = safeNext(search.next);
+
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

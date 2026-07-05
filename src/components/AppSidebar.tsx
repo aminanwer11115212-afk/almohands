@@ -16,6 +16,7 @@ import {
   Bell,
   ShieldCheck,
   Settings,
+  CreditCard,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import logo from "@/assets/logo.png";
@@ -40,6 +41,7 @@ const SECONDARY: NavItem[] = [
 ];
 
 const UTILITY: NavItem[] = [
+  { to: "/payment-methods", label: "طرق الدفع", icon: CreditCard },
   { to: "/import", label: "استيراد", icon: FileSpreadsheet },
   { to: "/export", label: "تصدير", icon: Download },
   { to: "/notifications", label: "الإشعارات", icon: Bell },

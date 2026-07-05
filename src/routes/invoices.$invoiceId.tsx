@@ -106,10 +106,10 @@ function InvoiceDetailPage() {
           <tbody>
             {items.map((it) => (
               <tr key={it.id}>
-                <td className="p-2 border">{it.name}</td>
+                <td className="p-2 border">{it.product_name}</td>
                 <td className="p-2 border text-center nums">{it.quantity}</td>
-                <td className="p-2 border text-center nums">{formatSDG(Number(it.price))}</td>
-                <td className="p-2 border text-center nums">{formatSDG(Number(it.total))}</td>
+                <td className="p-2 border text-center nums">{formatSDG(Number(it.unit_price))}</td>
+                <td className="p-2 border text-center nums">{formatSDG(Number(it.line_total))}</td>
               </tr>
             ))}
           </tbody>

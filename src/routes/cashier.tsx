@@ -39,8 +39,24 @@ function CashierPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastInvoiceNo, setLastInvoiceNo] = useState<number | null>(null);
+  const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
+  const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 
   const { data: products = [] } = useProducts({ q: query, sort: "name", asc: true });
+  const { data: paymentMethods = [] } = usePaymentMethods(true);
+
+  // Auto-select default payment method
+  useEffect(() => {
+    if (paymentMethodId) return;
+    const def = paymentMethods.find((m) => m.is_default);
+    if (def) {
+      setPaymentType(def.type);
+      setPaymentMethodId(def.id);
+    }
+  }, [paymentMethods, paymentMethodId]);
+
+  const bankAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "bank"), [paymentMethods]);
+  const cashAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "cash"), [paymentMethods]);
 
   useEffect(() => {
     const channel = supabase

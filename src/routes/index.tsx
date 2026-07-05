@@ -17,12 +17,14 @@ import {
   LogOut,
   PieChart,
   Download,
+  Bell,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { formatSDG } from "@/lib/format";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { useUnreadNotifications } from "@/hooks/use-notifications";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({

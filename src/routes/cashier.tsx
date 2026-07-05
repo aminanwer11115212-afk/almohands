@@ -510,10 +510,52 @@ function CashierPage() {
               <User className="absolute right-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
               <input
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="عميل نقدي"
-                className="w-full h-9 rounded-lg border border-border bg-background pr-7 pl-2 text-xs outline-none focus:border-brand"
+                onChange={(e) => {
+                  setCustomerName(e.target.value);
+                  setSelectedCustomerId(null);
+                  setShowCustomerList(true);
+                }}
+                onFocus={() => setShowCustomerList(true)}
+                onBlur={() => setTimeout(() => setShowCustomerList(false), 150)}
+                placeholder="عميل نقدي — ابحث أو أضف"
+                className="w-full h-9 rounded-lg border border-border bg-background pr-7 pl-7 text-xs outline-none focus:border-brand"
               />
+              {selectedCustomerId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomerId(null);
+                    setCustomerName("");
+                    setCustomerPhone("");
+                  }}
+                  className="absolute left-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
+                  aria-label="مسح العميل"
+                >
+                  <X className="size-3.5 text-muted-foreground" />
+                </button>
+              )}
+              {showCustomerList && customerName.trim().length > 0 && customerMatches.length > 0 && !selectedCustomerId && (
+                <ul className="absolute z-20 top-full mt-1 right-0 left-0 max-h-56 overflow-auto rounded-lg border border-border bg-popover shadow-lg text-xs">
+                  {customerMatches.slice(0, 8).map((c) => (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSelectedCustomerId(c.id);
+                          setCustomerName(c.name);
+                          setCustomerPhone(c.phone ?? "");
+                          setShowCustomerList(false);
+                        }}
+                        className="w-full text-right px-3 py-2 hover:bg-muted flex items-center justify-between gap-2"
+                      >
+                        <span className="font-medium truncate">{c.name}</span>
+                        {c.phone && <span className="text-muted-foreground nums text-[11px]" dir="ltr">{c.phone}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <input
               value={customerPhone}
@@ -522,7 +564,18 @@ function CashierPage() {
               dir="ltr"
               className="col-span-2 sm:col-span-1 h-9 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:border-brand text-left"
             />
+            {selectedCustomerId && (
+              <div className="col-span-2 text-[11px] text-brand flex items-center gap-1">
+                <CheckCircle2 className="size-3" /> عميل محفوظ — سيُربط بالفاتورة
+              </div>
+            )}
+            {!selectedCustomerId && customerName.trim().length > 0 && (
+              <div className="col-span-2 text-[11px] text-muted-foreground">
+                عميل جديد — سيُحفظ تلقائياً عند إتمام البيع
+              </div>
+            )}
           </div>
+
 
           {/* Cart items */}
           <div className="flex-1 overflow-auto min-h-[160px] max-h-[380px]">

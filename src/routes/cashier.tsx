@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/use-products";
 import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
 import { useStoreProfile } from "@/hooks/use-store-profile";
+import { useCustomers } from "@/hooks/use-customers";
 import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";

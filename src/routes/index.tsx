@@ -87,12 +87,21 @@ function HomePage() {
           </Link>
           {email ? (
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={async () => {
+                try {
+                  const { error } = await supabase.auth.signOut();
+                  if (error) throw error;
+                  toast.success("تم تسجيل الخروج");
+                } catch (err) {
+                  toast.error(getErrorMessage(err, "تعذّر تسجيل الخروج"));
+                }
+              }}
               className="grid size-10 place-items-center rounded-full hover:bg-white/10 focus-visible:bg-white/10 transition"
               aria-label="تسجيل الخروج"
             >
               <LogOut className="size-5" aria-hidden="true" />
             </button>
+
           ) : (
             <Link
               to="/auth"

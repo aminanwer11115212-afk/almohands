@@ -100,7 +100,8 @@ function InvoiceDetailPage() {
   const storeAddress = store?.address || "";
   const invoiceFooter = store?.invoice_footer || "";
   const showLogo = store?.show_logo !== false;
-  const paymentLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
+  const baseLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
+  const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">

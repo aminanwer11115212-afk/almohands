@@ -27,7 +27,20 @@ function InvoiceDetailPage() {
         .from("invoice_items")
         .select("*")
         .eq("invoice_id", invoiceId);
-      return { inv, items: items ?? [] };
+      let paymentMethod = null;
+      if (inv?.payment_method_id) {
+        const { data: pm } = await supabase
+          .from("payment_methods")
+          .select("*")
+          .eq("id", inv.payment_method_id)
+          .maybeSingle();
+        paymentMethod = pm;
+      }
+      const { data: store } = await supabase
+        .from("store_profile")
+        .select("*")
+        .maybeSingle();
+      return { inv, items: items ?? [], paymentMethod, store };
     },
   });
 

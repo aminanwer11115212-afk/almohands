@@ -81,15 +81,15 @@ function HomePage() {
           <span className="text-xs opacity-80">مبيعات هذا الشهر</span>
           <span className="text-[11px] bg-white/15 rounded-full px-2 py-0.5">SDG</span>
         </div>
-        <div className="mt-2 text-2xl font-extrabold nums">{formatSDG(accountSummary.thisMonth)}</div>
+        <div className="mt-2 text-2xl font-extrabold nums">{formatSDG(stats?.thisMonth ?? 0)}</div>
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl bg-white/10 p-2">
             <div className="opacity-75">اليوم</div>
-            <div className="font-bold nums">{formatSDG(accountSummary.today)}</div>
+            <div className="font-bold nums">{formatSDG(stats?.today ?? 0)}</div>
           </div>
           <div className="rounded-xl bg-white/10 p-2">
             <div className="opacity-75">الشهر الماضي</div>
-            <div className="font-bold nums">{formatSDG(accountSummary.lastMonth)}</div>
+            <div className="font-bold nums">{formatSDG(stats?.lastMonth ?? 0)}</div>
           </div>
         </div>
       </section>

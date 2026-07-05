@@ -116,6 +116,39 @@ export type Database = {
         }
         Relationships: []
       }
+      export_logs: {
+        Row: {
+          created_at: string
+          export_type: string
+          format: string
+          id: string
+          notes: string | null
+          row_count: number
+          tables: string[]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          export_type: string
+          format: string
+          id?: string
+          notes?: string | null
+          row_count?: number
+          tables?: string[]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          export_type?: string
+          format?: string
+          id?: string
+          notes?: string | null
+          row_count?: number
+          tables?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           cost_price: number

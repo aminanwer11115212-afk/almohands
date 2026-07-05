@@ -1,14 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
   component: SettingsPage,
 });
+
 
 type StoreInfo = {
   name: string;

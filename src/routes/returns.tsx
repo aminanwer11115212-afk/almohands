@@ -19,7 +19,7 @@ function ReturnsPage() {
   const { data: returns = [], isLoading } = useReturns();
   const addReturn = useAddReturn();
   const updateStatus = useUpdateReturnStatus();
-  const { toast } = useToast();
+  
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ product_name: "", quantity: "1", reason: "" });
@@ -62,7 +62,7 @@ function ReturnsPage() {
   };
 
   return (
-    <AppShell title="المرتجعات" icon={RotateCcw} showBack>
+    <AppShell title="المرتجعات" showBack>
       <div className="space-y-4">
         <div className="flex gap-2">
           <div className="relative flex-1">

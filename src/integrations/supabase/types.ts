@@ -474,6 +474,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      __test_count_null_auth_tokens: { Args: never; Returns: number }
+      __test_create_auth_user: {
+        Args: {
+          p_confirm: boolean
+          p_email: string
+          p_null_tokens: boolean
+          p_password: string
+        }
+        Returns: string
+      }
+      __test_delete_auth_user: { Args: { p_email: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

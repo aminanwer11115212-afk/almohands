@@ -108,12 +108,14 @@ function ProductsPage() {
             </li>
           ) : (
             rows.map((p) => (
-              <li key={p.id} className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3.5 text-sm">
-                <span className="text-foreground font-semibold text-end leading-tight">{p.name}</span>
-                <span className="w-24 text-center text-foreground nums">{formatNumber(p.quantity)}</span>
-                <span className="w-28 text-center text-foreground font-bold nums">{formatNumber(p.salePrice)}</span>
-              </li>
-            ))
+              <li key={p.id}>
+                <Link
+                  to="/products/$productId"
+                  params={{ productId: p.id }}
+                  className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3.5 text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <span className="text-foreground font-semibold text-end leading-tight">{p.name}</span>
+                  <span className="w-24 text
           )}
         </ul>
       </div>

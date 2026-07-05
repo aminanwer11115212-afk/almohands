@@ -36,6 +36,7 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const [email, setEmail] = useState<string | null>(null);
+  const { data: stats } = useDashboardStats();
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {

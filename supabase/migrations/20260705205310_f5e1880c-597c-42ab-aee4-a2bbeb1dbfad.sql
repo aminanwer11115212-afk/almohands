@@ -1,0 +1,1 @@
+ALTER TABLE public.invoices ALTER COLUMN invoice_number SET DEFAULT 0;

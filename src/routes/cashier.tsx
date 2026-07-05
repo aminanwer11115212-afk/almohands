@@ -105,12 +105,34 @@ function CashierPage() {
   async function checkout() {
     if (cart.length === 0) {
       setError("أضف منتجات للسلة أولاً");
+      toast.error("السلة فارغة");
       return;
     }
+    // Validate phone shape if provided
+    const phone = customerPhone.trim();
+    if (phone && !/^[0-9+\-\s()]{6,20}$/.test(phone)) {
+      setError("رقم الهاتف غير صالح");
+      toast.error("رقم الهاتف غير صالح");
+      return;
+    }
+    if (customerName.length > 120 || phone.length > 30) {
+      setError("بيانات العميل طويلة جداً");
+      return;
+    }
+    // Sanity: quantities within stock
+    const overStock = cart.find((i) => i.quantity > i.maxQty || i.quantity <= 0);
+    if (overStock) {
+      const msg = `الكمية غير صالحة للصنف: ${overStock.name}`;
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setError(null);
     setSaving(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
       const userId = u.user?.id;
       if (!userId) { navigate({ to: "/auth" }); return; }
 
@@ -121,7 +143,7 @@ function CashierPage() {
         .insert({
           user_id: userId,
           customer_name: customerName.trim() || null,
-          customer_phone: customerPhone.trim() || null,
+          customer_phone: phone || null,
           source: "pos",
           status,
           subtotal,
@@ -133,6 +155,7 @@ function CashierPage() {
         .select("id, invoice_number")
         .single();
       if (e1) throw e1;
+      if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
 
       const items = cart.map((i) => ({
         invoice_id: inv.id,
@@ -146,7 +169,11 @@ function CashierPage() {
         line_total: i.unitPrice * i.quantity,
       }));
       const { error: e2 } = await supabase.from("invoice_items").insert(items);
-      if (e2) throw e2;
+      if (e2) {
+        // Best-effort rollback: delete the invoice we just created
+        await supabase.from("invoices").delete().eq("id", inv.id);
+        throw e2;
+      }
 
       setLastInvoiceNo(inv.invoice_number);
       setCart([]);
@@ -155,12 +182,16 @@ function CashierPage() {
       setDiscount("0");
       setPaid("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
     } catch (err) {
-      setError((err as Error).message || "تعذّر إتمام البيع");
+      const msg = getErrorMessage(err, "تعذّر إتمام البيع");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   }
+
 
   return (
     <AppShell title="الكاشير" showBack>

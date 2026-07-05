@@ -114,13 +114,13 @@ function InvoiceDetailPage() {
 
           <div className="flex items-center rounded-lg bg-white/10 p-0.5 text-sm">
             <button
-              onClick={() => setFormat("a4")}
+              onClick={() => changeFormat("a4")}
               className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "a4" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
               <FileText className="size-4" /> A4
             </button>
             <button
-              onClick={() => setFormat("thermal")}
+              onClick={() => changeFormat("thermal")}
               className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "thermal" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
               <Receipt className="size-4" /> حراري

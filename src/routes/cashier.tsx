@@ -1,10 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt } from "lucide-react";
+import { Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt, Wallet, Landmark } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/use-products";
+import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
 import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";

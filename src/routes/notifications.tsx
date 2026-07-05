@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Check, Trash2, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "الإشعارات — المهندس" }] }),

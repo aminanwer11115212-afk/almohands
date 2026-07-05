@@ -82,6 +82,8 @@ function NavGroup({ label, items, currentPath }: { label: string; items: NavItem
 
 export function AppSidebar() {
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
+  const { role } = useMyRole();
+  const filter = (items: NavItem[]) => items.filter((i) => can(role, i.perm));
 
   return (
     <aside
@@ -99,9 +101,9 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        <NavGroup label="الأساسيات" items={PRIMARY} currentPath={currentPath} />
-        <NavGroup label="الإدارة" items={SECONDARY} currentPath={currentPath} />
-        <NavGroup label="أدوات" items={UTILITY} currentPath={currentPath} />
+        <NavGroup label="الأساسيات" items={filter(PRIMARY)} currentPath={currentPath} />
+        <NavGroup label="الإدارة" items={filter(SECONDARY)} currentPath={currentPath} />
+        <NavGroup label="أدوات" items={filter(UTILITY)} currentPath={currentPath} />
       </nav>
 
       <div className="p-4 border-t border-white/10">

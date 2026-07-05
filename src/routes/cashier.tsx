@@ -355,7 +355,7 @@ function CashierPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [saving, cart.length, query]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query]);
 
   return (
     <AppShell title="الكاشير" showBack>

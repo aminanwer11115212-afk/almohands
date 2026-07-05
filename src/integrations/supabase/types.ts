@@ -620,6 +620,14 @@ export type Database = {
         Returns: string
       }
       __test_delete_auth_user: { Args: { p_email: string }; Returns: undefined }
+      admin_list_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

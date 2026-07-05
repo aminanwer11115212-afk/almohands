@@ -107,6 +107,7 @@ function HomePage() {
         <MenuTile to="/invoices" icon={Receipt} label="الفواتير" />
         <MenuTile to="/returns" icon={RotateCcw} label="المرتجعات" />
         <MenuTile to="/permissions" icon={ShieldCheck} label="الصلاحيات" />
+        <MenuTile to="/reports" icon={PieChart} label="التقارير" />
         <MenuTile to="/settings" icon={Settings} label="الإعدادات" />
       </div>
 

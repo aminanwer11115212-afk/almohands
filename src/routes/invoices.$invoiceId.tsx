@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { Printer, ArrowRight, FileText, Receipt } from "lucide-react";
 import logo from "@/assets/logo.png";
-import { useStoreProfile } from "@/hooks/use-store-profile";
+import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),

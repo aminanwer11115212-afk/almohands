@@ -22,6 +22,7 @@ function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
   const { autoprint } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
+  const saveProfile = useSaveStoreProfile();
 
   const [format, setFormat] = useState<PrintFormat>("a4");
   const [formatReady, setFormatReady] = useState(false);
@@ -33,6 +34,14 @@ function InvoiceDetailPage() {
     }
     setFormatReady(true);
   }, [storeProfile?.print_size]);
+
+  const changeFormat = (next: PrintFormat) => {
+    setFormat(next);
+    const nextSize = next === "thermal" ? "80mm" : "A4";
+    if (storeProfile && storeProfile.print_size !== nextSize) {
+      saveProfile.mutate({ print_size: nextSize });
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],

@@ -8,6 +8,7 @@ import { formatNumber } from "@/lib/format";
 import { useProducts, type SortKey } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCan } from "@/hooks/use-permissions";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),

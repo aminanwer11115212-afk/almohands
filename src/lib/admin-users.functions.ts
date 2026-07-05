@@ -4,9 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 
-async function ensureAdmin(supabase: {
-  rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown }>;
-}, userId: string) {
+async function ensureAdmin(supabase: Awaited<ReturnType<typeof import("@/integrations/supabase/auth-middleware").getAuthedSupabase>> extends never ? never : any, userId: string): Promise<void> {
   const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (!data) throw new Error("Forbidden: admin only");
 }

@@ -86,9 +86,13 @@ function PricesPage() {
       if (!preview || preview.count === 0) throw new Error("لا توجد منتجات للتحديث");
       // Batched updates
       const results = await Promise.all(
-        preview.rows.map((r) =>
-          supabase.from("products").update({ [target]: r.newPrice }).eq("id", r.id),
-        ),
+        preview.rows.map((r) => {
+          const patch =
+            target === "sale_price"
+              ? { sale_price: r.newPrice }
+              : { cost_price: r.newPrice };
+          return supabase.from("products").update(patch).eq("id", r.id);
+        }),
       );
       const failed = results.filter((r) => r.error);
       if (failed.length) throw new Error(`فشل تحديث ${failed.length} منتج`);

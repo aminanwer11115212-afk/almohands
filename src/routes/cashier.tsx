@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/use-products";
 import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage, parseNumber } from "@/lib/errors";
+import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),

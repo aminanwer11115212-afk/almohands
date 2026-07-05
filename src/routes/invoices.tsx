@@ -79,14 +79,16 @@ function InvoicesPage() {
         req = req.lte("created_at", end.toISOString());
       }
       if (q.trim()) {
-        const term = q.trim();
-        const asNum = Number(term);
-        if (!Number.isNaN(asNum)) {
-          req = req.or(
-            `invoice_number.eq.${asNum},customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`,
-          );
-        } else {
-          req = req.or(`customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`);
+        const term = sanitizeOrTerm(q);
+        if (term) {
+          const asNum = Number(term);
+          if (Number.isInteger(asNum) && asNum > 0) {
+            req = req.or(
+              `invoice_number.eq.${asNum},customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`,
+            );
+          } else {
+            req = req.or(`customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`);
+          }
         }
       }
 

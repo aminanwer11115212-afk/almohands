@@ -53,11 +53,18 @@ function ReturnsPage() {
     );
   };
 
-  const handleStatus = (id: string, status: ReturnStatus) => {
+  const handleStatus = (id: string, status: ReturnStatus, hasProduct: boolean) => {
     updateStatus.mutate(
       { id, status },
       {
-        onSuccess: () => toast.success(status === "accepted" ? "تم قبول المرتجع وإعادة المخزون" : "تم رفض المرتجع"),
+        onSuccess: () =>
+          toast.success(
+            status === "accepted"
+              ? hasProduct
+                ? "تم قبول المرتجع وإعادة المخزون"
+                : "تم قبول المرتجع (بدون تعديل مخزون)"
+              : "تم رفض المرتجع",
+          ),
         onError: (err) => toast.error(getErrorMessage(err, "تعذّر تحديث الحالة")),
       }
     );

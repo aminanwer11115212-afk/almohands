@@ -131,3 +131,44 @@ export function useAddAuditLog() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["audit-logs"] }),
   });
 }
+
+/**
+ * Effective role for the current signed-in user.
+ * Precedence: admin > warehouse > accountant > seller.
+ * If the user has NO roles assigned, they are treated as `admin`
+ * (backwards-compat for owner accounts that predate the roles system).
+ */
+export function useMyRole() {
+  const roles = useMyRoles();
+  const list = roles.data ?? [];
+  let effective: AppRole = "admin";
+  if (list.length > 0) {
+    const set = new Set(list.map((r) => r.role));
+    effective = set.has("admin")
+      ? "admin"
+      : set.has("warehouse")
+        ? "warehouse"
+        : set.has("accountant")
+          ? "accountant"
+          : "seller";
+  }
+  return { role: effective, isLoading: roles.isLoading, isAdmin: effective === "admin" };
+}
+
+export function can(role: AppRole, perm: Permission): boolean {
+  if (role === "admin") return true;
+  return ROLE_PERMS[role].includes(perm);
+}
+
+export function useCan(perm: Permission): boolean {
+  const { role, isLoading } = useMyRole();
+  if (isLoading) return false;
+  return can(role, perm);
+}
+
+/** Render `children` only when the current user has `perm`. */
+export function Can({ perm, children, fallback = null }: { perm: Permission; children: ReactNode; fallback?: ReactNode }) {
+  const allowed = useCan(perm);
+  return allowed ? <>{children}</> : <>{fallback}</>;
+}
+

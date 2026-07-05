@@ -20,9 +20,8 @@ export function useRequireAdmin(redirectTo: string = "/") {
   const query = useQuery({
     queryKey: ["is-admin"],
     queryFn: async () => {
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
-      const uid = userData.user?.id;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const uid = sessionData.session?.user?.id;
       if (!uid) return false;
       const { data, error } = await supabase.rpc("has_role", {
         _user_id: uid,

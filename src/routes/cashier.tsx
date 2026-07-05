@@ -55,10 +55,11 @@ function CashierPage() {
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
     [cart],
   );
-  const discountNum = Number(discount) || 0;
+  const discountNum = Math.min(subtotal, Math.max(0, parseNumber(discount, { min: 0 })));
   const total = Math.max(0, subtotal - discountNum);
-  const paidNum = paid === "" ? total : Number(paid) || 0;
+  const paidNum = paid === "" ? total : Math.max(0, parseNumber(paid, { min: 0 }));
   const remaining = total - paidNum;
+
 
   function addProduct(p: Product) {
     setCart((prev) => {

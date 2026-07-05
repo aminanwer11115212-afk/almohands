@@ -69,13 +69,16 @@ function InvoiceDetailPage() {
     },
   });
 
-  // Auto-open print dialog when arriving with ?autoprint=1 (once data + format ready)
+  // Auto-open print dialog only ONCE per page visit; background refetches
+  // must not retrigger window.print().
+  const printedRef = useRef(false);
+  const hasInv = Boolean(data?.inv);
   useEffect(() => {
-    if (autoprint && formatReady && data?.inv) {
-      const t = setTimeout(() => window.print(), 350);
-      return () => clearTimeout(t);
-    }
-  }, [autoprint, formatReady, data?.inv]);
+    if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
+    printedRef.current = true;
+    const t = setTimeout(() => window.print(), 350);
+    return () => clearTimeout(t);
+  }, [autoprint, formatReady, hasInv]);
 
   if (isLoading) {
     return (

@@ -255,10 +255,11 @@ function EditProductPage() {
           type="button"
           onClick={onDelete}
           disabled={deleting}
-          className="w-full h-12 rounded-xl border border-destructive text-destructive font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          className={`w-full h-12 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 ${confirmDelete ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive text-destructive"}`}
         >
-          {deleting ? <Loader2 className="size-4 animate-spin" /> : <><Trash2 className="size-4" /> حذف المنتج</>}
+          {deleting ? <Loader2 className="size-4 animate-spin" /> : <><Trash2 className="size-4" /> {confirmDelete ? "تأكيد الحذف" : "حذف المنتج"}</>}
         </button>
+
       </form>
 
       <style>{`

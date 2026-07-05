@@ -256,18 +256,17 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
         </tbody>
       </table>
 
-      {/* Payment summary if partial */}
-      {(Number(inv.paid) !== Number(inv.total) || inv.payment_method === "bank") && (
-        <div className="mt-3 flex flex-wrap justify-between gap-3 text-sm">
-          <div><span className="font-semibold">طريقة الدفع:</span> {paymentLabel}</div>
-          <div><span className="font-semibold">المدفوع:</span> <span className="nums">{formatSDG(Number(inv.paid))}</span></div>
-          {Number(inv.remaining) > 0 && (
-            <div className="text-rose-700">
-              <span className="font-semibold">المتبقي:</span> <span className="nums">{formatSDG(Number(inv.remaining))}</span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Payment summary — always visible */}
+      <div className="mt-3 flex flex-wrap justify-between gap-3 text-sm">
+        <div><span className="font-semibold">طريقة الدفع:</span> {paymentLabel}</div>
+        <div><span className="font-semibold">المدفوع:</span> <span className="nums">{formatSDG(Number(inv.paid))}</span></div>
+        {Number(inv.remaining) > 0 && (
+          <div className="text-rose-700">
+            <span className="font-semibold">المتبقي:</span> <span className="nums">{formatSDG(Number(inv.remaining))}</span>
+          </div>
+        )}
+      </div>
+
 
       {/* Bank transfer details */}
       {paymentMethod && paymentMethod.type === "bank" && (

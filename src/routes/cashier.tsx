@@ -1,10 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt } from "lucide-react";
+import { Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt, Wallet, Landmark } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useProducts } from "@/hooks/use-products";
+import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
 import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
@@ -38,8 +39,24 @@ function CashierPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastInvoiceNo, setLastInvoiceNo] = useState<number | null>(null);
+  const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
+  const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 
   const { data: products = [] } = useProducts({ q: query, sort: "name", asc: true });
+  const { data: paymentMethods = [] } = usePaymentMethods(true);
+
+  // Auto-select default payment method
+  useEffect(() => {
+    if (paymentMethodId) return;
+    const def = paymentMethods.find((m) => m.is_default);
+    if (def) {
+      setPaymentType(def.type);
+      setPaymentMethodId(def.id);
+    }
+  }, [paymentMethods, paymentMethodId]);
+
+  const bankAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "bank"), [paymentMethods]);
+  const cashAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "cash"), [paymentMethods]);
 
   useEffect(() => {
     const channel = supabase
@@ -127,6 +144,13 @@ function CashierPage() {
       toast.error(msg);
       return;
     }
+    if (paymentType === "bank" && !paymentMethodId) {
+      setError("اختر حساباً بنكياً");
+      toast.error("اختر حساباً بنكياً");
+      return;
+    }
+
+
 
     setError(null);
     setSaving(true);
@@ -151,6 +175,8 @@ function CashierPage() {
           total,
           paid: paidNum,
           remaining,
+          payment_method: paymentType,
+          payment_method_id: paymentType === "bank" ? (paymentMethodId || null) : (paymentMethodId || null),
         })
         .select("id, invoice_number")
         .single();
@@ -284,6 +310,68 @@ function CashierPage() {
           dir="ltr"
           className="h-11 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-brand text-left"
         />
+      </div>
+
+      {/* Payment method */}
+      <div className="mt-4 rounded-2xl border border-border bg-card shadow-card p-4 space-y-3">
+        <div className="text-xs font-bold text-muted-foreground">طريقة الدفع</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setPaymentType("cash");
+              const def = cashAccounts.find((m) => m.is_default) ?? cashAccounts[0];
+              setPaymentMethodId(def?.id ?? "");
+            }}
+            className={`h-11 rounded-xl border flex items-center justify-center gap-2 text-sm font-bold transition ${paymentType === "cash" ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "border-border bg-background text-foreground"}`}
+          >
+            <Wallet className="size-4" /> نقدي
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPaymentType("bank");
+              const def = bankAccounts.find((m) => m.is_default) ?? bankAccounts[0];
+              setPaymentMethodId(def?.id ?? "");
+            }}
+            className={`h-11 rounded-xl border flex items-center justify-center gap-2 text-sm font-bold transition ${paymentType === "bank" ? "bg-blue-50 border-blue-500 text-blue-700" : "border-border bg-background text-foreground"}`}
+          >
+            <Landmark className="size-4" /> بنكي
+          </button>
+        </div>
+        {paymentType === "bank" && (
+          bankAccounts.length === 0 ? (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+              لا توجد حسابات بنكية مسجّلة.{" "}
+              <Link to="/payment-methods" className="underline font-bold">أضف حساباً</Link>
+            </div>
+          ) : (
+            <select
+              value={paymentMethodId}
+              onChange={(e) => setPaymentMethodId(e.target.value)}
+              className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
+            >
+              <option value="">— اختر الحساب —</option>
+              {bankAccounts.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.bank_name ? ` (${m.bank_name})` : ""}
+                </option>
+              ))}
+            </select>
+          )
+        )}
+        {paymentType === "cash" && cashAccounts.length > 0 && cashAccounts.length > 1 && (
+          <select
+            value={paymentMethodId}
+            onChange={(e) => setPaymentMethodId(e.target.value)}
+            className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
+          >
+            <option value="">— بدون تخصيص —</option>
+            {cashAccounts.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Totals */}

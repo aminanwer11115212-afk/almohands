@@ -15,6 +15,7 @@ import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PricesRouteImport } from './routes/prices'
 import { Route as PermissionsRouteImport } from './routes/permissions'
+import { Route as PaymentMethodsRouteImport } from './routes/payment-methods'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as InvoicesRouteImport } from './routes/invoices'
@@ -63,6 +64,11 @@ const PricesRoute = PricesRouteImport.update({
 const PermissionsRoute = PermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentMethodsRoute = PaymentMethodsRouteImport.update({
+  id: '/payment-methods',
+  path: '/payment-methods',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/reports': typeof ReportsRoute
@@ -203,6 +210,7 @@ export interface FileRoutesByTo {
   '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/reports': typeof ReportsRoute
@@ -231,6 +239,7 @@ export interface FileRoutesById {
   '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/reports': typeof ReportsRoute
@@ -260,6 +269,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/mcp'
     | '/notifications'
+    | '/payment-methods'
     | '/permissions'
     | '/prices'
     | '/reports'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/mcp'
     | '/notifications'
+    | '/payment-methods'
     | '/permissions'
     | '/prices'
     | '/reports'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/mcp'
     | '/notifications'
+    | '/payment-methods'
     | '/permissions'
     | '/prices'
     | '/reports'
@@ -342,6 +354,7 @@ export interface RootRouteChildren {
   InvoicesRoute: typeof InvoicesRouteWithChildren
   McpRoute: typeof McpRoute
   NotificationsRoute: typeof NotificationsRoute
+  PaymentMethodsRoute: typeof PaymentMethodsRoute
   PermissionsRoute: typeof PermissionsRoute
   PricesRoute: typeof PricesRoute
   ReportsRoute: typeof ReportsRoute
@@ -399,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof PermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-methods': {
+      id: '/payment-methods'
+      path: '/payment-methods'
+      fullPath: '/payment-methods'
+      preLoaderRoute: typeof PaymentMethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -561,6 +581,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvoicesRoute: InvoicesRouteWithChildren,
   McpRoute: McpRoute,
   NotificationsRoute: NotificationsRoute,
+  PaymentMethodsRoute: PaymentMethodsRoute,
   PermissionsRoute: PermissionsRoute,
   PricesRoute: PricesRoute,
   ReportsRoute: ReportsRoute,

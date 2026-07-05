@@ -216,6 +216,8 @@ export type Database = {
           invoice_number: number
           notes: string | null
           paid: number
+          payment_method: string
+          payment_method_id: string | null
           remaining: number
           source: string
           status: string
@@ -233,6 +235,8 @@ export type Database = {
           invoice_number?: number
           notes?: string | null
           paid?: number
+          payment_method?: string
+          payment_method_id?: string | null
           remaining?: number
           source?: string
           status?: string
@@ -250,6 +254,8 @@ export type Database = {
           invoice_number?: number
           notes?: string | null
           paid?: number
+          payment_method?: string
+          payment_method_id?: string | null
           remaining?: number
           source?: string
           status?: string
@@ -258,7 +264,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -300,6 +314,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payment_methods: {
+        Row: {
+          account_holder: string | null
+          account_number: string | null
+          bank_name: string | null
+          created_at: string
+          iban: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          notes: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_holder?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          iban?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          notes?: string | null
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_holder?: string | null
+          account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          iban?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          notes?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -411,6 +473,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      store_profile: {
+        Row: {
+          address: string
+          auto_print: boolean
+          created_at: string
+          currency: string
+          id: string
+          invoice_footer: string
+          invoice_header: string
+          logo_url: string | null
+          name: string
+          phone: string
+          print_copies: number
+          print_size: string
+          show_logo: boolean
+          show_qr: boolean
+          show_tax: boolean
+          tax_number: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          auto_print?: boolean
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_footer?: string
+          invoice_header?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          print_copies?: number
+          print_size?: string
+          show_logo?: boolean
+          show_qr?: boolean
+          show_tax?: boolean
+          tax_number?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          auto_print?: boolean
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_footer?: string
+          invoice_header?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          print_copies?: number
+          print_size?: string
+          show_logo?: boolean
+          show_qr?: boolean
+          show_tax?: boolean
+          tax_number?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {

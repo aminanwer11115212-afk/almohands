@@ -51,6 +51,7 @@ const UTILITY: NavItem[] = [
 ];
 
 function NavGroup({ label, items, currentPath }: { label: string; items: NavItem[]; currentPath: string }) {
+  if (items.length === 0) return null;
   return (
     <div className="space-y-1">
       <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-white/40">

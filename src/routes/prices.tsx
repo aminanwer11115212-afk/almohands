@@ -93,22 +93,36 @@ function PricesPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!preview || preview.count === 0) throw new Error("لا توجد منتجات للتحديث");
-      // Batched updates
+      // Optimistic locking: only update rows where the old price still matches
+      // what we previewed. Prevents overwriting concurrent edits by another user.
       const results = await Promise.all(
-        preview.rows.map((r) => {
+        preview.rows.map(async (r) => {
           const patch =
             target === "sale_price"
               ? { sale_price: r.newPrice }
               : { cost_price: r.newPrice };
-          return supabase.from("products").update(patch).eq("id", r.id);
+          const { data, error } = await supabase
+            .from("products")
+            .update(patch)
+            .eq("id", r.id)
+            .eq(target, r.oldPrice)
+            .select("id");
+          return { id: r.id, error, matched: (data?.length ?? 0) > 0 };
         }),
       );
       const failed = results.filter((r) => r.error);
+      const stale = results.filter((r) => !r.error && !r.matched);
       if (failed.length) throw new Error(`فشل تحديث ${failed.length} منتج`);
-      return preview.count;
+      return { updated: results.length - failed.length - stale.length, stale: stale.length };
     },
-    onSuccess: (count) => {
-      toast.success(`تم تحديث ${formatNumber(count)} منتج بنجاح`);
+    onSuccess: ({ updated, stale }) => {
+      if (stale > 0) {
+        toast.warning(
+          `تم تحديث ${formatNumber(updated)} منتج. تم تخطي ${formatNumber(stale)} منتج تغيّر سعره من مستخدم آخر — أعد المعاينة.`,
+        );
+      } else {
+        toast.success(`تم تحديث ${formatNumber(updated)} منتج بنجاح`);
+      }
       qc.invalidateQueries({ queryKey: ["prices-products"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       setConfirm(false);

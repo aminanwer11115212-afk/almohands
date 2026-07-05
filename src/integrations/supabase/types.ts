@@ -234,7 +234,7 @@ export type Database = {
           customer_phone?: string | null
           discount?: number
           id?: string
-          invoice_number?: number
+          invoice_number: number
           notes?: string | null
           paid?: number
           payment_method?: string

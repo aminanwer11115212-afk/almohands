@@ -143,7 +143,12 @@ function CashierPage() {
       setError(msg);
       toast.error(msg);
       return;
+    if (paymentType === "bank" && !paymentMethodId) {
+      setError("اختر حساباً بنكياً");
+      toast.error("اختر حساباً بنكياً");
+      return;
     }
+
 
     setError(null);
     setSaving(true);

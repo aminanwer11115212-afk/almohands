@@ -25,7 +25,7 @@ export const Route = createFileRoute("/products/")({
 
 function ProductsPage() {
   const { q, sort, asc } = Route.useSearch();
-  const navigate = useNavigate({ from: "/products" });
+  const navigate = useNavigate({ from: "/products/" });
   const queryClient = useQueryClient();
   const { data: rows = [], isLoading, isError, error } = useProducts({ q, sort, asc });
 

@@ -44,11 +44,19 @@ function HomePage() {
   const { data: unread = 0 } = useUnreadNotifications();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (alive) setEmail(data.user?.email ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only react to identity transitions; ignore TOKEN_REFRESHED / INITIAL_SESSION noise.
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       setEmail(session?.user?.email ?? null);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      alive = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const growth =

@@ -27,12 +27,10 @@ function useAccountStats() {
       const lastMonthStart = lastMonth.toISOString().slice(0, 10);
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
 
-      // Invoices
       const { data: invoices } = await supabase
         .from("invoices")
-        .select("total, profit, created_at");
+        .select("total, created_at");
 
-      // Expenses
       const { data: expenses } = await supabase
         .from("expenses")
         .select("amount, date");
@@ -40,8 +38,8 @@ function useAccountStats() {
       const inv = invoices || [];
       const exp = expenses || [];
 
-      const sumInv = (filter: (d: string) => boolean, field: "total" | "profit") =>
-        inv.filter((i) => filter(i.created_at?.slice(0, 10) || "")).reduce((s, i) => s + (Number(i[field]) || 0), 0);
+      const sumInv = (filter: (d: string) => boolean) =>
+        inv.filter((i) => filter(i.created_at?.slice(0, 10) || "")).reduce((s, i) => s + (Number(i.total) || 0), 0);
 
       const sumExp = (filter: (d: string) => boolean) =>
         exp.filter((e) => filter(e.date || "")).reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -52,8 +50,8 @@ function useAccountStats() {
       const isLastMonth = (d: string) => d >= lastMonthStart && d <= lastMonthEnd;
 
       return {
-        sales: { today: sumInv(isToday, "total"), yesterday: sumInv(isYesterday, "total"), thisMonth: sumInv(isThisMonth, "total"), lastMonth: sumInv(isLastMonth, "total") },
-        profit: { today: sumInv(isToday, "profit"), yesterday: sumInv(isYesterday, "profit"), thisMonth: sumInv(isThisMonth, "profit"), lastMonth: sumInv(isLastMonth, "profit") },
+        sales: { today: sumInv(isToday), yesterday: sumInv(isYesterday), thisMonth: sumInv(isThisMonth), lastMonth: sumInv(isLastMonth) },
+        profit: { today: sumInv(isToday) - sumExp(isToday), yesterday: sumInv(isYesterday) - sumExp(isYesterday), thisMonth: sumInv(isThisMonth) - sumExp(isThisMonth), lastMonth: sumInv(isLastMonth) - sumExp(isLastMonth) },
         expenses: { today: sumExp(isToday), yesterday: sumExp(isYesterday), thisMonth: sumExp(isThisMonth), lastMonth: sumExp(isLastMonth) },
       };
     },

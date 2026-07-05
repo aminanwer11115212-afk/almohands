@@ -305,16 +305,18 @@ function CashierPage() {
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
-
-      // Auto-print: navigate directly to preview with autoprint flag
-      if (storeProfile?.auto_print) {
-        navigate({
-          to: "/invoices/$invoiceId",
-          params: { invoiceId: inv.id },
-          search: { autoprint: 1 },
-        });
-        return;
+      const savedInvoice = lastInvoiceRef.current;
+      if (savedInvoice) {
+        toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+        // Auto-print: navigate directly to preview with autoprint flag
+        if (storeProfile?.auto_print) {
+          navigate({
+            to: "/invoices/$invoiceId",
+            params: { invoiceId: savedInvoice.id },
+            search: { autoprint: 1 },
+          });
+          return;
+        }
       }
       searchRef.current?.focus();
     } catch (err) {

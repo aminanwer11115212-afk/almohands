@@ -13,33 +13,43 @@ export const Route = createFileRoute("/accounts")({
 const mainTabs = ["نظرة عامة", "بيانات مجمعة", "التقارير"] as const;
 const subTabs = ["المبيعات", "الأرباح", "المصروفات"] as const;
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function useAccountStats() {
   return useQuery({
     queryKey: ["account-stats"],
     queryFn: async () => {
       const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
+      const todayStr = toLocalDateStr(now);
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+      const yesterdayStr = toLocalDateStr(yesterday);
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthStart = lastMonth.toISOString().slice(0, 10);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+      const lastMonthStart = toLocalDateStr(lastMonth);
+      const lastMonthEnd = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 0));
 
-      const { data: invoices } = await supabase
-        .from("invoices")
-        .select("total, created_at");
+      const [invRes, expRes] = await Promise.all([
+        supabase.from("invoices").select("total, created_at").gte("created_at", lastMonthStart),
+        supabase.from("expenses").select("amount, date").gte("date", lastMonthStart),
+      ]);
+      if (invRes.error) throw invRes.error;
+      if (expRes.error) throw expRes.error;
 
-      const { data: expenses } = await supabase
-        .from("expenses")
-        .select("amount, date");
+      const inv = invRes.data ?? [];
+      const exp = expRes.data ?? [];
 
-      const inv = invoices || [];
-      const exp = expenses || [];
-
+      // Compare invoice created_at as local date (not UTC slice) so late-night
+      // sales in local time don't jump into "tomorrow" or shift by timezone.
       const sumInv = (filter: (d: string) => boolean) =>
-        inv.filter((i) => filter(i.created_at?.slice(0, 10) || "")).reduce((s, i) => s + (Number(i.total) || 0), 0);
+        inv
+          .filter((i) => filter(i.created_at ? toLocalDateStr(new Date(i.created_at)) : ""))
+          .reduce((s, i) => s + (Number(i.total) || 0), 0);
 
       const sumExp = (filter: (d: string) => boolean) =>
         exp.filter((e) => filter(e.date || "")).reduce((s, e) => s + (Number(e.amount) || 0), 0);

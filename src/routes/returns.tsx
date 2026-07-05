@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useReturns, useAddReturn, useUpdateReturnStatus, type ReturnStatus } from "@/hooks/use-returns";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/returns")({
   head: () => ({ meta: [{ title: "المرتجعات — المهندس" }] }),
@@ -29,16 +30,25 @@ function ReturnsPage() {
   );
 
   const handleAdd = () => {
-    if (!form.product_name.trim()) return;
+    const name = form.product_name.trim();
+    if (!name) {
+      toast.error("اسم المنتج مطلوب");
+      return;
+    }
+    const qty = Number(form.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("الكمية غير صالحة");
+      return;
+    }
     addReturn.mutate(
-      { product_name: form.product_name, quantity: Number(form.quantity) || 1, reason: form.reason },
+      { product_name: name, quantity: Math.floor(qty), reason: form.reason.trim() },
       {
         onSuccess: () => {
           setOpen(false);
           setForm({ product_name: "", quantity: "1", reason: "" });
           toast.success("تم تسجيل المرتجع بنجاح");
         },
-        onError: () => toast.error("حدث خطأ"),
+        onError: (err) => toast.error(getErrorMessage(err, "تعذّر تسجيل المرتجع")),
       }
     );
   };
@@ -48,7 +58,7 @@ function ReturnsPage() {
       { id, status },
       {
         onSuccess: () => toast.success(status === "accepted" ? "تم قبول المرتجع وإعادة المخزون" : "تم رفض المرتجع"),
-        onError: () => toast.error("حدث خطأ"),
+        onError: (err) => toast.error(getErrorMessage(err, "تعذّر تحديث الحالة")),
       }
     );
   };

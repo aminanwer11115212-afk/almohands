@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Check, Trash2, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "الإشعارات — المهندس" }] }),
@@ -49,6 +50,7 @@ function NotificationsPage() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err, "تعذّر تحديث الإشعار")),
   });
 
   const markAll = useMutation({
@@ -61,6 +63,7 @@ function NotificationsPage() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err, "تعذّر تحديث الإشعارات")),
   });
 
   const del = useMutation({
@@ -72,6 +75,7 @@ function NotificationsPage() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err, "تعذّر حذف الإشعار")),
   });
 
   const unreadCount = items.filter((i) => !i.read).length;

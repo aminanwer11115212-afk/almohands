@@ -19,6 +19,7 @@ import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as ImportRouteImport } from './routes/import'
+import { Route as ExportRouteImport } from './routes/export'
 import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CashierRouteImport } from './routes/cashier'
@@ -80,6 +81,11 @@ const InvoicesRoute = InvoicesRouteImport.update({
 const ImportRoute = ImportRouteImport.update({
   id: '/import',
   path: '/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportRoute = ExportRouteImport.update({
+  id: '/export',
+  path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExpensesRoute = ExpensesRouteImport.update({
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRoute
   '/expenses': typeof ExpensesRoute
+  '/export': typeof ExportRoute
   '/import': typeof ImportRoute
   '/invoices': typeof InvoicesRoute
   '/mcp': typeof McpRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRoute
   '/expenses': typeof ExpensesRoute
+  '/export': typeof ExportRoute
   '/import': typeof ImportRoute
   '/invoices': typeof InvoicesRoute
   '/mcp': typeof McpRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRoute
   '/expenses': typeof ExpensesRoute
+  '/export': typeof ExportRoute
   '/import': typeof ImportRoute
   '/invoices': typeof InvoicesRoute
   '/mcp': typeof McpRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/cashier'
     | '/customers'
     | '/expenses'
+    | '/export'
     | '/import'
     | '/invoices'
     | '/mcp'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/cashier'
     | '/customers'
     | '/expenses'
+    | '/export'
     | '/import'
     | '/invoices'
     | '/mcp'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/cashier'
     | '/customers'
     | '/expenses'
+    | '/export'
     | '/import'
     | '/invoices'
     | '/mcp'
@@ -301,6 +313,7 @@ export interface RootRouteChildren {
   CashierRoute: typeof CashierRoute
   CustomersRoute: typeof CustomersRoute
   ExpensesRoute: typeof ExpensesRoute
+  ExportRoute: typeof ExportRoute
   ImportRoute: typeof ImportRoute
   InvoicesRoute: typeof InvoicesRoute
   McpRoute: typeof McpRoute
@@ -387,6 +400,13 @@ declare module '@tanstack/react-router' {
       path: '/import'
       fullPath: '/import'
       preLoaderRoute: typeof ImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export': {
+      id: '/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/expenses': {
@@ -497,6 +517,7 @@ const rootRouteChildren: RootRouteChildren = {
   CashierRoute: CashierRoute,
   CustomersRoute: CustomersRoute,
   ExpensesRoute: ExpensesRoute,
+  ExportRoute: ExportRoute,
   ImportRoute: ImportRoute,
   InvoicesRoute: InvoicesRoute,
   McpRoute: McpRoute,

@@ -1,121 +1,364 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Package, Users, Receipt, Wallet } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Package,
+  Users,
+  Receipt,
+  Wallet,
+  BarChart3,
+  Layers,
+  UserCircle2,
+  CreditCard,
+  RotateCcw,
+  Calendar,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { formatSDG } from "@/lib/format";
+import { PermissionGate } from "@/components/PermissionGate";
+import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
+import { useMyRole, ROLE_LABELS, type AppRole } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "التقارير — المهندس" }] }),
-  component: ReportsPage,
+  component: ReportsGuarded,
 });
 
-type Period = "week" | "month" | "year";
-
-function startOf(unit: "day" | "month", offset = 0) {
-  const d = new Date();
-  if (unit === "day") {
-    d.setDate(d.getDate() + offset);
-    d.setHours(0, 0, 0, 0);
-  } else {
-    d.setMonth(d.getMonth() + offset, 1);
-    d.setHours(0, 0, 0, 0);
-  }
-  return d.toISOString();
-}
-
-function useReportData(period: Period) {
-  return useQuery({
-    queryKey: ["reports", period],
-    queryFn: async () => {
-      const now = new Date();
-      let from: string;
-      if (period === "week") {
-        from = startOf("day", -7);
-      } else if (period === "month") {
-        from = startOf("month");
-      } else {
-        const y = new Date(now.getFullYear(), 0, 1);
-        from = y.toISOString();
-      }
-
-      const [invoicesRes, expensesRes, customersRes, productsRes, topProductsRes] = await Promise.all([
-        supabase.from("invoices").select("total, created_at").gte("created_at", from),
-        supabase.from("expenses").select("amount").gte("created_at", from),
-        supabase.from("customers").select("id", { count: "exact", head: true }),
-        supabase.from("products").select("id, quantity"),
-        supabase.from("invoice_items").select("product_name, quantity").gte("created_at", from),
-      ]);
-
-      const invoices = invoicesRes.data ?? [];
-      const expenses = expensesRes.data ?? [];
-      const totalSales = invoices.reduce((s, r) => s + (r.total || 0), 0);
-      const totalExpenses = expenses.reduce((s, r) => s + (r.amount || 0), 0);
-      const profit = totalSales - totalExpenses;
-      const invoiceCount = invoices.length;
-      const customerCount = customersRes.count ?? 0;
-
-      // Low stock
-      const products = productsRes.data ?? [];
-      const lowStock = products.filter((p: any) => (p.quantity ?? 0) <= 5).length;
-
-      // Top products
-      const productMap = new Map<string, number>();
-      for (const item of topProductsRes.data ?? []) {
-        const name = (item as any).product_name ?? "غير معروف";
-        productMap.set(name, (productMap.get(name) ?? 0) + ((item as any).quantity ?? 0));
-      }
-      const topProducts = [...productMap.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, qty]) => ({ name, qty }));
-
-      return { totalSales, totalExpenses, profit, invoiceCount, customerCount, lowStock, topProducts };
-    },
-    staleTime: 60_000,
-  });
-}
-
-function StatCard({ icon: Icon, label, value, trend }: { icon: any; label: string; value: string; trend?: "up" | "down" }) {
+function ReportsGuarded() {
   return (
-    <div className="rounded-xl bg-card border border-border p-3 flex items-center gap-3">
-      <div className="size-10 rounded-lg bg-brand/10 flex items-center justify-center">
-        <Icon className="size-5 text-brand" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="font-bold text-sm nums truncate">{value}</div>
-      </div>
-      {trend && (
-        trend === "up"
-          ? <TrendingUp className="size-4 text-emerald-500" />
-          : <TrendingDown className="size-4 text-rose-500" />
-      )}
-    </div>
+    <PermissionGate perm="reports.view">
+      <ReportsPage />
+    </PermissionGate>
   );
 }
 
-function ReportsPage() {
-  const [period, setPeriod] = useState<Period>("month");
-  const { data, isLoading } = useReportData(period);
+/* ------------------------ types & helpers ------------------------ */
 
-  const periods: { key: Period; label: string }[] = [
-    { key: "week", label: "أسبوع" },
-    { key: "month", label: "شهر" },
-    { key: "year", label: "سنة" },
+type Period = "day" | "week" | "month" | "year" | "all";
+type Tab = "overview" | "detailed" | "by-user";
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "day", label: "اليوم" },
+  { key: "week", label: "أسبوع" },
+  { key: "month", label: "شهر" },
+  { key: "year", label: "سنة" },
+  { key: "all", label: "الكل" },
+];
+
+function fromDate(period: Period): string | null {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (period === "day") return d.toISOString();
+  if (period === "week") {
+    d.setDate(d.getDate() - 6);
+    return d.toISOString();
+  }
+  if (period === "month") {
+    d.setDate(1);
+    return d.toISOString();
+  }
+  if (period === "year") {
+    return new Date(new Date().getFullYear(), 0, 1).toISOString();
+  }
+  return null;
+}
+
+const PM_LABELS: Record<string, string> = {
+  cash: "نقداً",
+  bank: "تحويل بنكي",
+  credit: "آجل",
+  other: "أخرى",
+};
+
+type Row = Record<string, any>;
+
+/* ------------------------ shared data ------------------------ */
+
+function useReportBundle(period: Period) {
+  const from = fromDate(period);
+  return useQuery({
+    queryKey: ["reports-bundle", period],
+    queryFn: async () => {
+      // Invoices
+      let qInv = supabase
+        .from("invoices")
+        .select(
+          "id, user_id, invoice_number, total, subtotal, discount, paid, remaining, payment_method, status, customer_name, created_at",
+        )
+        .order("created_at", { ascending: false });
+      if (from) qInv = qInv.gte("created_at", from);
+
+      // Invoice items (for top products & profit)
+      let qItems = supabase
+        .from("invoice_items")
+        .select("user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
+      if (from) qItems = qItems.gte("created_at", from);
+
+      // Expenses
+      let qExp = supabase
+        .from("expenses")
+        .select("user_id, amount, target, date, notes, created_at");
+      if (from) qExp = qExp.gte("created_at", from);
+
+      // Returns
+      let qRet = supabase
+        .from("returns")
+        .select("user_id, quantity, status, created_at");
+      if (from) qRet = qRet.gte("created_at", from);
+
+      const [inv, items, exp, ret, prods, cust] = await Promise.all([
+        qInv,
+        qItems,
+        qExp,
+        qRet,
+        supabase.from("products").select("id, user_id, name, quantity, min_quantity, sale_price"),
+        supabase.from("customers").select("id, user_id", { count: "exact" }),
+      ]);
+
+      if (inv.error) throw inv.error;
+      if (items.error) throw items.error;
+      if (exp.error) throw exp.error;
+      if (ret.error) throw ret.error;
+      if (prods.error) throw prods.error;
+
+      return {
+        invoices: (inv.data ?? []) as Row[],
+        items: (items.data ?? []) as Row[],
+        expenses: (exp.data ?? []) as Row[],
+        returns: (ret.data ?? []) as Row[],
+        products: (prods.data ?? []) as Row[],
+        customerCount: cust.count ?? 0,
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
+function useUserDirectory(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin-user-directory"],
+    enabled,
+    queryFn: async () => {
+      const [{ data: userList, error: uErr }, { data: roleList, error: rErr }] = await Promise.all([
+        supabase.rpc("admin_list_users"),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+      if (uErr) throw uErr;
+      if (rErr) throw rErr;
+      const roles = new Map<string, AppRole[]>();
+      for (const r of roleList ?? []) {
+        const arr = roles.get(r.user_id) ?? [];
+        arr.push(r.role as AppRole);
+        roles.set(r.user_id, arr);
+      }
+      return (userList ?? []).map((u: any) => ({
+        id: u.user_id as string,
+        email: (u.email as string) ?? "—",
+        roles: roles.get(u.user_id) ?? [],
+      }));
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/* ------------------------ page ------------------------ */
+
+function ReportsPage() {
+  const [tab, setTab] = useState<Tab>("overview");
+  const [period, setPeriod] = useState<Period>("month");
+  const { data, isLoading } = useReportBundle(period);
+  const { isAdmin } = useMyRole();
+  const userDir = useUserDirectory(isAdmin && tab === "by-user");
+
+  const stats = useMemo(() => {
+    if (!data) return null;
+    const totalSales = data.invoices.reduce((s, r) => s + Number(r.total || 0), 0);
+    const totalPaid = data.invoices.reduce((s, r) => s + Number(r.paid || 0), 0);
+    const totalRemaining = data.invoices.reduce((s, r) => s + Number(r.remaining || 0), 0);
+    const totalDiscount = data.invoices.reduce((s, r) => s + Number(r.discount || 0), 0);
+    const totalExpenses = data.expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const cogs = data.items.reduce(
+      (s, r) => s + Number(r.cost_price || 0) * Number(r.quantity || 0),
+      0,
+    );
+    const grossProfit = totalSales - cogs;
+    const netProfit = grossProfit - totalExpenses;
+    const invoiceCount = data.invoices.length;
+    const avgTicket = invoiceCount ? totalSales / invoiceCount : 0;
+    const lowStock = data.products.filter(
+      (p) => Number(p.quantity || 0) <= Number(p.min_quantity || 0) && Number(p.min_quantity || 0) > 0,
+    ).length;
+
+    // Payment methods
+    const pmMap = new Map<string, { count: number; amount: number }>();
+    for (const inv of data.invoices) {
+      const k = String(inv.payment_method || "cash");
+      const cur = pmMap.get(k) ?? { count: 0, amount: 0 };
+      cur.count += 1;
+      cur.amount += Number(inv.total || 0);
+      pmMap.set(k, cur);
+    }
+
+    // Top products
+    const prodMap = new Map<string, { qty: number; revenue: number }>();
+    for (const it of data.items) {
+      const name = String(it.product_name || "غير معروف");
+      const cur = prodMap.get(name) ?? { qty: 0, revenue: 0 };
+      cur.qty += Number(it.quantity || 0);
+      cur.revenue += Number(it.line_total || 0);
+      prodMap.set(name, cur);
+    }
+    const topProducts = [...prodMap.entries()]
+      .sort((a, b) => b[1].qty - a[1].qty)
+      .slice(0, 10)
+      .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }));
+
+    // Expenses per category
+    const expByTarget = new Map<string, number>();
+    for (const e of data.expenses) {
+      const k = String(e.target || "أخرى");
+      expByTarget.set(k, (expByTarget.get(k) ?? 0) + Number(e.amount || 0));
+    }
+    const expBreakdown = [...expByTarget.entries()]
+      .map(([target, amount]) => ({ target, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Daily sales series (last 14 buckets)
+    const dayMap = new Map<string, number>();
+    for (const inv of data.invoices) {
+      const d = new Date(inv.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      dayMap.set(key, (dayMap.get(key) ?? 0) + Number(inv.total || 0));
+    }
+    const daily = [...dayMap.entries()]
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .slice(-14)
+      .map(([date, amount]) => ({ date, amount }));
+
+    const returnsCount = data.returns.length;
+    const acceptedReturns = data.returns.filter((r) => r.status === "accepted").length;
+
+    return {
+      totalSales,
+      totalPaid,
+      totalRemaining,
+      totalDiscount,
+      totalExpenses,
+      cogs,
+      grossProfit,
+      netProfit,
+      invoiceCount,
+      avgTicket,
+      lowStock,
+      customerCount: data.customerCount,
+      pmBreakdown: [...pmMap.entries()].map(([k, v]) => ({ key: k, ...v })),
+      topProducts,
+      expBreakdown,
+      daily,
+      returnsCount,
+      acceptedReturns,
+    };
+  }, [data]);
+
+  const perUser = useMemo(() => {
+    if (!data || !isAdmin) return [];
+    const map = new Map<
+      string,
+      {
+        user_id: string;
+        invoiceCount: number;
+        sales: number;
+        paid: number;
+        remaining: number;
+        discount: number;
+        expenses: number;
+        cogs: number;
+        returnsQty: number;
+        pm: Map<string, number>;
+      }
+    >();
+    const bucket = (uid: string) =>
+      map.get(uid) ??
+      (map
+        .set(uid, {
+          user_id: uid,
+          invoiceCount: 0,
+          sales: 0,
+          paid: 0,
+          remaining: 0,
+          discount: 0,
+          expenses: 0,
+          cogs: 0,
+          returnsQty: 0,
+          pm: new Map(),
+        })
+        .get(uid) as any);
+
+    for (const inv of data.invoices) {
+      const b = bucket(inv.user_id);
+      b.invoiceCount += 1;
+      b.sales += Number(inv.total || 0);
+      b.paid += Number(inv.paid || 0);
+      b.remaining += Number(inv.remaining || 0);
+      b.discount += Number(inv.discount || 0);
+      const pmKey = String(inv.payment_method || "cash");
+      b.pm.set(pmKey, (b.pm.get(pmKey) ?? 0) + Number(inv.total || 0));
+    }
+    for (const it of data.items) {
+      const b = bucket(it.user_id);
+      b.cogs += Number(it.cost_price || 0) * Number(it.quantity || 0);
+    }
+    for (const e of data.expenses) {
+      const b = bucket(e.user_id);
+      b.expenses += Number(e.amount || 0);
+    }
+    for (const r of data.returns) {
+      const b = bucket(r.user_id);
+      b.returnsQty += Number(r.quantity || 0);
+    }
+    return [...map.values()].sort((a, b) => b.sales - a.sales);
+  }, [data, isAdmin]);
+
+  const tabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = [
+    { key: "overview", label: "عام", icon: BarChart3 },
+    { key: "detailed", label: "تفصيلي", icon: Layers },
+    { key: "by-user", label: "حسب المستخدم", icon: UserCircle2, adminOnly: true },
   ];
 
   return (
     <AppShell title="التقارير" showBack>
-      {/* Period selector */}
-      <div className="flex gap-2 mb-4">
-        {periods.map((p) => (
+      {/* Tabs */}
+      <div className="flex gap-1 mb-3 rounded-xl bg-muted p-1">
+        {tabs
+          .filter((t) => !t.adminOnly || isAdmin)
+          .map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                tab === t.key
+                  ? "bg-card text-brand shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <t.icon className="size-4" />
+              {t.label}
+            </button>
+          ))}
+      </div>
+
+      {/* Period */}
+      <div className="flex gap-1 mb-4 overflow-x-auto">
+        {PERIODS.map((p) => (
           <button
             key={p.key}
             onClick={() => setPeriod(p.key)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
-              period === p.key ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground"
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+              period === p.key
+                ? "bg-brand text-brand-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
             }`}
           >
             {p.label}
@@ -123,50 +366,525 @@ function ReportsPage() {
         ))}
       </div>
 
-      {isLoading ? (
+      {isLoading || !stats ? (
         <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>
-      ) : data ? (
-        <div className="space-y-4">
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={Receipt} label="المبيعات" value={formatSDG(data.totalSales)} trend="up" />
-            <StatCard icon={Wallet} label="المصروفات" value={formatSDG(data.totalExpenses)} trend="down" />
-            <StatCard icon={TrendingUp} label="صافي الربح" value={formatSDG(data.profit)} trend={data.profit >= 0 ? "up" : "down"} />
-            <StatCard icon={Receipt} label="عدد الفواتير" value={String(data.invoiceCount)} />
-            <StatCard icon={Users} label="العملاء" value={String(data.customerCount)} />
-            <StatCard icon={Package} label="منتجات منخفضة" value={String(data.lowStock)} trend={data.lowStock > 0 ? "down" : "up"} />
-          </div>
+      ) : tab === "overview" ? (
+        <OverviewTab stats={stats} />
+      ) : tab === "detailed" ? (
+        <DetailedTab stats={stats} invoices={data!.invoices} />
+      ) : (
+        <ByUserTab perUser={perUser} directory={userDir.data ?? []} loading={userDir.isLoading} />
+      )}
+    </AppShell>
+  );
+}
 
-          {/* Top products */}
-          <div className="rounded-xl bg-card border border-border p-4">
-            <h3 className="text-sm font-bold mb-3">الأكثر مبيعاً</h3>
-            {data.topProducts.length === 0 ? (
-              <p className="text-xs text-muted-foreground">لا توجد بيانات</p>
-            ) : (
-              <div className="space-y-2">
-                {data.topProducts.map((p, i) => {
-                  const maxQty = data.topProducts[0].qty;
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-5">{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs truncate">{p.name}</div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden mt-1">
-                          <div
-                            className="h-full rounded-full bg-brand"
-                            style={{ width: `${(p.qty / maxQty) * 100}%` }}
-                          />
-                        </div>
+/* ------------------------ Overview ------------------------ */
+
+function OverviewTab({ stats }: { stats: NonNullable<ReturnType<typeof useComputed>> }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard icon={Receipt} label="المبيعات" value={formatSDG(stats.totalSales)} trend="up" />
+        <StatCard
+          icon={Wallet}
+          label="المصروفات"
+          value={formatSDG(stats.totalExpenses)}
+          trend="down"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="صافي الربح"
+          value={formatSDG(stats.netProfit)}
+          trend={stats.netProfit >= 0 ? "up" : "down"}
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="مجمل الربح"
+          value={formatSDG(stats.grossProfit)}
+          trend={stats.grossProfit >= 0 ? "up" : "down"}
+        />
+        <StatCard icon={Receipt} label="عدد الفواتير" value={formatNumber(stats.invoiceCount)} />
+        <StatCard icon={Receipt} label="متوسط الفاتورة" value={formatSDG(stats.avgTicket)} />
+        <StatCard icon={CreditCard} label="مدفوع" value={formatSDG(stats.totalPaid)} />
+        <StatCard
+          icon={CreditCard}
+          label="متبقٍ (آجل)"
+          value={formatSDG(stats.totalRemaining)}
+          trend={stats.totalRemaining > 0 ? "down" : "up"}
+        />
+        <StatCard icon={Users} label="العملاء" value={formatNumber(stats.customerCount)} />
+        <StatCard
+          icon={Package}
+          label="منتجات منخفضة"
+          value={formatNumber(stats.lowStock)}
+          trend={stats.lowStock > 0 ? "down" : "up"}
+        />
+        <StatCard icon={RotateCcw} label="مرتجعات" value={formatNumber(stats.returnsCount)} />
+        <StatCard icon={Wallet} label="خصومات" value={formatSDG(stats.totalDiscount)} />
+      </div>
+
+      {/* Sales chart */}
+      <Card title="المبيعات اليومية" icon={Calendar}>
+        {stats.daily.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <MiniBars data={stats.daily} />
+        )}
+      </Card>
+
+      {/* Top products */}
+      <Card title="الأكثر مبيعاً" icon={Package}>
+        {stats.topProducts.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <div className="space-y-2">
+            {stats.topProducts.slice(0, 5).map((p, i) => {
+              const max = stats.topProducts[0].qty || 1;
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs truncate">{p.name}</div>
+                      <div className="text-[11px] text-muted-foreground nums shrink-0">
+                        {formatSDG(p.revenue)}
                       </div>
-                      <span className="text-xs font-bold nums">{p.qty}</span>
                     </div>
-                  );
-                })}
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-1">
+                      <div
+                        className="h-full rounded-full bg-brand"
+                        style={{ width: `${(p.qty / max) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold nums">{formatNumber(p.qty)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------ Detailed ------------------------ */
+
+function DetailedTab({
+  stats,
+  invoices,
+}: {
+  stats: NonNullable<ReturnType<typeof useComputed>>;
+  invoices: Row[];
+}) {
+  const [pmFilter, setPmFilter] = useState<string>("all");
+  const filteredInvoices = useMemo(
+    () => (pmFilter === "all" ? invoices : invoices.filter((i) => String(i.payment_method) === pmFilter)),
+    [invoices, pmFilter],
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Payment methods breakdown */}
+      <Card title="طرق الدفع" icon={CreditCard}>
+        {stats.pmBreakdown.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {stats.pmBreakdown.map((p) => {
+              const pct = stats.totalSales ? (p.amount / stats.totalSales) * 100 : 0;
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => setPmFilter(pmFilter === p.key ? "all" : p.key)}
+                  className={`rounded-lg border p-2 text-right transition ${
+                    pmFilter === p.key ? "border-brand bg-brand/5" : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <div className="text-[11px] text-muted-foreground">
+                    {PM_LABELS[p.key] ?? p.key}
+                  </div>
+                  <div className="text-sm font-bold nums">{formatSDG(p.amount)}</div>
+                  <div className="text-[10px] text-muted-foreground nums">
+                    {formatNumber(p.count)} فاتورة · {pct.toFixed(1)}%
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Expenses breakdown */}
+      <Card title="تفصيل المصروفات" icon={Wallet}>
+        {stats.expBreakdown.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <div className="space-y-1.5">
+            {stats.expBreakdown.map((e) => {
+              const pct = stats.totalExpenses ? (e.amount / stats.totalExpenses) * 100 : 0;
+              return (
+                <div key={e.target} className="flex items-center gap-2 text-xs">
+                  <div className="flex-1 truncate">{e.target}</div>
+                  <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-rose-500" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="w-24 text-end nums font-bold">{formatSDG(e.amount)}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Invoices list */}
+      <Card
+        title={`الفواتير (${formatNumber(filteredInvoices.length)})`}
+        icon={Receipt}
+        subtitle={
+          pmFilter !== "all"
+            ? `مصفّى حسب: ${PM_LABELS[pmFilter] ?? pmFilter}`
+            : undefined
+        }
+      >
+        {filteredInvoices.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <div className="max-h-[500px] overflow-auto -mx-4">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-card border-b border-border">
+                <tr className="text-[11px] text-muted-foreground">
+                  <th className="text-right px-2 py-1.5">#</th>
+                  <th className="text-right px-2 py-1.5">التاريخ</th>
+                  <th className="text-right px-2 py-1.5">العميل</th>
+                  <th className="text-center px-2 py-1.5">الدفع</th>
+                  <th className="text-end px-2 py-1.5">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredInvoices.slice(0, 200).map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-2 py-1.5 nums">#{inv.invoice_number}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground">
+                      {new Date(inv.created_at).toLocaleDateString("ar-EG", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-2 py-1.5 truncate max-w-[120px]">
+                      {inv.customer_name || "—"}
+                    </td>
+                    <td className="px-2 py-1.5 text-center text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded bg-muted">
+                        {PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-end nums font-bold">
+                      {formatSDG(Number(inv.total || 0))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredInvoices.length > 200 && (
+              <p className="text-center text-[11px] text-muted-foreground p-2">
+                عرض أول 200 من {formatNumber(filteredInvoices.length)}
+              </p>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Top products full table */}
+      <Card title="أفضل المنتجات" icon={Package}>
+        {stats.topProducts.length === 0 ? (
+          <EmptyLine />
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[11px] text-muted-foreground border-b border-border">
+                <th className="text-right p-1.5">المنتج</th>
+                <th className="text-center p-1.5">الكمية</th>
+                <th className="text-end p-1.5">الإيراد</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {stats.topProducts.map((p, i) => (
+                <tr key={i}>
+                  <td className="p-1.5 truncate max-w-[180px]">{p.name}</td>
+                  <td className="p-1.5 text-center nums">{formatNumber(p.qty)}</td>
+                  <td className="p-1.5 text-end nums font-bold">{formatSDG(p.revenue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------ By-user (admin) ------------------------ */
+
+function ByUserTab({
+  perUser,
+  directory,
+  loading,
+}: {
+  perUser: {
+    user_id: string;
+    invoiceCount: number;
+    sales: number;
+    paid: number;
+    remaining: number;
+    discount: number;
+    expenses: number;
+    cogs: number;
+    returnsQty: number;
+    pm: Map<string, number>;
+  }[];
+  directory: { id: string; email: string; roles: AppRole[] }[];
+  loading: boolean;
+}) {
+  const dirMap = useMemo(() => new Map(directory.map((d) => [d.id, d])), [directory]);
+
+  // include zero-activity users too
+  const rows = useMemo(() => {
+    const seen = new Set(perUser.map((u) => u.user_id));
+    const extras = directory
+      .filter((d) => !seen.has(d.id))
+      .map((d) => ({
+        user_id: d.id,
+        invoiceCount: 0,
+        sales: 0,
+        paid: 0,
+        remaining: 0,
+        discount: 0,
+        expenses: 0,
+        cogs: 0,
+        returnsQty: 0,
+        pm: new Map<string, number>(),
+      }));
+    return [...perUser, ...extras];
+  }, [perUser, directory]);
+
+  if (loading) {
+    return <div className="text-center py-10 text-muted-foreground">جاري تحميل قائمة المستخدمين...</div>;
+  }
+
+  if (rows.length === 0) {
+    return <div className="text-center py-10 text-muted-foreground">لا يوجد مستخدمون بعد</div>;
+  }
+
+  const totalSales = rows.reduce((s, r) => s + r.sales, 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl bg-brand/5 border border-brand/20 p-3 text-xs">
+        <span className="font-bold text-brand">إجمالي المبيعات:</span>{" "}
+        <span className="nums font-bold">{formatSDG(totalSales)}</span>
+        <span className="text-muted-foreground"> · {formatNumber(rows.length)} مستخدم</span>
+      </div>
+
+      {rows.map((u) => {
+        const info = dirMap.get(u.user_id);
+        const label = info?.email ?? `مستخدم ${u.user_id.slice(0, 6)}`;
+        const roleLabel =
+          info?.roles && info.roles.length > 0
+            ? info.roles.map((r) => ROLE_LABELS[r]).join("، ")
+            : "—";
+        const profit = u.sales - u.cogs - u.expenses;
+        const pmEntries = [...u.pm.entries()].sort((a, b) => b[1] - a[1]);
+        const share = totalSales ? (u.sales / totalSales) * 100 : 0;
+
+        return (
+          <div
+            key={u.user_id}
+            className="rounded-xl bg-card border border-border shadow-card p-3 space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-full bg-brand/10 grid place-items-center">
+                    <UserCircle2 className="size-5 text-brand" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold truncate">{label}</div>
+                    <div className="text-[11px] text-muted-foreground">{roleLabel}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-end shrink-0">
+                <div className="text-sm font-bold text-brand nums">{formatSDG(u.sales)}</div>
+                <div className="text-[10px] text-muted-foreground nums">
+                  {share.toFixed(1)}% من الإجمالي
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <MiniStat label="فواتير" value={formatNumber(u.invoiceCount)} />
+              <MiniStat label="مدفوع" value={formatSDG(u.paid)} />
+              <MiniStat label="آجل" value={formatSDG(u.remaining)} />
+              <MiniStat
+                label="ربح صافٍ"
+                value={formatSDG(profit)}
+                tone={profit >= 0 ? "up" : "down"}
+              />
+              <MiniStat label="مصروفات" value={formatSDG(u.expenses)} />
+              <MiniStat label="مرتجعات" value={formatNumber(u.returnsQty)} />
+            </div>
+
+            {pmEntries.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold text-muted-foreground mb-1">طرق الدفع</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {pmEntries.map(([k, v]) => (
+                    <span
+                      key={k}
+                      className="text-[11px] rounded-full bg-muted px-2 py-0.5 nums"
+                    >
+                      {PM_LABELS[k] ?? k}: {formatSDG(v)}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        </div>
-      ) : null}
-    </AppShell>
+        );
+      })}
+    </div>
   );
+}
+
+/* ------------------------ tiny UI helpers ------------------------ */
+
+// dummy for type extraction
+function useComputed() {
+  return null as unknown as {
+    totalSales: number;
+    totalPaid: number;
+    totalRemaining: number;
+    totalDiscount: number;
+    totalExpenses: number;
+    cogs: number;
+    grossProfit: number;
+    netProfit: number;
+    invoiceCount: number;
+    avgTicket: number;
+    lowStock: number;
+    customerCount: number;
+    pmBreakdown: { key: string; count: number; amount: number }[];
+    topProducts: { name: string; qty: number; revenue: number }[];
+    expBreakdown: { target: string; amount: number }[];
+    daily: { date: string; amount: number }[];
+    returnsCount: number;
+    acceptedReturns: number;
+  };
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  trend,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  trend?: "up" | "down";
+}) {
+  return (
+    <div className="rounded-xl bg-card border border-border p-2.5 flex items-center gap-2">
+      <div className="size-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
+        <Icon className="size-4 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] text-muted-foreground">{label}</div>
+        <div className="font-bold text-xs nums truncate">{value}</div>
+      </div>
+      {trend &&
+        (trend === "up" ? (
+          <TrendingUp className="size-3.5 text-emerald-500 shrink-0" />
+        ) : (
+          <TrendingDown className="size-3.5 text-rose-500 shrink-0" />
+        ))}
+    </div>
+  );
+}
+
+function Card({
+  title,
+  subtitle,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: any;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl bg-card border border-border p-3">
+      <div className="flex items-center gap-2 mb-2">
+        {Icon && <Icon className="size-4 text-brand" />}
+        <div>
+          <h3 className="text-sm font-bold">{title}</h3>
+          {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "up" | "down";
+}) {
+  return (
+    <div className="rounded-lg bg-muted/50 p-1.5">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div
+        className={`text-xs font-bold nums truncate ${
+          tone === "up" ? "text-emerald-600" : tone === "down" ? "text-rose-600" : ""
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MiniBars({ data }: { data: { date: string; amount: number }[] }) {
+  const max = Math.max(...data.map((d) => d.amount), 1);
+  return (
+    <div className="flex items-end gap-1 h-24">
+      {data.map((d) => {
+        const h = (d.amount / max) * 100;
+        return (
+          <div key={d.date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <div
+              className="w-full bg-brand/70 rounded-t hover:bg-brand transition"
+              style={{ height: `${Math.max(h, 4)}%` }}
+              title={`${d.date}: ${formatSDG(d.amount)}`}
+            />
+            <div className="text-[9px] text-muted-foreground truncate w-full text-center">
+              {d.date.slice(5)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyLine() {
+  return <p className="text-xs text-muted-foreground text-center py-4">لا توجد بيانات</p>;
 }

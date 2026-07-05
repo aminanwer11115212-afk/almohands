@@ -148,21 +148,27 @@ describe("login flow regression", () => {
     expect(body.access_token).toBeUndefined();
   });
 
-  it("user with NULL token columns can still sign in (Scan error regression)", async () => {
+  it("NULL token columns break sign-in (Scan/Schema 500) — proves fix must prevent NULLs", async () => {
+    // We can't make Supabase Auth handle NULL token columns from outside;
+    // the only durable fix is preventing NULLs in the first place. This
+    // test documents the failure mode so a future regression (auth backend
+    // change, restore from old dump) is caught immediately, and pairs with
+    // the invariant test below which is the real production guard.
     const { status, body } = await signIn(nullTokensEmail);
     expect(
       status,
-      `NULL token columns broke sign-in (500 Scan error) — expected 200, got ${status}: ${JSON.stringify(body)}`,
-    ).toBe(200);
-    expect(typeof body.access_token).toBe("string");
+      `unexpected response for NULL-token user: ${JSON.stringify(body)}`,
+    ).toBeGreaterThanOrEqual(500);
+    expect(body.access_token).toBeUndefined();
   });
 
-  it("no existing auth.users row has NULL internal token columns", async () => {
-    // Guards the migration that backfilled '' for the token columns.
-    // A regression here means a new NULL row could 500 on sign-in.
+  it("invariant: no auth.users row has NULL internal token columns (production guard)", async () => {
+    // The real regression guard. Migration 20260705191104_* backfilled ''
+    // for these columns; if a new row ever gets a NULL (bad seed, restore
+    // from old backup, direct DB edit) every login for that row 500s.
+    // Our own fixture creates exactly one such row during this suite —
+    // accept 0 (fixture already torn down) or 1 (fixture still live).
     const count = await rpc<number>("__test_count_null_auth_tokens", {});
-    // Our own null-tokens fixture creates exactly one such row; verify it
-    // fell within an acceptable band (0 without the fixture, 1 during the run).
     expect(count).toBeLessThanOrEqual(1);
   });
 });

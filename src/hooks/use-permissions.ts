@@ -66,7 +66,7 @@ export function useAddAuditLog() {
         action: input.action,
         table_name: input.table_name || null,
         record_id: input.record_id || null,
-        details: input.details || null,
+        details: (input.details as unknown) || null,
       });
       if (error) throw error;
     },

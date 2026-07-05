@@ -16,6 +16,7 @@ import {
   LogIn,
   LogOut,
   PieChart,
+  Download,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
@@ -108,6 +109,7 @@ function HomePage() {
         <MenuTile to="/returns" icon={RotateCcw} label="المرتجعات" />
         <MenuTile to="/permissions" icon={ShieldCheck} label="الصلاحيات" />
         <MenuTile to="/reports" icon={PieChart} label="التقارير" />
+        <MenuTile to="/export" icon={Download} label="تصدير البيانات" />
         <MenuTile to="/settings" icon={Settings} label="الإعدادات" />
       </div>
 

@@ -23,6 +23,7 @@ import {
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
+import { DashboardInsights } from "@/components/DashboardInsights";
 import { formatSDG } from "@/lib/format";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { useUnreadNotifications } from "@/hooks/use-notifications";
@@ -173,6 +174,9 @@ function HomePage() {
           </div>
         </article>
       </section>
+
+      {/* Insights: chart + recent + pending + low-stock */}
+      <DashboardInsights />
 
       {/* Menu — bento grid */}
       <section aria-labelledby="menu-title">

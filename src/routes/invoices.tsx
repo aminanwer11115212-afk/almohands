@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect, useMemo } from "react";
@@ -204,28 +204,34 @@ function InvoicesPage() {
           ) : (
             <ul className="divide-y divide-border">
               {(query.data ?? []).map((inv) => (
-                <li key={inv.id} className="p-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-primary">#{inv.invoice_number}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
-                        {statusLabels[inv.status] ?? inv.status}
-                      </span>
+                <li key={inv.id}>
+                  <Link
+                    to="/invoices/$invoiceId"
+                    params={{ invoiceId: inv.id }}
+                    className="p-3 flex items-center gap-3 hover:bg-muted/50 transition"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-primary">#{inv.invoice_number}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
+                          {statusLabels[inv.status] ?? inv.status}
+                        </span>
+                      </div>
+                      <div className="text-sm text-foreground truncate">
+                        {inv.customer_name || "عميل نقدي"}
+                        {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                      </div>
                     </div>
-                    <div className="text-sm text-foreground truncate">
-                      {inv.customer_name || "عميل نقدي"}
-                      {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
+                    <div className="text-left">
+                      <div className="text-sm font-semibold">{formatSDG(Number(inv.total))}</div>
+                      {Number(inv.remaining) > 0 && (
+                        <div className="text-[11px] text-rose-600">متبقي {formatSDG(Number(inv.remaining))}</div>
+                      )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
-                    </div>
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-semibold">{formatSDG(Number(inv.total))}</div>
-                    {Number(inv.remaining) > 0 && (
-                      <div className="text-[11px] text-rose-600">متبقي {formatSDG(Number(inv.remaining))}</div>
-                    )}
-                  </div>
+                  </Link>
                 </li>
               ))}
             </ul>

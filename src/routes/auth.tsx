@@ -213,9 +213,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function translateError(msg: string): string {
-  if (/invalid login/i.test(msg)) return "بريد إلكتروني أو كلمة مرور غير صحيحة";
-  if (/already registered|already exists/i.test(msg)) return "هذا البريد مسجّل مسبقاً";
-  if (/password/i.test(msg)) return "كلمة المرور قصيرة جداً (6 أحرف على الأقل)";
-  return msg;
 }
+

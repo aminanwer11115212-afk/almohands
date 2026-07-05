@@ -29,6 +29,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
+import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -134,6 +135,11 @@ const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   path: '/$productId',
   getParentRoute: () => ProductsRoute,
 } as any)
+const InvoicesInvoiceIdRoute = InvoicesInvoiceIdRouteImport.update({
+  id: '/$invoiceId',
+  path: '/$invoiceId',
+  getParentRoute: () => InvoicesRoute,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -167,7 +173,7 @@ export interface FileRoutesByFullPath {
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
-  '/invoices': typeof InvoicesRoute
+  '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -193,7 +200,7 @@ export interface FileRoutesByTo {
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
-  '/invoices': typeof InvoicesRoute
+  '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -220,7 +228,7 @@ export interface FileRoutesById {
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
-  '/invoices': typeof InvoicesRoute
+  '/invoices': typeof InvoicesRouteWithChildren
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
@@ -232,6 +240,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -260,6 +269,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
     | '/.lovable/oauth/consent'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
     | '/.lovable/oauth/consent'
@@ -312,6 +323,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
     | '/.lovable/oauth/consent'
@@ -327,7 +339,7 @@ export interface RootRouteChildren {
   ExpensesRoute: typeof ExpensesRoute
   ExportRoute: typeof ExportRoute
   ImportRoute: typeof ImportRoute
-  InvoicesRoute: typeof InvoicesRoute
+  InvoicesRoute: typeof InvoicesRouteWithChildren
   McpRoute: typeof McpRoute
   NotificationsRoute: typeof NotificationsRoute
   PermissionsRoute: typeof PermissionsRoute
@@ -485,6 +497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsProductIdRouteImport
       parentRoute: typeof ProductsRoute
     }
+    '/invoices/$invoiceId': {
+      id: '/invoices/$invoiceId'
+      path: '/$invoiceId'
+      fullPath: '/invoices/$invoiceId'
+      preLoaderRoute: typeof InvoicesInvoiceIdRouteImport
+      parentRoute: typeof InvoicesRoute
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -516,6 +535,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface InvoicesRouteChildren {
+  InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
+}
+
+const InvoicesRouteChildren: InvoicesRouteChildren = {
+  InvoicesInvoiceIdRoute: InvoicesInvoiceIdRoute,
+}
+
+const InvoicesRouteWithChildren = InvoicesRoute._addFileChildren(
+  InvoicesRouteChildren,
+)
+
 interface ProductsRouteChildren {
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   ProductsNewRoute: typeof ProductsNewRoute
@@ -539,7 +570,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExpensesRoute: ExpensesRoute,
   ExportRoute: ExportRoute,
   ImportRoute: ImportRoute,
-  InvoicesRoute: InvoicesRoute,
+  InvoicesRoute: InvoicesRouteWithChildren,
   McpRoute: McpRoute,
   NotificationsRoute: NotificationsRoute,
   PermissionsRoute: PermissionsRoute,

@@ -3,15 +3,15 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
 import { useStoreProfile, useSaveStoreProfile, type StoreProfile } from "@/hooks/use-store-profile";
-import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
-  component: SettingsPage,
+  component: SettingsPageGuarded,
 });
 
 type FormState = {
@@ -65,9 +65,15 @@ function fromProfile(p: StoreProfile | null | undefined): FormState {
   };
 }
 
+function SettingsPageGuarded() {
+  return (
+    <PermissionGate perm="settings.write">
+      <SettingsPage />
+    </PermissionGate>
+  );
+}
+
 function SettingsPage() {
-  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("settings.write");
-  if (__permChk || !__permOk) return null;
   const { data: profile, isLoading } = useStoreProfile();
   const saveMut = useSaveStoreProfile();
   const [form, setForm] = useState<FormState>(defaults);

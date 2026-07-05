@@ -1,20 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useExpenses, useAddExpense, useDeleteExpense } from "@/hooks/use-expenses";
 import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "المصروفات — المهندس" }] }),
-  component: ExpensesPage,
+  component: ExpensesPageGuarded,
 });
 
+function ExpensesPageGuarded() {
+  return (
+    <PermissionGate perm="expenses.write">
+      <ExpensesPage />
+    </PermissionGate>
+  );
+}
+
 function ExpensesPage() {
-  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("expenses.write");
-  if (__permChk || !__permOk) return null;
   const today = new Date().toISOString().slice(0, 10);
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");

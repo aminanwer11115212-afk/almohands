@@ -2,16 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { useRequirePermission } from "@/hooks/use-require-permission";
+import { PermissionGate } from "@/components/PermissionGate";
 
 export const Route = createFileRoute("/import")({
   head: () => ({ meta: [{ title: "استيراد إكسل — المهندس" }] }),
-  component: ImportPage,
+  component: ImportPageGuarded,
 });
 
+function ImportPageGuarded() {
+  return (
+    <PermissionGate perm="import_export">
+      <ImportPage />
+    </PermissionGate>
+  );
+}
+
 function ImportPage() {
-  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("import_export");
-  if (__permChk || !__permOk) return null;
   const [open, setOpen] = useState(false);
 
   return (

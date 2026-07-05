@@ -67,7 +67,7 @@ function AuthPage() {
 
 
   return (
-    <div className="min-h-screen bg-background grid place-items-center px-4">
+    <div className="min-h-dvh bg-background grid place-items-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-6">
           <img src={logo} alt="شعار المهندس" width={80} height={80} className="size-20 object-contain" />
@@ -159,13 +159,14 @@ function AuthPage() {
           width: 100%;
           height: 2.75rem;
           border-radius: 0.75rem;
-          border: 1px solid hsl(var(--border));
-          background: hsl(var(--card));
+          border: 1px solid var(--border);
+          background: var(--card);
+          color: var(--foreground);
           padding: 0 0.75rem;
           font-size: 0.875rem;
           outline: none;
         }
-        .input-base:focus { border-color: hsl(var(--brand, 200 90% 30%)); }
+        .input-base:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 30%, transparent); }
       `}</style>
     </div>
   );

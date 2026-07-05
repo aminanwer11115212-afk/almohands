@@ -120,10 +120,11 @@ function NewProductPage() {
       <style>{`
         .ip {
           width: 100%; height: 2.75rem; border-radius: 0.75rem;
-          border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+          border: 1px solid var(--border); background: var(--card);
+          color: var(--foreground);
           padding: 0 0.75rem; font-size: 0.875rem; outline: none;
         }
-        .ip:focus { border-color: hsl(var(--brand, 200 90% 30%)); }
+        .ip:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 30%, transparent); }
       `}</style>
     </AppShell>
   );

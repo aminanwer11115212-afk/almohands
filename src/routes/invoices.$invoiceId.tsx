@@ -49,7 +49,7 @@ function InvoiceDetailPage() {
   const { inv, items } = data;
 
   return (
-    <div className="min-h-screen bg-background print:bg-white">
+    <div className="min-h-dvh bg-background print:bg-white">
       <header className="bg-header text-header-foreground shadow print:hidden">
         <div className="mx-auto max-w-2xl px-4 h-14 flex items-center gap-3">
           <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-2 rounded-md hover:bg-white/10">

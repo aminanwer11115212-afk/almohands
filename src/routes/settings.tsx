@@ -217,13 +217,13 @@ function SettingsPage() {
       </div>
 
       <style>{`
-        .input { width: 100%; height: 2.5rem; border-radius: 0.5rem; border: 1px solid hsl(var(--input, 214 32% 91%)); background: hsl(var(--background)); padding: 0 0.75rem; font-size: 0.875rem; outline: none; }
-        .input:focus { box-shadow: 0 0 0 2px hsl(var(--ring, 215 20% 65%)); }
+        .input { width: 100%; height: 2.5rem; border-radius: 0.5rem; border: 1px solid var(--input); background: var(--background); color: var(--foreground); padding: 0 0.75rem; font-size: 0.875rem; outline: none; }
+        .input:focus-visible { box-shadow: 0 0 0 2px var(--ring); border-color: var(--ring); }
         textarea.input { padding: 0.5rem 0.75rem; height: auto; }
-        .btn-primary { width: 100%; height: 2.5rem; border-radius: 0.5rem; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-weight: 600; font-size: 0.875rem; }
+        .btn-primary { width: 100%; height: 2.5rem; border-radius: 0.5rem; background: var(--primary); color: var(--primary-foreground); font-weight: 600; font-size: 0.875rem; }
         .btn-primary:hover { opacity: 0.9; }
         .btn-primary:disabled { opacity: 0.5; }
-        .btn-secondary { height: 2.5rem; border-radius: 0.5rem; background: hsl(var(--secondary, 210 40% 96%)); color: hsl(var(--foreground)); font-weight: 600; font-size: 0.875rem; border: 1px solid hsl(var(--border)); }
+        .btn-secondary { height: 2.5rem; border-radius: 0.5rem; background: var(--secondary); color: var(--foreground); font-weight: 600; font-size: 0.875rem; border: 1px solid var(--border); }
       `}</style>
     </AppShell>
   );

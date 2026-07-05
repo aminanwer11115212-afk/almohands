@@ -33,8 +33,13 @@ function ExpensesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!target.trim() || !amount) return;
+    const num = parseFloat(amount);
+    if (!isFinite(num) || num <= 0) {
+      toast.error("المبلغ يجب أن يكون رقمًا موجبًا");
+      return;
+    }
     addExpense.mutate(
-      { target: target.trim(), amount: parseFloat(amount), date },
+      { target: target.trim(), amount: num, date },
       {
         onSuccess: () => {
           toast.success("تم حفظ المصروف");

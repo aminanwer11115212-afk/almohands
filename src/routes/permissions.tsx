@@ -26,18 +26,24 @@ type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 const ROLES: AppRole[] = ["admin", "seller", "accountant", "warehouse"];
 
 function PermissionsPage() {
+  const { isChecking, isAdmin } = useRequireAdmin("/");
   const { data: roles = [], isLoading: rolesLoading } = useMyRoles();
   const { data: logs = [], isLoading: logsLoading } = useAuditLogs();
-  const isAdmin = roles.some((r) => r.role === "admin");
+
+  if (isChecking || !isAdmin) {
+    return (
+      <AppShell title="الصلاحيات والأمان" showBack>
+        <p className="text-center text-muted-foreground py-12">جاري التحقق من الصلاحيات...</p>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="الصلاحيات والأمان" showBack>
       <Tabs defaultValue="roles" className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value="roles" className="flex-1 gap-1"><ShieldCheck className="h-4 w-4" />الأدوار</TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="users" className="flex-1 gap-1"><Users className="h-4 w-4" />الموظفون</TabsTrigger>
-          )}
+          <TabsTrigger value="users" className="flex-1 gap-1"><Users className="h-4 w-4" />الموظفون</TabsTrigger>
           <TabsTrigger value="logs" className="flex-1 gap-1"><ScrollText className="h-4 w-4" />السجل</TabsTrigger>
         </TabsList>
 

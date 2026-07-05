@@ -24,12 +24,16 @@ async function fetchStats() {
     supabase.from("invoices").select("total").gte("created_at", lastMonthStart).lt("created_at", monthStart),
   ]);
 
-  const sum = (rows: { total: number }[] | null) => (rows ?? []).reduce((s, r) => s + (r.total || 0), 0);
+  const firstError = todayRes.error || monthRes.error || lastMonthRes.error;
+  if (firstError) throw firstError;
+
+  const sum = (rows: { total: number | string | null }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + (Number(r.total) || 0), 0);
 
   return {
-    today: sum(todayRes.data as any),
-    thisMonth: sum(monthRes.data as any),
-    lastMonth: sum(lastMonthRes.data as any),
+    today: sum(todayRes.data),
+    thisMonth: sum(monthRes.data),
+    lastMonth: sum(lastMonthRes.data),
   };
 }
 

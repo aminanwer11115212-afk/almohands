@@ -13,7 +13,6 @@ import { Route as SuppliersRouteImport } from './routes/suppliers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as ProductsRouteImport } from './routes/products'
 import { Route as PricesRouteImport } from './routes/prices'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -27,6 +26,7 @@ import { Route as CashierRouteImport } from './routes/cashier'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
@@ -53,11 +53,6 @@ const ReturnsRoute = ReturnsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProductsRoute = ProductsRouteImport.update({
-  id: '/products',
-  path: '/products',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricesRoute = PricesRouteImport.update({
@@ -125,15 +120,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsNewRoute = ProductsNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => ProductsRoute,
+  id: '/products/new',
+  path: '/products/new',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
-  id: '/$productId',
-  path: '/$productId',
-  getParentRoute: () => ProductsRoute,
+  id: '/products/$productId',
+  path: '/products/$productId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InvoicesInvoiceIdRoute = InvoicesInvoiceIdRouteImport.update({
   id: '/$invoiceId',
@@ -178,7 +178,6 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRouteWithChildren
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
@@ -188,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -205,7 +205,6 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRouteWithChildren
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
@@ -215,6 +214,7 @@ export interface FileRoutesByTo {
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/products': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -233,7 +233,6 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
-  '/products': typeof ProductsRouteWithChildren
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
@@ -243,6 +242,7 @@ export interface FileRoutesById {
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -262,7 +262,6 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/permissions'
     | '/prices'
-    | '/products'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -272,6 +271,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/products/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -289,7 +289,6 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/permissions'
     | '/prices'
-    | '/products'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -299,6 +298,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/products'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   id:
@@ -316,7 +316,6 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/permissions'
     | '/prices'
-    | '/products'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -326,6 +325,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/products/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
   fileRoutesById: FileRoutesById
@@ -344,13 +344,15 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PermissionsRoute: typeof PermissionsRoute
   PricesRoute: typeof PricesRoute
-  ProductsRoute: typeof ProductsRouteWithChildren
   ReportsRoute: typeof ReportsRoute
   ReturnsRoute: typeof ReturnsRoute
   SettingsRoute: typeof SettingsRoute
   SuppliersRoute: typeof SuppliersRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ProductsProductIdRoute: typeof ProductsProductIdRoute
+  ProductsNewRoute: typeof ProductsNewRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -383,13 +385,6 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/products': {
-      id: '/products'
-      path: '/products'
-      fullPath: '/products'
-      preLoaderRoute: typeof ProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/prices': {
@@ -483,19 +478,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/products/new': {
       id: '/products/new'
-      path: '/new'
+      path: '/products/new'
       fullPath: '/products/new'
       preLoaderRoute: typeof ProductsNewRouteImport
-      parentRoute: typeof ProductsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/products/$productId': {
       id: '/products/$productId'
-      path: '/$productId'
+      path: '/products/$productId'
       fullPath: '/products/$productId'
       preLoaderRoute: typeof ProductsProductIdRouteImport
-      parentRoute: typeof ProductsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/invoices/$invoiceId': {
       id: '/invoices/$invoiceId'
@@ -547,20 +549,6 @@ const InvoicesRouteWithChildren = InvoicesRoute._addFileChildren(
   InvoicesRouteChildren,
 )
 
-interface ProductsRouteChildren {
-  ProductsProductIdRoute: typeof ProductsProductIdRoute
-  ProductsNewRoute: typeof ProductsNewRoute
-}
-
-const ProductsRouteChildren: ProductsRouteChildren = {
-  ProductsProductIdRoute: ProductsProductIdRoute,
-  ProductsNewRoute: ProductsNewRoute,
-}
-
-const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
-  ProductsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
@@ -575,7 +563,6 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PermissionsRoute: PermissionsRoute,
   PricesRoute: PricesRoute,
-  ProductsRoute: ProductsRouteWithChildren,
   ReportsRoute: ReportsRoute,
   ReturnsRoute: ReturnsRoute,
   SettingsRoute: SettingsRoute,
@@ -583,6 +570,9 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ProductsProductIdRoute: ProductsProductIdRoute,
+  ProductsNewRoute: ProductsNewRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

@@ -17,7 +17,7 @@ const searchSchema = z.object({
 
 type ProductsSearch = z.infer<typeof searchSchema>;
 
-export const Route = createFileRoute("/products")({
+export const Route = createFileRoute("/products/")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),
   component: ProductsPage,

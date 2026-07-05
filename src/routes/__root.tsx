@@ -123,8 +123,13 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    registerPwa();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
+      <OnlineStatus />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

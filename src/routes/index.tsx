@@ -15,12 +15,13 @@ import {
   ShieldCheck,
   LogIn,
   LogOut,
+  PieChart,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { formatSDG } from "@/lib/format";
-import { accountSummary } from "@/data/mock";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const [email, setEmail] = useState<string | null>(null);
+  const { data: stats } = useDashboardStats();
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -79,15 +81,15 @@ function HomePage() {
           <span className="text-xs opacity-80">مبيعات هذا الشهر</span>
           <span className="text-[11px] bg-white/15 rounded-full px-2 py-0.5">SDG</span>
         </div>
-        <div className="mt-2 text-2xl font-extrabold nums">{formatSDG(accountSummary.thisMonth)}</div>
+        <div className="mt-2 text-2xl font-extrabold nums">{formatSDG(stats?.thisMonth ?? 0)}</div>
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl bg-white/10 p-2">
             <div className="opacity-75">اليوم</div>
-            <div className="font-bold nums">{formatSDG(accountSummary.today)}</div>
+            <div className="font-bold nums">{formatSDG(stats?.today ?? 0)}</div>
           </div>
           <div className="rounded-xl bg-white/10 p-2">
             <div className="opacity-75">الشهر الماضي</div>
-            <div className="font-bold nums">{formatSDG(accountSummary.lastMonth)}</div>
+            <div className="font-bold nums">{formatSDG(stats?.lastMonth ?? 0)}</div>
           </div>
         </div>
       </section>
@@ -105,6 +107,7 @@ function HomePage() {
         <MenuTile to="/invoices" icon={Receipt} label="الفواتير" />
         <MenuTile to="/returns" icon={RotateCcw} label="المرتجعات" />
         <MenuTile to="/permissions" icon={ShieldCheck} label="الصلاحيات" />
+        <MenuTile to="/reports" icon={PieChart} label="التقارير" />
         <MenuTile to="/settings" icon={Settings} label="الإعدادات" />
       </div>
 

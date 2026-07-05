@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReturnsRouteImport } from './routes/returns'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as PricesRouteImport } from './routes/prices'
 import { Route as PermissionsRouteImport } from './routes/permissions'
@@ -43,6 +44,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ReturnsRoute = ReturnsRouteImport.update({
   id: '/returns',
   path: '/returns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsRoute = ProductsRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRouteWithChildren
+  '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRouteWithChildren
+  '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/permissions': typeof PermissionsRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRouteWithChildren
+  '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/prices'
     | '/products'
+    | '/reports'
     | '/returns'
     | '/settings'
     | '/suppliers'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/prices'
     | '/products'
+    | '/reports'
     | '/returns'
     | '/settings'
     | '/suppliers'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/prices'
     | '/products'
+    | '/reports'
     | '/returns'
     | '/settings'
     | '/suppliers'
@@ -283,6 +295,7 @@ export interface RootRouteChildren {
   PermissionsRoute: typeof PermissionsRoute
   PricesRoute: typeof PricesRoute
   ProductsRoute: typeof ProductsRouteWithChildren
+  ReportsRoute: typeof ReportsRoute
   ReturnsRoute: typeof ReturnsRoute
   SettingsRoute: typeof SettingsRoute
   SuppliersRoute: typeof SuppliersRoute
@@ -313,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/returns'
       fullPath: '/returns'
       preLoaderRoute: typeof ReturnsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products': {
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   PermissionsRoute: PermissionsRoute,
   PricesRoute: PricesRoute,
   ProductsRoute: ProductsRouteWithChildren,
+  ReportsRoute: ReportsRoute,
   ReturnsRoute: ReturnsRoute,
   SettingsRoute: SettingsRoute,
   SuppliersRoute: SuppliersRoute,

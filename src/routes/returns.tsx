@@ -53,11 +53,18 @@ function ReturnsPage() {
     );
   };
 
-  const handleStatus = (id: string, status: ReturnStatus) => {
+  const handleStatus = (id: string, status: ReturnStatus, hasProduct: boolean) => {
     updateStatus.mutate(
       { id, status },
       {
-        onSuccess: () => toast.success(status === "accepted" ? "تم قبول المرتجع وإعادة المخزون" : "تم رفض المرتجع"),
+        onSuccess: () =>
+          toast.success(
+            status === "accepted"
+              ? hasProduct
+                ? "تم قبول المرتجع وإعادة المخزون"
+                : "تم قبول المرتجع (بدون تعديل مخزون)"
+              : "تم رفض المرتجع",
+          ),
         onError: (err) => toast.error(getErrorMessage(err, "تعذّر تحديث الحالة")),
       }
     );
@@ -114,10 +121,10 @@ function ReturnsPage() {
                 <div className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ar-SD")}</div>
                 {r.status === "pending" && (
                   <div className="flex gap-2 pt-1">
-                    <Button size="sm" variant="outline" className="text-green-600" onClick={() => handleStatus(r.id, "accepted")}>
+                    <Button size="sm" variant="outline" className="text-green-600" onClick={() => handleStatus(r.id, "accepted", Boolean(r.product_id))}>
                       <CheckCircle className="h-3 w-3 ml-1" />قبول
                     </Button>
-                    <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatus(r.id, "rejected")}>
+                    <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatus(r.id, "rejected", Boolean(r.product_id))}>
                       <XCircle className="h-3 w-3 ml-1" />رفض
                     </Button>
                   </div>

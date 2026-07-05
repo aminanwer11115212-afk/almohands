@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
@@ -69,13 +69,16 @@ function InvoiceDetailPage() {
     },
   });
 
-  // Auto-open print dialog when arriving with ?autoprint=1 (once data + format ready)
+  // Auto-open print dialog only ONCE per page visit; background refetches
+  // must not retrigger window.print().
+  const printedRef = useRef(false);
+  const hasInv = Boolean(data?.inv);
   useEffect(() => {
-    if (autoprint && formatReady && data?.inv) {
-      const t = setTimeout(() => window.print(), 350);
-      return () => clearTimeout(t);
-    }
-  }, [autoprint, formatReady, data?.inv]);
+    if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
+    printedRef.current = true;
+    const t = setTimeout(() => window.print(), 350);
+    return () => clearTimeout(t);
+  }, [autoprint, formatReady, hasInv]);
 
   if (isLoading) {
     return (
@@ -172,7 +175,9 @@ function InvoiceDetailPage() {
           .print\\:hidden { display: none !important; }
           .print-a4 { width: 210mm; min-height: 297mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
           .print-thermal { width: 80mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
-          @page { margin: 8mm; }
+          ${format === "thermal"
+            ? "@page { size: 80mm auto; margin: 2mm; }"
+            : "@page { size: A4; margin: 8mm; }"}
         }
       `}</style>
     </div>

@@ -3,15 +3,15 @@ import { useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
+import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
-import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),
-  component: NewProductPage,
+  component: NewProductPageGuarded,
 });
 
 const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر"];
@@ -29,9 +29,15 @@ const productSchema = z.object({
   notes: z.string().trim().max(1000, "الملاحظات طويلة جداً").optional(),
 });
 
+function NewProductPageGuarded() {
+  return (
+    <PermissionGate perm="products.write">
+      <NewProductPage />
+    </PermissionGate>
+  );
+}
+
 function NewProductPage() {
-  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("products.write");
-  if (__permChk || !__permOk) return null;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");

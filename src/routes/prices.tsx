@@ -2,15 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { toast } from "sonner";
 import { Loader2, TrendingUp, TrendingDown, Calculator, AlertTriangle } from "lucide-react";
-import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/prices")({
   head: () => ({ meta: [{ title: "تعديل الأسعار — المهندس" }] }),
-  component: PricesPage,
+  component: PricesPageGuarded,
 });
 
 /** تقريب لأعلى لأقرب 100 (مثال: 1250 → 1300، 1201 → 1300، 1000 → 1000) */
@@ -27,9 +27,15 @@ type MiniProduct = {
   cost_price: number;
 };
 
+function PricesPageGuarded() {
+  return (
+    <PermissionGate perm="products.write">
+      <PricesPage />
+    </PermissionGate>
+  );
+}
+
 function PricesPage() {
-  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("products.write");
-  if (__permChk || !__permOk) return null;
   const qc = useQueryClient();
   const [target, setTarget] = useState<"sale_price" | "cost_price">("sale_price");
   const [dir, setDir] = useState<"inc" | "dec">("inc");

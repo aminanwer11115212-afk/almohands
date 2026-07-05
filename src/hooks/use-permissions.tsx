@@ -89,9 +89,15 @@ export function useMyRoles() {
   return useQuery({
     queryKey: ["my-roles"],
     queryFn: async () => {
+      // Scope to the current user: admins can see all rows via RLS, so
+      // an unfiltered select would mix other users' roles into ours.
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user?.id;
+      if (!uid) return [] as UserRole[];
       const { data, error } = await supabase
         .from("user_roles")
-        .select("*");
+        .select("*")
+        .eq("user_id", uid);
       if (error) throw error;
       return data as UserRole[];
     },
@@ -135,27 +141,35 @@ export function useAddAuditLog() {
 /**
  * Effective role for the current signed-in user.
  * Precedence: admin > warehouse > accountant > seller.
- * If the user has NO roles assigned, they are treated as `admin`
- * (backwards-compat for owner accounts that predate the roles system).
+ * While the roles query is loading, we do NOT default to admin — callers
+ * should render loading UI. Once loaded, a user with zero roles is treated
+ * as `admin` for backwards-compat with owner-only accounts predating the
+ * roles system.
  */
 export function useMyRole() {
   const roles = useMyRoles();
+  const isLoading = roles.isLoading;
   const list = roles.data ?? [];
-  let effective: AppRole = "admin";
-  if (list.length > 0) {
-    const set = new Set(list.map((r) => r.role));
-    effective = set.has("admin")
-      ? "admin"
-      : set.has("warehouse")
-        ? "warehouse"
-        : set.has("accountant")
-          ? "accountant"
-          : "seller";
+  let effective: AppRole | null = null;
+  if (!isLoading) {
+    if (list.length === 0) {
+      effective = "admin";
+    } else {
+      const set = new Set(list.map((r) => r.role));
+      effective = set.has("admin")
+        ? "admin"
+        : set.has("warehouse")
+          ? "warehouse"
+          : set.has("accountant")
+            ? "accountant"
+            : "seller";
+    }
   }
-  return { role: effective, isLoading: roles.isLoading, isAdmin: effective === "admin" };
+  return { role: effective, isLoading, isAdmin: effective === "admin" };
 }
 
-export function can(role: AppRole, perm: Permission): boolean {
+export function can(role: AppRole | null, perm: Permission): boolean {
+  if (!role) return false;
   if (role === "admin") return true;
   return ROLE_PERMS[role].includes(perm);
 }

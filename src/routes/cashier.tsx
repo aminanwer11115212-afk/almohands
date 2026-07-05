@@ -221,6 +221,7 @@ function CashierPage() {
 
       // Resolve/save customer: reuse selected, or auto-create when a name is entered.
       let customerId: string | null = selectedCustomerId;
+      let createdCustomerId: string | null = null;
       const trimmedName = customerName.trim();
       if (!customerId && trimmedName) {
         const { data: existing } = await supabase
@@ -243,49 +244,60 @@ function CashierPage() {
             .single();
           if (cErr) throw cErr;
           customerId = created?.id ?? null;
+          createdCustomerId = customerId;
         }
       }
 
-      const { data: inv, error: e1 } = await supabase
-        .from("invoices")
-        .insert({
+      let savedInvoice: { id: string; number: number } | null = null;
+      try {
+        const { data: inv, error: e1 } = await supabase
+          .from("invoices")
+          .insert({
+            user_id: userId,
+            customer_id: customerId,
+            customer_name: trimmedName || null,
+            customer_phone: phone || null,
+            source: "pos",
+            status,
+            subtotal,
+            discount: discountNum,
+            total,
+            paid: paidNum,
+            remaining,
+            payment_method: paymentType,
+            payment_method_id: paymentMethodId || null,
+          })
+          .select("id, invoice_number")
+          .single();
+        if (e1) throw e1;
+        if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
+
+        const items = cart.map((i) => ({
+          invoice_id: inv.id,
           user_id: userId,
-          customer_id: customerId,
-          customer_name: trimmedName || null,
-          customer_phone: phone || null,
-          source: "pos",
-          status,
-          subtotal,
-          discount: discountNum,
-          total,
-          paid: paidNum,
-          remaining,
-          payment_method: paymentType,
-          payment_method_id: paymentMethodId || null,
-        })
-        .select("id, invoice_number")
-        .single();
-      if (e1) throw e1;
-      if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
+          product_id: i.productId,
+          product_name: i.name,
+          unit: i.unit,
+          quantity: i.quantity,
+          unit_price: i.unitPrice,
+          cost_price: i.costPrice,
+          line_total: i.unitPrice * i.quantity,
+        }));
+        const { error: e2 } = await supabase.from("invoice_items").insert(items);
+        if (e2) {
+          await supabase.from("invoices").delete().eq("id", inv.id);
+          throw e2;
+        }
 
-      const items = cart.map((i) => ({
-        invoice_id: inv.id,
-        user_id: userId,
-        product_id: i.productId,
-        product_name: i.name,
-        unit: i.unit,
-        quantity: i.quantity,
-        unit_price: i.unitPrice,
-        cost_price: i.costPrice,
-        line_total: i.unitPrice * i.quantity,
-      }));
-      const { error: e2 } = await supabase.from("invoice_items").insert(items);
-      if (e2) {
-        await supabase.from("invoices").delete().eq("id", inv.id);
-        throw e2;
+        savedInvoice = { id: inv.id, number: inv.invoice_number };
+        setLastInvoice(savedInvoice);
+      } catch (invErr) {
+        // Roll back a customer we just created; leave pre-existing ones untouched.
+        if (createdCustomerId) {
+          await supabase.from("customers").delete().eq("id", createdCustomerId);
+        }
+        throw invErr;
       }
-
-      setLastInvoice({ id: inv.id, number: inv.invoice_number });
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
@@ -295,16 +307,17 @@ function CashierPage() {
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success(`تم حفظ الفاتورة #${inv.invoice_number}`);
-
-      // Auto-print: navigate directly to preview with autoprint flag
-      if (storeProfile?.auto_print) {
-        navigate({
-          to: "/invoices/$invoiceId",
-          params: { invoiceId: inv.id },
-          search: { autoprint: 1 },
-        });
-        return;
+      if (savedInvoice) {
+        toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+        // Auto-print: navigate directly to preview with autoprint flag
+        if (storeProfile?.auto_print) {
+          navigate({
+            to: "/invoices/$invoiceId",
+            params: { invoiceId: savedInvoice.id },
+            search: { autoprint: 1 },
+          });
+          return;
+        }
       }
       searchRef.current?.focus();
     } catch (err) {
@@ -316,20 +329,25 @@ function CashierPage() {
     }
   }
 
-  // Keyboard shortcuts
+  // Keep the latest checkout in a ref so the global keydown handler always
+  // calls the current version (avoids stale-closure bugs on payment/discount
+  // changes without rebinding the listener).
+  const checkoutRef = useRef(checkout);
+  useEffect(() => {
+    checkoutRef.current = checkout;
+  });
+
+  // Keyboard shortcuts — bound once.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // F2 → checkout
       if (e.key === "F2") {
         e.preventDefault();
-        if (!saving && cart.length > 0) checkout();
+        checkoutRef.current();
       }
-      // Esc → clear search or focus back
       if (e.key === "Escape") {
         if (query) setQuery("");
         else searchRef.current?.focus();
       }
-      // Ctrl+K / / → focus search
       if ((e.ctrlKey && e.key === "k") || (e.key === "/" && document.activeElement?.tagName !== "INPUT")) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -337,7 +355,7 @@ function CashierPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [saving, cart.length, query]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query]);
 
   return (
     <AppShell title="الكاشير" showBack>

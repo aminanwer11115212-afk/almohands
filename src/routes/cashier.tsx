@@ -221,6 +221,7 @@ function CashierPage() {
 
       // Resolve/save customer: reuse selected, or auto-create when a name is entered.
       let customerId: string | null = selectedCustomerId;
+      let createdCustomerId: string | null = null;
       const trimmedName = customerName.trim();
       if (!customerId && trimmedName) {
         const { data: existing } = await supabase
@@ -243,49 +244,58 @@ function CashierPage() {
             .single();
           if (cErr) throw cErr;
           customerId = created?.id ?? null;
+          createdCustomerId = customerId;
         }
       }
 
-      const { data: inv, error: e1 } = await supabase
-        .from("invoices")
-        .insert({
+      try {
+        const { data: inv, error: e1 } = await supabase
+          .from("invoices")
+          .insert({
+            user_id: userId,
+            customer_id: customerId,
+            customer_name: trimmedName || null,
+            customer_phone: phone || null,
+            source: "pos",
+            status,
+            subtotal,
+            discount: discountNum,
+            total,
+            paid: paidNum,
+            remaining,
+            payment_method: paymentType,
+            payment_method_id: paymentMethodId || null,
+          })
+          .select("id, invoice_number")
+          .single();
+        if (e1) throw e1;
+        if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
+
+        const items = cart.map((i) => ({
+          invoice_id: inv.id,
           user_id: userId,
-          customer_id: customerId,
-          customer_name: trimmedName || null,
-          customer_phone: phone || null,
-          source: "pos",
-          status,
-          subtotal,
-          discount: discountNum,
-          total,
-          paid: paidNum,
-          remaining,
-          payment_method: paymentType,
-          payment_method_id: paymentMethodId || null,
-        })
-        .select("id, invoice_number")
-        .single();
-      if (e1) throw e1;
-      if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
+          product_id: i.productId,
+          product_name: i.name,
+          unit: i.unit,
+          quantity: i.quantity,
+          unit_price: i.unitPrice,
+          cost_price: i.costPrice,
+          line_total: i.unitPrice * i.quantity,
+        }));
+        const { error: e2 } = await supabase.from("invoice_items").insert(items);
+        if (e2) {
+          await supabase.from("invoices").delete().eq("id", inv.id);
+          throw e2;
+        }
 
-      const items = cart.map((i) => ({
-        invoice_id: inv.id,
-        user_id: userId,
-        product_id: i.productId,
-        product_name: i.name,
-        unit: i.unit,
-        quantity: i.quantity,
-        unit_price: i.unitPrice,
-        cost_price: i.costPrice,
-        line_total: i.unitPrice * i.quantity,
-      }));
-      const { error: e2 } = await supabase.from("invoice_items").insert(items);
-      if (e2) {
-        await supabase.from("invoices").delete().eq("id", inv.id);
-        throw e2;
+        setLastInvoice({ id: inv.id, number: inv.invoice_number });
+      } catch (invErr) {
+        // Roll back a customer we just created; leave pre-existing ones untouched.
+        if (createdCustomerId) {
+          await supabase.from("customers").delete().eq("id", createdCustomerId);
+        }
+        throw invErr;
       }
-
-      setLastInvoice({ id: inv.id, number: inv.invoice_number });
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");

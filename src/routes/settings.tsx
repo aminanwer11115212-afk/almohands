@@ -1,118 +1,121 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+import { useStoreProfile, useSaveStoreProfile, type StoreProfile } from "@/hooks/use-store-profile";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
   component: SettingsPage,
 });
 
-
-type StoreInfo = {
+type FormState = {
   name: string;
   phone: string;
   address: string;
-  taxNumber: string;
+  tax_number: string;
   currency: string;
+  invoice_header: string;
+  invoice_footer: string;
+  show_logo: boolean;
+  show_tax: boolean;
+  show_qr: boolean;
+  print_size: "A4" | "A5" | "80mm" | "58mm";
+  print_copies: number;
+  auto_print: boolean;
 };
 
-type InvoiceTemplate = {
-  header: string;
-  footer: string;
-  showLogo: boolean;
-  showTax: boolean;
-  showQr: boolean;
+const defaults: FormState = {
+  name: "المهندس لقطع غيار السيارات",
+  phone: "",
+  address: "",
+  tax_number: "",
+  currency: "جنية سوداني",
+  invoice_header: "",
+  invoice_footer: "شكراً لتعاملكم معنا",
+  show_logo: true,
+  show_tax: false,
+  show_qr: true,
+  print_size: "80mm",
+  print_copies: 1,
+  auto_print: false,
 };
 
-type PrintSettings = {
-  size: "A4" | "A5" | "80mm" | "58mm";
-  copies: number;
-  autoPrint: boolean;
-};
-
-const STORE_KEY = "engineer:store-info";
-const INVOICE_KEY = "engineer:invoice-template";
-const PRINT_KEY = "engineer:print-settings";
-
-const defaultStore: StoreInfo = { name: "المهندس لقطع غيار السيارات", phone: "", address: "", taxNumber: "", currency: "جنية سوداني" };
-const defaultInvoice: InvoiceTemplate = { header: "", footer: "شكراً لتعاملكم معنا", showLogo: true, showTax: false, showQr: true };
-const defaultPrint: PrintSettings = { size: "80mm", copies: 1, autoPrint: false };
-
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
-  } catch {
-    return fallback;
-  }
+function fromProfile(p: StoreProfile | null | undefined): FormState {
+  if (!p) return defaults;
+  return {
+    name: p.name,
+    phone: p.phone,
+    address: p.address,
+    tax_number: p.tax_number,
+    currency: p.currency,
+    invoice_header: p.invoice_header,
+    invoice_footer: p.invoice_footer,
+    show_logo: p.show_logo,
+    show_tax: p.show_tax,
+    show_qr: p.show_qr,
+    print_size: (p.print_size as FormState["print_size"]) ?? "80mm",
+    print_copies: p.print_copies,
+    auto_print: p.auto_print,
+  };
 }
 
 function SettingsPage() {
-  const [store, setStore] = useState<StoreInfo>(defaultStore);
-  const [invoice, setInvoice] = useState<InvoiceTemplate>(defaultInvoice);
-  const [print, setPrint] = useState<PrintSettings>(defaultPrint);
+  const { data: profile, isLoading } = useStoreProfile();
+  const saveMut = useSaveStoreProfile();
+  const [form, setForm] = useState<FormState>(defaults);
   const [email, setEmail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setStore(load(STORE_KEY, defaultStore));
-    setInvoice(load(INVOICE_KEY, defaultInvoice));
-    setPrint(load(PRINT_KEY, defaultPrint));
+    setForm(fromProfile(profile));
+  }, [profile]);
+
+  useEffect(() => {
     let alive = true;
-    supabase.auth.getUser()
-      .then(({ data }) => { if (alive) setEmail(data.user?.email ?? null); })
-      .catch(() => { if (alive) setEmail(null); });
+    supabase.auth.getSession().then(({ data }) => {
+      if (alive) setEmail(data.session?.user?.email ?? null);
+    });
     return () => { alive = false; };
   }, []);
 
-  function safeSetLocalStorage(key: string, value: unknown, successMsg: string, errorMsg: string) {
+  async function save() {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
-      toast.success(successMsg);
+      await saveMut.mutateAsync(form);
+      toast.success("تم حفظ الإعدادات");
     } catch (err) {
-      // localStorage can throw QuotaExceededError or SecurityError (private mode)
-      console.error(err);
-      toast.error(getErrorMessage(err, errorMsg));
+      toast.error(getErrorMessage(err, "تعذّر الحفظ"));
     }
-  }
-
-  function saveStore() {
-    safeSetLocalStorage(STORE_KEY, store, "تم حفظ بيانات المحل", "تعذّر الحفظ");
-  }
-  function saveInvoice() {
-    safeSetLocalStorage(INVOICE_KEY, invoice, "تم حفظ شكل الفاتورة", "تعذّر الحفظ");
-  }
-  function savePrint() {
-    safeSetLocalStorage(PRINT_KEY, print, "تم حفظ إعدادات الطباعة", "تعذّر الحفظ");
   }
 
   async function backupNow() {
     setBusy(true);
     try {
-      const [products, invoices, items] = await Promise.all([
+      const [products, invoices, items, methods, storeRes] = await Promise.all([
         supabase.from("products").select("*"),
         supabase.from("invoices").select("*"),
         supabase.from("invoice_items").select("*"),
+        supabase.from("payment_methods").select("*"),
+        supabase.from("store_profile").select("*").maybeSingle(),
       ]);
       if (products.error) throw products.error;
       if (invoices.error) throw invoices.error;
       if (items.error) throw items.error;
+      if (methods.error) throw methods.error;
 
       const payload = {
         exportedAt: new Date().toISOString(),
-        version: 1,
-        store,
-        invoice,
-        print,
+        version: 2,
+        store_profile: storeRes.data ?? null,
         data: {
           products: products.data ?? [],
           invoices: invoices.data ?? [],
           invoice_items: items.data ?? [],
+          payment_methods: methods.data ?? [],
         },
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -135,22 +138,11 @@ function SettingsPage() {
   }
 
   const backupSchema = z.object({
-    store: z.object({
-      name: z.string(), phone: z.string(), address: z.string(),
-      taxNumber: z.string(), currency: z.string(),
-    }).partial().optional(),
-    invoice: z.object({
-      header: z.string(), footer: z.string(),
-      showLogo: z.boolean(), showTax: z.boolean(), showQr: z.boolean(),
-    }).partial().optional(),
-    print: z.object({
-      size: z.enum(["A4", "A5", "80mm", "58mm"]),
-      copies: z.number(), autoPrint: z.boolean(),
-    }).partial().optional(),
+    store_profile: z.record(z.string(), z.unknown()).nullable().optional(),
   }).passthrough();
 
   function importBackup(file: File) {
-    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+    const MAX_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       toast.error("حجم الملف كبير جداً (الحد الأقصى 50 ميغابايت)");
       return;
@@ -161,7 +153,7 @@ function SettingsPage() {
     }
     const reader = new FileReader();
     reader.onerror = () => toast.error("تعذّر قراءة الملف");
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const raw = String(reader.result ?? "");
         if (!raw.trim()) throw new Error("empty");
@@ -171,11 +163,15 @@ function SettingsPage() {
           toast.error("بنية النسخة الاحتياطية غير صحيحة");
           return;
         }
-        const d = validated.data;
-        if (d.store) { localStorage.setItem(STORE_KEY, JSON.stringify(d.store)); setStore({ ...defaultStore, ...d.store }); }
-        if (d.invoice) { localStorage.setItem(INVOICE_KEY, JSON.stringify(d.invoice)); setInvoice({ ...defaultInvoice, ...d.invoice }); }
-        if (d.print) { localStorage.setItem(PRINT_KEY, JSON.stringify(d.print)); setPrint({ ...defaultPrint, ...d.print }); }
-        toast.success("تم استيراد الإعدادات من النسخة الاحتياطية");
+        const sp = validated.data.store_profile as Partial<StoreProfile> | null | undefined;
+        if (sp && typeof sp === "object") {
+          const merged = fromProfile({ ...defaults, ...sp } as StoreProfile);
+          setForm(merged);
+          await saveMut.mutateAsync(merged);
+          toast.success("تم استيراد إعدادات المحل");
+        } else {
+          toast.info("لا توجد إعدادات محل في النسخة الاحتياطية");
+        }
       } catch (err) {
         console.error(err);
         toast.error(getErrorMessage(err, "ملف نسخة احتياطية غير صالح"));
@@ -188,47 +184,52 @@ function SettingsPage() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <AppShell title="الإعدادات" showBack>
+        <div className="py-12 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="الإعدادات" showBack>
       <div className="space-y-4">
         <Section icon={Store} title="بيانات المحل">
           <Field label="اسم المحل">
-            <input className="input" value={store.name} onChange={(e) => setStore({ ...store, name: e.target.value })} />
+            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={120} />
           </Field>
           <Field label="رقم الهاتف">
-            <input className="input" value={store.phone} onChange={(e) => setStore({ ...store, phone: e.target.value })} />
+            <input className="input" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} maxLength={30} />
           </Field>
           <Field label="العنوان">
-            <input className="input" value={store.address} onChange={(e) => setStore({ ...store, address: e.target.value })} />
+            <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} maxLength={200} />
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="الرقم الضريبي">
-              <input className="input" value={store.taxNumber} onChange={(e) => setStore({ ...store, taxNumber: e.target.value })} />
+              <input className="input" value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} maxLength={40} />
             </Field>
             <Field label="العملة">
-              <input className="input" value={store.currency} onChange={(e) => setStore({ ...store, currency: e.target.value })} />
+              <input className="input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} maxLength={30} />
             </Field>
           </div>
-          <button onClick={saveStore} className="btn-primary">حفظ بيانات المحل</button>
         </Section>
 
         <Section icon={Receipt} title="شكل الفاتورة">
           <Field label="ترويسة الفاتورة">
-            <textarea className="input min-h-16" value={invoice.header} onChange={(e) => setInvoice({ ...invoice, header: e.target.value })} placeholder="نص يظهر أعلى الفاتورة" />
+            <textarea className="input min-h-16" value={form.invoice_header} onChange={(e) => setForm({ ...form, invoice_header: e.target.value })} maxLength={300} placeholder="نص يظهر أعلى الفاتورة" />
           </Field>
           <Field label="تذييل الفاتورة">
-            <textarea className="input min-h-16" value={invoice.footer} onChange={(e) => setInvoice({ ...invoice, footer: e.target.value })} />
+            <textarea className="input min-h-16" value={form.invoice_footer} onChange={(e) => setForm({ ...form, invoice_footer: e.target.value })} maxLength={300} />
           </Field>
-          <Toggle label="عرض الشعار" checked={invoice.showLogo} onChange={(v) => setInvoice({ ...invoice, showLogo: v })} />
-          <Toggle label="عرض الضريبة" checked={invoice.showTax} onChange={(v) => setInvoice({ ...invoice, showTax: v })} />
-          <Toggle label="عرض QR Code" checked={invoice.showQr} onChange={(v) => setInvoice({ ...invoice, showQr: v })} />
-          <button onClick={saveInvoice} className="btn-primary">حفظ شكل الفاتورة</button>
+          <Toggle label="عرض الشعار" checked={form.show_logo} onChange={(v) => setForm({ ...form, show_logo: v })} />
+          <Toggle label="عرض الضريبة" checked={form.show_tax} onChange={(v) => setForm({ ...form, show_tax: v })} />
+          <Toggle label="عرض QR Code" checked={form.show_qr} onChange={(v) => setForm({ ...form, show_qr: v })} />
         </Section>
 
         <Section icon={Printer} title="الطباعة">
           <Field label="حجم الورق">
-            <select className="input" value={print.size} onChange={(e) => setPrint({ ...print, size: e.target.value as PrintSettings["size"] })}>
+            <select className="input" value={form.print_size} onChange={(e) => setForm({ ...form, print_size: e.target.value as FormState["print_size"] })}>
               <option value="A4">A4</option>
               <option value="A5">A5</option>
               <option value="80mm">حرارية 80mm</option>
@@ -236,18 +237,22 @@ function SettingsPage() {
             </select>
           </Field>
           <Field label="عدد النسخ">
-            <input type="number" min={1} max={5} className="input" value={print.copies} onChange={(e) => setPrint({ ...print, copies: Math.max(1, Number(e.target.value)) })} />
+            <input type="number" min={1} max={5} className="input" value={form.print_copies} onChange={(e) => setForm({ ...form, print_copies: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })} />
           </Field>
-          <Toggle label="طباعة تلقائية بعد البيع" checked={print.autoPrint} onChange={(v) => setPrint({ ...print, autoPrint: v })} />
-          <button onClick={savePrint} className="btn-primary">حفظ إعدادات الطباعة</button>
+          <Toggle label="طباعة تلقائية بعد البيع" checked={form.auto_print} onChange={(v) => setForm({ ...form, auto_print: v })} />
         </Section>
+
+        <button onClick={save} disabled={saveMut.isPending} className="btn-primary inline-flex items-center justify-center gap-2 w-full">
+          {saveMut.isPending && <Loader2 className="size-4 animate-spin" />}
+          حفظ جميع الإعدادات
+        </button>
 
         <Section icon={Cloud} title="المزامنة السحابية">
           <div className="flex items-center gap-2 text-sm">
             {email ? (
               <>
                 <CheckCircle2 className="size-4 text-emerald-600" />
-                <span>متصل كـ <strong>{email}</strong> — المزامنة فعّالة لحظياً</span>
+                <span>متصل كـ <strong>{email}</strong> — الإعدادات محفوظة سحابياً</span>
               </>
             ) : (
               <>
@@ -256,11 +261,11 @@ function SettingsPage() {
               </>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">يتم حفظ المنتجات والفواتير في قاعدة بيانات سحابية آمنة مع تحديث فوري عبر جميع أجهزتك.</p>
+          <p className="text-xs text-muted-foreground">تُحفظ بيانات المحل والإعدادات في قاعدة بيانات سحابية آمنة وتتزامن عبر جميع أجهزتك.</p>
         </Section>
 
         <Section icon={Database} title="النسخ الاحتياطي">
-          <p className="text-xs text-muted-foreground">صدّر نسخة كاملة من بياناتك (منتجات، فواتير، إعدادات) كملف JSON يمكن استيراده لاحقاً.</p>
+          <p className="text-xs text-muted-foreground">صدّر نسخة كاملة من بياناتك (منتجات، فواتير، طرق دفع، إعدادات المحل) كملف JSON.</p>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={backupNow} disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2">
               <Download className="size-4" /> تنزيل نسخة
@@ -276,7 +281,7 @@ function SettingsPage() {
           </div>
         </Section>
 
-        <p className="text-center text-[11px] text-muted-foreground py-2">المهندس — إصدار 1.0</p>
+        <p className="text-center text-[11px] text-muted-foreground py-2">المهندس — إصدار 1.1</p>
       </div>
 
       <style>{`

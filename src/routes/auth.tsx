@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Loader2, LogIn, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
+import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 
 export const Route = createFileRoute("/auth")({
@@ -15,6 +17,13 @@ function safeNext(next: string | undefined): string {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
   return next;
 }
+
+const emailSchema = z.string().trim().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة").max(255, "البريد طويل جداً");
+const passwordSchema = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72, "كلمة المرور طويلة جداً");
+const nameSchema = z.string().trim().min(1, "الاسم مطلوب").max(100, "الاسم طويل جداً");
+
+const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
+const signUpSchema = z.object({ email: emailSchema, password: passwordSchema, fullName: nameSchema });
 
 function AuthPage() {
   const search = Route.useSearch();
@@ -29,41 +38,64 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.assign(nextPath);
-    });
+    let alive = true;
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (alive && data.session) window.location.assign(nextPath);
+      })
+      .catch((err) => console.error("Session check failed:", err));
+    return () => { alive = false; };
   }, [nextPath]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setInfo(null);
+
+    // Client-side validation
+    const parsed =
+      mode === "signin"
+        ? signInSchema.safeParse({ email, password })
+        : signUpSchema.safeParse({ email, password, fullName });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
         if (error) throw error;
         window.location.assign(nextPath);
       } else {
+        const data = parsed.data as z.infer<typeof signUpSchema>;
         const { error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: data.email,
+          password: data.password,
           options: {
             emailRedirectTo: `${window.location.origin}${nextPath}`,
-            data: { full_name: fullName },
+            data: { full_name: data.fullName },
           },
         });
         if (error) throw error;
+        toast.success("تم إنشاء الحساب بنجاح");
         setInfo("تم إنشاء الحساب. يمكنك تسجيل الدخول الآن.");
         setMode("signin");
       }
     } catch (err) {
-      const msg = (err as Error).message || "حدث خطأ";
-      setError(translateError(msg));
+      const msg = getErrorMessage(err, "تعذّر إتمام العملية");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   }
+
+
 
 
   return (

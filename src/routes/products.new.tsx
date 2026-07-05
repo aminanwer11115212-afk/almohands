@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Loader2, Save } from "lucide-react";
+import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage, parseNumber } from "@/lib/errors";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),
@@ -11,6 +14,19 @@ export const Route = createFileRoute("/products/new")({
 });
 
 const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر"];
+
+const productSchema = z.object({
+  name: z.string().trim().min(1, "اسم المنتج مطلوب").max(200, "الاسم طويل جداً"),
+  barcode: z.string().trim().max(64, "الباركود طويل جداً").optional(),
+  category: z.string().trim().max(80, "اسم الفئة طويل").optional(),
+  unit: z.enum(UNITS as [string, ...string[]]),
+  location: z.string().trim().max(50, "الموقع طويل جداً").optional(),
+  quantity: z.number().min(0, "الكمية لا يمكن أن تكون سالبة").max(1_000_000, "الكمية كبيرة جداً"),
+  minQuantity: z.number().min(0, "الحد الأدنى لا يمكن أن يكون سالباً").max(1_000_000),
+  costPrice: z.number().min(0, "السعر لا يمكن أن يكون سالباً").max(1e12),
+  salePrice: z.number().min(0, "السعر لا يمكن أن يكون سالباً").max(1e12),
+  notes: z.string().trim().max(1000, "الملاحظات طويلة جداً").optional(),
+});
 
 function NewProductPage() {
   const navigate = useNavigate();
@@ -31,36 +47,65 @@ function NewProductPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const parsed = productSchema.safeParse({
+      name,
+      barcode: barcode.trim() || undefined,
+      category: category.trim() || undefined,
+      unit,
+      location: location.trim() || undefined,
+      quantity: parseNumber(quantity, { min: 0 }),
+      minQuantity: parseNumber(minQuantity, { min: 0 }),
+      costPrice: parseNumber(costPrice, { min: 0 }),
+      salePrice: parseNumber(salePrice, { min: 0 }),
+      notes: notes.trim() || undefined,
+    });
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "بيانات غير صحيحة";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (parsed.data.salePrice > 0 && parsed.data.costPrice > parsed.data.salePrice) {
+      toast.warning("تنبيه: سعر التكلفة أعلى من سعر البيع");
+    }
+
     setSaving(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
       const userId = userData.user?.id;
       if (!userId) {
         navigate({ to: "/auth" });
         return;
       }
+      const p = parsed.data;
       const { error } = await supabase.from("products").insert({
         user_id: userId,
-        name: name.trim(),
-        barcode: barcode.trim() || null,
-        category: category.trim() || null,
-        unit,
-        location: location.trim() || null,
-        quantity: Number(quantity) || 0,
-        min_quantity: Number(minQuantity) || 0,
-        cost_price: Number(costPrice) || 0,
-        sale_price: Number(salePrice) || 0,
-        notes: notes.trim() || null,
+        name: p.name,
+        barcode: p.barcode ?? null,
+        category: p.category ?? null,
+        unit: p.unit,
+        location: p.location ?? null,
+        quantity: p.quantity,
+        min_quantity: p.minQuantity,
+        cost_price: p.costPrice,
+        sale_price: p.salePrice,
+        notes: p.notes ?? null,
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("تم حفظ المنتج");
       navigate({ to: "/products" });
     } catch (err) {
-      setError((err as Error).message || "تعذّر حفظ المنتج");
+      const msg = getErrorMessage(err, "تعذّر حفظ المنتج");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   }
+
 
   return (
     <AppShell title="إضافة منتج" showBack>

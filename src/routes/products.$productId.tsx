@@ -1,10 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Loader2, Save, Trash2 } from "lucide-react";
+import { Loader2, Save, Trash2, AlertCircle } from "lucide-react";
+import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toProduct } from "@/types/product";
+import { getErrorMessage, parseNumber } from "@/lib/errors";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({ meta: [{ title: "تعديل منتج — المهندس" }] }),
@@ -13,22 +16,37 @@ export const Route = createFileRoute("/products/$productId")({
 
 const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر"];
 
+const productSchema = z.object({
+  name: z.string().trim().min(1, "اسم المنتج مطلوب").max(200, "الاسم طويل جداً"),
+  barcode: z.string().trim().max(64).optional(),
+  category: z.string().trim().max(80).optional(),
+  unit: z.enum(UNITS as [string, ...string[]]),
+  location: z.string().trim().max(50).optional(),
+  quantity: z.number().min(0, "الكمية سالبة").max(1_000_000),
+  minQuantity: z.number().min(0).max(1_000_000),
+  costPrice: z.number().min(0).max(1e12),
+  salePrice: z.number().min(0).max(1e12),
+  notes: z.string().trim().max(1000).optional(),
+});
+
 function EditProductPage() {
   const { productId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: product, isLoading: loadingProduct } = useQuery({
+  const { data: product, isLoading: loadingProduct, error: loadError } = useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("id", productId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) return null;
       return toProduct(data);
     },
+    retry: 1,
   });
 
   const [name, setName] = useState("");
@@ -44,6 +62,7 @@ function EditProductPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -63,44 +82,79 @@ function EditProductPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const parsed = productSchema.safeParse({
+      name,
+      barcode: barcode.trim() || undefined,
+      category: category.trim() || undefined,
+      unit,
+      location: location.trim() || undefined,
+      quantity: parseNumber(quantity, { min: 0 }),
+      minQuantity: parseNumber(minQuantity, { min: 0 }),
+      costPrice: parseNumber(costPrice, { min: 0 }),
+      salePrice: parseNumber(salePrice, { min: 0 }),
+      notes: notes.trim() || undefined,
+    });
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "بيانات غير صحيحة";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setSaving(true);
     try {
+      const p = parsed.data;
       const { error } = await supabase
         .from("products")
         .update({
-          name: name.trim(),
-          barcode: barcode.trim() || null,
-          category: category.trim() || null,
-          unit,
-          location: location.trim() || null,
-          quantity: Number(quantity) || 0,
-          min_quantity: Number(minQuantity) || 0,
-          cost_price: Number(costPrice) || 0,
-          sale_price: Number(salePrice) || 0,
-          notes: notes.trim() || null,
+          name: p.name,
+          barcode: p.barcode ?? null,
+          category: p.category ?? null,
+          unit: p.unit,
+          location: p.location ?? null,
+          quantity: p.quantity,
+          min_quantity: p.minQuantity,
+          cost_price: p.costPrice,
+          sale_price: p.salePrice,
+          notes: p.notes ?? null,
         })
         .eq("id", productId);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product", productId] });
+      toast.success("تم حفظ التعديلات");
       navigate({ to: "/products" });
     } catch (err) {
-      setError((err as Error).message || "تعذّر حفظ التعديلات");
+      const msg = getErrorMessage(err, "تعذّر حفظ التعديلات");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   }
 
   async function onDelete() {
-    if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      toast("اضغط الحذف مرة أخرى للتأكيد", { duration: 4000 });
+      setTimeout(() => setConfirmDelete(false), 4000);
+      return;
+    }
     setDeleting(true);
+    setError(null);
     try {
       const { error } = await supabase.from("products").delete().eq("id", productId);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("تم حذف المنتج");
       navigate({ to: "/products" });
     } catch (err) {
-      setError((err as Error).message || "تعذّر حذف المنتج");
+      const msg = getErrorMessage(err, "تعذّر حذف المنتج");
+      setError(msg);
+      toast.error(msg);
       setDeleting(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -111,6 +165,37 @@ function EditProductPage() {
       </AppShell>
     );
   }
+
+  if (loadError) {
+    return (
+      <AppShell title="تعديل منتج" showBack>
+        <div className="py-20 grid place-items-center gap-3 text-center">
+          <AlertCircle className="size-8 text-destructive" />
+          <p className="text-sm text-destructive">{getErrorMessage(loadError, "تعذّر تحميل بيانات المنتج")}</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["product", productId] })}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border"
+          >إعادة المحاولة</button>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!product) {
+    return (
+      <AppShell title="تعديل منتج" showBack>
+        <div className="py-20 grid place-items-center gap-3 text-center">
+          <AlertCircle className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">المنتج غير موجود أو تم حذفه</p>
+          <button
+            onClick={() => navigate({ to: "/products" })}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border"
+          >الرجوع للمنتجات</button>
+        </div>
+      </AppShell>
+    );
+  }
+
 
   return (
     <AppShell title="تعديل منتج" showBack>
@@ -170,10 +255,11 @@ function EditProductPage() {
           type="button"
           onClick={onDelete}
           disabled={deleting}
-          className="w-full h-12 rounded-xl border border-destructive text-destructive font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          className={`w-full h-12 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 ${confirmDelete ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive text-destructive"}`}
         >
-          {deleting ? <Loader2 className="size-4 animate-spin" /> : <><Trash2 className="size-4" /> حذف المنتج</>}
+          {deleting ? <Loader2 className="size-4 animate-spin" /> : <><Trash2 className="size-4" /> {confirmDelete ? "تأكيد الحذف" : "حذف المنتج"}</>}
         </button>
+
       </form>
 
       <style>{`

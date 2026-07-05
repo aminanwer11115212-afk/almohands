@@ -1,14 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
   component: SettingsPage,
 });
+
 
 type StoreInfo = {
   name: string;
@@ -60,20 +63,32 @@ function SettingsPage() {
     setStore(load(STORE_KEY, defaultStore));
     setInvoice(load(INVOICE_KEY, defaultInvoice));
     setPrint(load(PRINT_KEY, defaultPrint));
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    let alive = true;
+    supabase.auth.getUser()
+      .then(({ data }) => { if (alive) setEmail(data.user?.email ?? null); })
+      .catch(() => { if (alive) setEmail(null); });
+    return () => { alive = false; };
   }, []);
 
+  function safeSetLocalStorage(key: string, value: unknown, successMsg: string, errorMsg: string) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      toast.success(successMsg);
+    } catch (err) {
+      // localStorage can throw QuotaExceededError or SecurityError (private mode)
+      console.error(err);
+      toast.error(getErrorMessage(err, errorMsg));
+    }
+  }
+
   function saveStore() {
-    localStorage.setItem(STORE_KEY, JSON.stringify(store));
-    toast.success("تم حفظ بيانات المحل");
+    safeSetLocalStorage(STORE_KEY, store, "تم حفظ بيانات المحل", "تعذّر الحفظ");
   }
   function saveInvoice() {
-    localStorage.setItem(INVOICE_KEY, JSON.stringify(invoice));
-    toast.success("تم حفظ شكل الفاتورة");
+    safeSetLocalStorage(INVOICE_KEY, invoice, "تم حفظ شكل الفاتورة", "تعذّر الحفظ");
   }
   function savePrint() {
-    localStorage.setItem(PRINT_KEY, JSON.stringify(print));
-    toast.success("تم حفظ إعدادات الطباعة");
+    safeSetLocalStorage(PRINT_KEY, print, "تم حفظ إعدادات الطباعة", "تعذّر الحفظ");
   }
 
   async function backupNow() {
@@ -84,8 +99,13 @@ function SettingsPage() {
         supabase.from("invoices").select("*"),
         supabase.from("invoice_items").select("*"),
       ]);
+      if (products.error) throw products.error;
+      if (invoices.error) throw invoices.error;
+      if (items.error) throw items.error;
+
       const payload = {
         exportedAt: new Date().toISOString(),
+        version: 1,
         store,
         invoice,
         print,
@@ -97,34 +117,77 @@ function SettingsPage() {
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `engineer-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `engineer-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
       toast.success("تم إنشاء النسخة الاحتياطية");
-    } catch (e) {
-      toast.error("تعذر إنشاء النسخة الاحتياطية");
+    } catch (err) {
+      console.error(err);
+      toast.error(getErrorMessage(err, "تعذر إنشاء النسخة الاحتياطية"));
     } finally {
       setBusy(false);
     }
   }
 
+  const backupSchema = z.object({
+    store: z.object({
+      name: z.string(), phone: z.string(), address: z.string(),
+      taxNumber: z.string(), currency: z.string(),
+    }).partial().optional(),
+    invoice: z.object({
+      header: z.string(), footer: z.string(),
+      showLogo: z.boolean(), showTax: z.boolean(), showQr: z.boolean(),
+    }).partial().optional(),
+    print: z.object({
+      size: z.enum(["A4", "A5", "80mm", "58mm"]),
+      copies: z.number(), autoPrint: z.boolean(),
+    }).partial().optional(),
+  }).passthrough();
+
   function importBackup(file: File) {
+    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+    if (file.size > MAX_SIZE) {
+      toast.error("حجم الملف كبير جداً (الحد الأقصى 50 ميغابايت)");
+      return;
+    }
+    if (!/\.json$/i.test(file.name) && file.type !== "application/json") {
+      toast.error("يُقبل فقط ملف JSON");
+      return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => toast.error("تعذّر قراءة الملف");
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result));
-        if (parsed.store) { localStorage.setItem(STORE_KEY, JSON.stringify(parsed.store)); setStore(parsed.store); }
-        if (parsed.invoice) { localStorage.setItem(INVOICE_KEY, JSON.stringify(parsed.invoice)); setInvoice(parsed.invoice); }
-        if (parsed.print) { localStorage.setItem(PRINT_KEY, JSON.stringify(parsed.print)); setPrint(parsed.print); }
+        const raw = String(reader.result ?? "");
+        if (!raw.trim()) throw new Error("empty");
+        const parsed = JSON.parse(raw);
+        const validated = backupSchema.safeParse(parsed);
+        if (!validated.success) {
+          toast.error("بنية النسخة الاحتياطية غير صحيحة");
+          return;
+        }
+        const d = validated.data;
+        if (d.store) { localStorage.setItem(STORE_KEY, JSON.stringify(d.store)); setStore({ ...defaultStore, ...d.store }); }
+        if (d.invoice) { localStorage.setItem(INVOICE_KEY, JSON.stringify(d.invoice)); setInvoice({ ...defaultInvoice, ...d.invoice }); }
+        if (d.print) { localStorage.setItem(PRINT_KEY, JSON.stringify(d.print)); setPrint({ ...defaultPrint, ...d.print }); }
         toast.success("تم استيراد الإعدادات من النسخة الاحتياطية");
-      } catch {
-        toast.error("ملف نسخة احتياطية غير صالح");
+      } catch (err) {
+        console.error(err);
+        toast.error(getErrorMessage(err, "ملف نسخة احتياطية غير صالح"));
       }
     };
-    reader.readAsText(file);
+    try {
+      reader.readAsText(file);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "تعذّر قراءة الملف"));
+    }
   }
+
 
   return (
     <AppShell title="الإعدادات" showBack>

@@ -36,9 +36,9 @@ function ReturnsPage() {
         onSuccess: () => {
           setOpen(false);
           setForm({ product_name: "", quantity: "1", reason: "" });
-          toast({ title: "تم تسجيل المرتجع بنجاح" });
+          toast.success("تم تسجيل المرتجع بنجاح");
         },
-        onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
+        onError: () => toast.error("حدث خطأ"),
       }
     );
   };
@@ -47,8 +47,8 @@ function ReturnsPage() {
     updateStatus.mutate(
       { id, status },
       {
-        onSuccess: () => toast({ title: status === "accepted" ? "تم قبول المرتجع وإعادة المخزون" : "تم رفض المرتجع" }),
-        onError: () => toast({ title: "حدث خطأ", variant: "destructive" }),
+        onSuccess: () => toast.success(status === "accepted" ? "تم قبول المرتجع وإعادة المخزون" : "تم رفض المرتجع"),
+        onError: () => toast.error("حدث خطأ"),
       }
     );
   };

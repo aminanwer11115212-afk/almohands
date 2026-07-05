@@ -307,7 +307,6 @@ function CashierPage() {
       setQuery("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      const savedInvoice = lastInvoiceRef.current;
       if (savedInvoice) {
         toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
         // Auto-print: navigate directly to preview with autoprint flag

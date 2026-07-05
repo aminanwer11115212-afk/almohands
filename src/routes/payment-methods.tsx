@@ -12,6 +12,7 @@ import {
 } from "@/hooks/use-payment-methods";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/payment-methods")({
   head: () => ({ meta: [{ title: "طرق الدفع — المهندس" }] }),
@@ -41,6 +42,8 @@ const emptyForm: FormState = {
 };
 
 function PaymentMethodsPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("payment_methods.write");
+  if (__permChk || !__permOk) return null;
   const { data: methods = [], isLoading } = usePaymentMethods(false);
   const createMut = useCreatePaymentMethod();
   const updateMut = useUpdatePaymentMethod();

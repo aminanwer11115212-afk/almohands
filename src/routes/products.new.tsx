@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),
@@ -29,6 +30,8 @@ const productSchema = z.object({
 });
 
 function NewProductPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("products.write");
+  if (__permChk || !__permOk) return null;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");

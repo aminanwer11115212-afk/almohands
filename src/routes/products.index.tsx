@@ -8,6 +8,7 @@ import { formatNumber } from "@/lib/format";
 import { useProducts, type SortKey } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCan } from "@/hooks/use-permissions";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -124,13 +125,15 @@ function ProductsPage() {
         </ul>
       </div>
 
-      <Link
-        to="/products/new"
-        className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
-        aria-label="إضافة منتج"
-      >
-        <Plus className="size-7" />
-      </Link>
+      {useCan("products.write") && (
+        <Link
+          to="/products/new"
+          className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
+          aria-label="إضافة منتج"
+        >
+          <Plus className="size-7" />
+        </Link>
+      )}
     </AppShell>
   );
 }

@@ -4,6 +4,7 @@ import { Search, Plus, Phone, MapPin, Loader2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useSuppliers, useAddSupplier } from "@/hooks/use-suppliers";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/suppliers")({
   head: () => ({ meta: [{ title: "الموردين — المهندس" }] }),
@@ -11,6 +12,8 @@ export const Route = createFileRoute("/suppliers")({
 });
 
 function SuppliersPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("suppliers.write");
+  if (__permChk || !__permOk) return null;
   const [q, setQ] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const { data: suppliers = [], isLoading, isError } = useSuppliers(q);

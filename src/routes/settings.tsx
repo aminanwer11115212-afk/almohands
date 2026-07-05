@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
 import { useStoreProfile, useSaveStoreProfile, type StoreProfile } from "@/hooks/use-store-profile";
+import { useRequirePermission } from "@/hooks/use-require-permission";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
@@ -65,6 +66,8 @@ function fromProfile(p: StoreProfile | null | undefined): FormState {
 }
 
 function SettingsPage() {
+  const { isChecking: __permChk, allowed: __permOk } = useRequirePermission("settings.write");
+  if (__permChk || !__permOk) return null;
   const { data: profile, isLoading } = useStoreProfile();
   const saveMut = useSaveStoreProfile();
   const [form, setForm] = useState<FormState>(defaults);

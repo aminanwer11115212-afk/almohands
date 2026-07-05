@@ -144,7 +144,7 @@ function InvoicesPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["all", "paid", "partial", "unpaid"] as const).map((s) => (
+            {(["all", "paid", "partial", "pending"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => navigate({ search: (prev: InvoicesSearch) => ({ ...prev, status: s }) })}

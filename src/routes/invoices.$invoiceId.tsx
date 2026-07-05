@@ -1,18 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useStoreProfile } from "@/hooks/use-store-profile";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
   component: InvoiceDetailPage,
 });
 
+type PrintFormat = "a4" | "thermal";
+
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
+  const { data: storeProfile } = useStoreProfile();
+
+  const [format, setFormat] = useState<PrintFormat>("a4");
+
+  useEffect(() => {
+    if (storeProfile?.print_size) {
+      const size = String(storeProfile.print_size).toLowerCase();
+      setFormat(size.includes("mm") ? "thermal" : "a4");
+    }
+  }, [storeProfile?.print_size]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -36,11 +50,7 @@ function InvoiceDetailPage() {
           .maybeSingle();
         paymentMethod = pm;
       }
-      const { data: store } = await supabase
-        .from("store_profile")
-        .select("*")
-        .maybeSingle();
-      return { inv, items: items ?? [], paymentMethod, store };
+      return { inv, items: items ?? [], paymentMethod };
     },
   });
 
@@ -59,124 +69,287 @@ function InvoiceDetailPage() {
     );
   }
 
-  const { inv, items, paymentMethod, store } = data;
+  const { inv, items, paymentMethod } = data;
+  const store = storeProfile;
   const storeName = store?.name || "المهندس";
-  const storePhone = store?.phone || "0960514233";
+  const storeSubtitle = store?.invoice_header || "المهندس لقطع غيار السيارات";
+  const storePhone = store?.phone || "0960514233 - 0113071742";
   const storeAddress = store?.address || "";
-  const invoiceFooter = store?.invoice_footer || "شكراً لتعاملكم معنا";
+  const invoiceFooter = store?.invoice_footer || "";
+  const showLogo = store?.show_logo !== false;
   const paymentLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
 
   return (
-    <div className="min-h-dvh bg-background print:bg-white">
+    <div className="min-h-dvh bg-muted/30 print:bg-white">
+      {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
-        <div className="mx-auto max-w-2xl px-4 h-14 flex items-center gap-3">
+        <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-3">
           <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-2 rounded-md hover:bg-white/10">
             <ArrowRight className="size-5" />
           </Link>
           <h1 className="text-lg font-bold flex-1">فاتورة #{inv.invoice_number}</h1>
+
+          <div className="flex items-center rounded-lg bg-white/10 p-0.5 text-sm">
+            <button
+              onClick={() => setFormat("a4")}
+              className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "a4" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
+            >
+              <FileText className="size-4" /> A4
+            </button>
+            <button
+              onClick={() => setFormat("thermal")}
+              className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "thermal" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
+            >
+              <Receipt className="size-4" /> حراري
+            </button>
+          </div>
+
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1 text-sm bg-white/10 rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
           >
             <Printer className="size-4" /> طباعة
           </button>
         </div>
       </header>
 
-      <main id="print-area" className="mx-auto max-w-2xl px-4 py-6 print:p-4">
-        <div className="text-center border-b pb-4 mb-4">
-          <img src={logo} alt={storeName} className="mx-auto size-24 object-contain" />
-          <h2 className="text-xl font-extrabold text-brand mt-2">{storeName}</h2>
-          {storeAddress && <p className="text-xs text-muted-foreground">{storeAddress}</p>}
-          <p className="text-xs text-muted-foreground nums" dir="ltr">{storePhone}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-          <div>
-            <div className="text-xs text-muted-foreground">رقم الفاتورة</div>
-            <div className="font-bold nums">#{inv.invoice_number}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">التاريخ</div>
-            <div className="font-bold nums">
-              {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">العميل</div>
-            <div className="font-bold">{inv.customer_name || "عميل نقدي"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">الهاتف</div>
-            <div className="font-bold nums">{inv.customer_phone || "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">طريقة الدفع</div>
-            <div className="font-bold">{paymentLabel}</div>
-          </div>
-        </div>
-
-        <table className="w-full text-sm border-collapse mb-4">
-          <thead>
-            <tr className="bg-muted">
-              <th className="text-right p-2 border">الصنف</th>
-              <th className="text-center p-2 border">الكمية</th>
-              <th className="text-center p-2 border">السعر</th>
-              <th className="text-center p-2 border">الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => (
-              <tr key={it.id}>
-                <td className="p-2 border">{it.product_name}</td>
-                <td className="p-2 border text-center nums">{it.quantity}</td>
-                <td className="p-2 border text-center nums">{formatSDG(Number(it.unit_price))}</td>
-                <td className="p-2 border text-center nums">{formatSDG(Number(it.line_total))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="border-t pt-3 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span>الإجمالي</span>
-            <span className="font-bold nums">{formatSDG(Number(inv.total))}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>المدفوع</span>
-            <span className="font-bold nums">{formatSDG(Number(inv.paid))}</span>
-          </div>
-          {Number(inv.remaining) > 0 && (
-            <div className="flex justify-between text-rose-600">
-              <span>المتبقي</span>
-              <span className="font-bold nums">{formatSDG(Number(inv.remaining))}</span>
-            </div>
-          )}
-        </div>
-
-        {paymentMethod && paymentMethod.type === "bank" && (
-          <div className="mt-4 border border-blue-300 bg-blue-50 rounded-lg p-3 text-sm">
-            <div className="font-bold text-blue-800 mb-1">تفاصيل التحويل البنكي</div>
-            <div className="space-y-0.5 text-blue-900">
-              {paymentMethod.bank_name && <div>البنك: <span className="font-bold">{paymentMethod.bank_name}</span></div>}
-              {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-bold">{paymentMethod.account_holder}</span></div>}
-              {paymentMethod.account_number && <div dir="ltr" className="text-right">رقم الحساب: <span className="font-bold nums">{paymentMethod.account_number}</span></div>}
-              {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-bold nums">{paymentMethod.iban}</span></div>}
-            </div>
-          </div>
+      <main className="py-6 px-4 print:p-0">
+        {format === "a4" ? (
+          <A4Invoice
+            inv={inv}
+            items={items}
+            paymentMethod={paymentMethod}
+            storeName={storeName}
+            storeSubtitle={storeSubtitle}
+            storePhone={storePhone}
+            invoiceFooter={invoiceFooter}
+            showLogo={showLogo}
+            paymentLabel={paymentLabel}
+          />
+        ) : (
+          <ThermalInvoice
+            inv={inv}
+            items={items}
+            paymentMethod={paymentMethod}
+            storeName={storeName}
+            storeSubtitle={storeSubtitle}
+            storePhone={storePhone}
+            storeAddress={storeAddress}
+            invoiceFooter={invoiceFooter}
+            showLogo={showLogo}
+            paymentLabel={paymentLabel}
+          />
         )}
-
-        <p className="text-center text-xs text-muted-foreground mt-8 whitespace-pre-line">{invoiceFooter}</p>
       </main>
-
 
       <style>{`
         @media print {
-          @page { margin: 10mm; }
-          body { background: white; }
+          body { background: white !important; }
           .print\\:hidden { display: none !important; }
+          .print-a4 { width: 210mm; min-height: 297mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
+          .print-thermal { width: 80mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
+          @page { margin: 8mm; }
         }
       `}</style>
+    </div>
+  );
+}
+
+/* ============= A4 CLASSIC INVOICE ============= */
+
+type A4Props = {
+  inv: any; items: any[]; paymentMethod: any;
+  storeName: string; storeSubtitle: string; storePhone: string;
+  invoiceFooter: string; showLogo: boolean; paymentLabel: string;
+};
+
+function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, invoiceFooter, showLogo, paymentLabel }: A4Props) {
+  // Pad to 21 rows like reference
+  const MIN_ROWS = 21;
+  const paddedRows = [
+    ...items,
+    ...Array.from({ length: Math.max(0, MIN_ROWS - items.length) }, () => null),
+  ];
+  const created = new Date(inv.created_at);
+  const dateStr = `${created.getFullYear()} / ${String(created.getMonth() + 1).padStart(2, "0")} / ${String(created.getDate()).padStart(2, "0")}`;
+
+  return (
+    <div className="print-a4 mx-auto max-w-[210mm] bg-white text-black shadow-lg border p-8 print:shadow-none print:border-0" dir="rtl">
+      {/* Header: logo | title | logo (mirror reference) */}
+      <div className="grid grid-cols-[1fr_2fr_1fr] items-center gap-4 pb-4">
+        <div className="flex justify-start">
+          {showLogo && <img src={logo} alt={storeName} className="h-20 w-20 object-contain" />}
+        </div>
+        <div className="text-center">
+          <h1 className="text-3xl font-extrabold tracking-wide">فاتورة مبدئية</h1>
+          <p className="text-base font-semibold mt-1">{storeSubtitle}</p>
+          <p className="text-xs mt-0.5 nums" dir="ltr">TEL: {storePhone}</p>
+        </div>
+        <div className="flex justify-end">
+          {showLogo && <img src={logo} alt={storeName} className="h-20 w-20 object-contain" />}
+        </div>
+      </div>
+
+      {/* Meta line: date left, customer name line right */}
+      <div className="flex items-end justify-between gap-6 mb-3 text-sm">
+        <div className="flex items-baseline gap-2 shrink-0">
+          <span className="font-semibold">التاريخ:</span>
+          <span className="nums border-b border-black min-w-[110px] text-center">{dateStr}</span>
+        </div>
+        <div className="flex items-baseline gap-2 flex-1">
+          <span className="font-semibold">اسم العميل:</span>
+          <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem] px-2">
+            {inv.customer_name || ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Items table */}
+      <table className="w-full border-collapse border border-black text-sm">
+        <thead>
+          <tr className="bg-white">
+            <th className="border border-black py-1.5 w-10">م</th>
+            <th className="border border-black py-1.5">الصنف</th>
+            <th className="border border-black py-1.5 w-24">السعر (وحدة)</th>
+            <th className="border border-black py-1.5 w-16">الكمية</th>
+            <th className="border border-black py-1.5 w-24">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paddedRows.map((it, i) => (
+            <tr key={i} className="h-7">
+              <td className="border border-black text-center nums">{i + 1}</td>
+              <td className="border border-black px-2">{it?.product_name ?? ""}</td>
+              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
+              <td className="border border-black text-center nums">{it?.quantity ?? ""}</td>
+              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.line_total)) : ""}</td>
+            </tr>
+          ))}
+          <tr className="h-9 font-bold">
+            <td colSpan={4} className="border border-black text-left px-3">المجموع الكلي:</td>
+            <td className="border border-black text-center nums text-base">{formatSDG(Number(inv.total))}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Payment summary if partial */}
+      {(Number(inv.paid) !== Number(inv.total) || inv.payment_method === "bank") && (
+        <div className="mt-3 flex flex-wrap justify-between gap-3 text-sm">
+          <div><span className="font-semibold">طريقة الدفع:</span> {paymentLabel}</div>
+          <div><span className="font-semibold">المدفوع:</span> <span className="nums">{formatSDG(Number(inv.paid))}</span></div>
+          {Number(inv.remaining) > 0 && (
+            <div className="text-rose-700">
+              <span className="font-semibold">المتبقي:</span> <span className="nums">{formatSDG(Number(inv.remaining))}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bank transfer details */}
+      {paymentMethod && paymentMethod.type === "bank" && (
+        <div className="mt-3 border border-black/50 p-2 text-xs">
+          <div className="font-bold mb-1">تفاصيل التحويل البنكي</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+            {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
+            {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
+            {paymentMethod.account_number && <div dir="ltr" className="text-right">حساب: <span className="font-semibold nums">{paymentMethod.account_number}</span></div>}
+            {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-semibold nums">{paymentMethod.iban}</span></div>}
+          </div>
+        </div>
+      )}
+
+      {/* Signature */}
+      <div className="mt-6 flex items-baseline gap-2 text-sm">
+        <span className="font-semibold">التوقيع:</span>
+        <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem]" />
+      </div>
+
+      {invoiceFooter && (
+        <p className="text-center text-xs mt-6 whitespace-pre-line text-black/70">{invoiceFooter}</p>
+      )}
+    </div>
+  );
+}
+
+/* ============= THERMAL RECEIPT ============= */
+
+type ThermalProps = A4Props & { storeAddress: string };
+
+function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, storeAddress, invoiceFooter, showLogo, paymentLabel }: ThermalProps) {
+  return (
+    <div className="print-thermal mx-auto w-[80mm] bg-white text-black shadow-lg border p-3 text-[12px] leading-tight print:shadow-none print:border-0" dir="rtl">
+      <div className="text-center border-b border-dashed border-black pb-2">
+        {showLogo && <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />}
+        <div className="font-extrabold text-base mt-1">{storeName}</div>
+        <div className="text-[11px]">{storeSubtitle}</div>
+        {storeAddress && <div className="text-[11px]">{storeAddress}</div>}
+        <div className="text-[11px] nums" dir="ltr">{storePhone}</div>
+      </div>
+
+      <div className="py-2 border-b border-dashed border-black text-[11px] space-y-0.5">
+        <div className="flex justify-between"><span>فاتورة #</span><span className="nums">{inv.invoice_number}</span></div>
+        <div className="flex justify-between">
+          <span>التاريخ</span>
+          <span className="nums">{new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}</span>
+        </div>
+        {inv.customer_name && <div className="flex justify-between"><span>العميل</span><span>{inv.customer_name}</span></div>}
+        <div className="flex justify-between"><span>الدفع</span><span>{paymentLabel}</span></div>
+      </div>
+
+      <table className="w-full my-2 text-[11px]">
+        <thead>
+          <tr className="border-b border-dashed border-black">
+            <th className="text-right py-1">الصنف</th>
+            <th className="text-center py-1 w-8">كم</th>
+            <th className="text-left py-1 w-14">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it) => (
+            <tr key={it.id} className="align-top">
+              <td className="py-0.5">
+                <div>{it.product_name}</div>
+                <div className="text-[10px] text-black/60 nums">{formatSDG(Number(it.unit_price))} × {it.quantity}</div>
+              </td>
+              <td className="text-center py-0.5 nums">{it.quantity}</td>
+              <td className="text-left py-0.5 nums">{formatSDG(Number(it.line_total))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="border-t border-dashed border-black pt-2 space-y-0.5 text-[11px]">
+        <div className="flex justify-between font-bold text-[13px]">
+          <span>الإجمالي</span>
+          <span className="nums">{formatSDG(Number(inv.total))}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>المدفوع</span>
+          <span className="nums">{formatSDG(Number(inv.paid))}</span>
+        </div>
+        {Number(inv.remaining) > 0 && (
+          <div className="flex justify-between font-bold">
+            <span>المتبقي</span>
+            <span className="nums">{formatSDG(Number(inv.remaining))}</span>
+          </div>
+        )}
+      </div>
+
+      {paymentMethod && paymentMethod.type === "bank" && (
+        <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5">
+          <div className="font-bold text-center">تفاصيل التحويل البنكي</div>
+          {paymentMethod.bank_name && <div>البنك: {paymentMethod.bank_name}</div>}
+          {paymentMethod.account_holder && <div>الحساب باسم: {paymentMethod.account_holder}</div>}
+          {paymentMethod.account_number && <div dir="ltr" className="text-right nums">Acc: {paymentMethod.account_number}</div>}
+          {paymentMethod.iban && <div dir="ltr" className="text-right nums">IBAN: {paymentMethod.iban}</div>}
+        </div>
+      )}
+
+      {invoiceFooter && (
+        <div className="mt-3 text-center text-[10.5px] whitespace-pre-line border-t border-dashed border-black pt-2">
+          {invoiceFooter}
+        </div>
+      )}
     </div>
   );
 }

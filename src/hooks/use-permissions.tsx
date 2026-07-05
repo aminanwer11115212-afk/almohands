@@ -89,9 +89,15 @@ export function useMyRoles() {
   return useQuery({
     queryKey: ["my-roles"],
     queryFn: async () => {
+      // Scope to the current user: admins can see all rows via RLS, so
+      // an unfiltered select would mix other users' roles into ours.
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user?.id;
+      if (!uid) return [] as UserRole[];
       const { data, error } = await supabase
         .from("user_roles")
-        .select("*");
+        .select("*")
+        .eq("user_id", uid);
       if (error) throw error;
       return data as UserRole[];
     },

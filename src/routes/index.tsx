@@ -15,12 +15,13 @@ import {
   ShieldCheck,
   LogIn,
   LogOut,
+  PieChart,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { formatSDG } from "@/lib/format";
-import { accountSummary } from "@/data/mock";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({

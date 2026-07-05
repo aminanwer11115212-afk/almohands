@@ -16,6 +16,7 @@ import {
   LogIn,
   LogOut,
   PieChart,
+  Download,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";

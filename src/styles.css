@@ -5,7 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Cairo", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Manrope", "Cairo", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Sora", "Cairo", "Segoe UI", system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -33,77 +34,87 @@
   --color-header-foreground: var(--header-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent-teal: var(--accent-teal);
   --color-accent-gold: var(--accent-gold);
-  --shadow-card: 0 1px 3px 0 oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.06);
-  --shadow-fab: 0 8px 20px -4px oklch(0.42 0.06 230 / 0.45);
+  --shadow-card: 0 1px 2px 0 oklch(0.20 0.05 240 / 0.06), 0 4px 12px -4px oklch(0.20 0.05 240 / 0.08);
+  --shadow-elevated: 0 6px 24px -8px oklch(0.20 0.05 240 / 0.18), 0 2px 6px -2px oklch(0.20 0.05 240 / 0.08);
+  --shadow-fab: 0 10px 24px -6px oklch(0.42 0.08 230 / 0.45);
+  --gradient-brand: linear-gradient(135deg, oklch(0.28 0.06 240) 0%, oklch(0.42 0.09 220) 55%, oklch(0.62 0.11 200) 100%);
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 1rem;
 
-  --background: oklch(0.985 0.005 230);
-  --foreground: oklch(0.30 0.05 230);
+  /* Ocean Deep palette */
+  --background: oklch(0.985 0.005 235);
+  --foreground: oklch(0.22 0.04 240);
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.30 0.05 230);
+  --card-foreground: oklch(0.22 0.04 240);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.30 0.05 230);
+  --popover-foreground: oklch(0.22 0.04 240);
 
-  /* Brand: deep slate-teal from screenshots */
-  --primary: oklch(0.45 0.045 230);
+  /* #0c2340 deep navy */
+  --primary: oklch(0.28 0.06 240);
   --primary-foreground: oklch(0.99 0 0);
 
-  --brand: oklch(0.42 0.05 230);
+  --brand: oklch(0.32 0.07 235);
   --brand-foreground: oklch(0.99 0 0);
+  --brand-soft: oklch(0.94 0.03 220);
 
-  --header: oklch(0.45 0.045 230);
+  --header: oklch(0.28 0.06 240);
   --header-foreground: oklch(0.99 0 0);
 
-  --accent-gold: oklch(0.78 0.15 80);
+  /* Accent teal #2d8a9e / seafoam #5cbdb9 */
+  --accent-teal: oklch(0.62 0.09 210);
+  --accent-gold: oklch(0.78 0.13 195);
 
-  --secondary: oklch(0.96 0.01 230);
-  --secondary-foreground: oklch(0.30 0.05 230);
+  --secondary: oklch(0.96 0.015 220);
+  --secondary-foreground: oklch(0.28 0.06 240);
 
-  --muted: oklch(0.96 0.01 230);
-  --muted-foreground: oklch(0.55 0.03 230);
+  --muted: oklch(0.965 0.01 225);
+  --muted-foreground: oklch(0.48 0.03 235);
 
-  --accent: oklch(0.94 0.02 230);
-  --accent-foreground: oklch(0.30 0.05 230);
+  --accent: oklch(0.94 0.03 210);
+  --accent-foreground: oklch(0.28 0.06 240);
 
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --border: oklch(0.90 0.02 230);
-  --input: oklch(0.90 0.02 230);
-  --ring: oklch(0.55 0.06 230);
+  --border: oklch(0.90 0.015 225);
+  --input: oklch(0.90 0.015 225);
+  --ring: oklch(0.62 0.09 210);
 }
 
 .dark {
-  --background: oklch(0.20 0.02 230);
-  --foreground: oklch(0.97 0.01 230);
-  --card: oklch(0.25 0.03 230);
-  --card-foreground: oklch(0.97 0.01 230);
-  --popover: oklch(0.25 0.03 230);
-  --popover-foreground: oklch(0.97 0.01 230);
-  --primary: oklch(0.85 0.04 230);
-  --primary-foreground: oklch(0.25 0.03 230);
-  --secondary: oklch(0.30 0.03 230);
-  --secondary-foreground: oklch(0.97 0.01 230);
-  --muted: oklch(0.30 0.03 230);
-  --muted-foreground: oklch(0.70 0.03 230);
-  --accent: oklch(0.32 0.04 230);
-  --accent-foreground: oklch(0.97 0.01 230);
+  --background: oklch(0.17 0.03 245);
+  --foreground: oklch(0.97 0.01 220);
+  --card: oklch(0.22 0.04 240);
+  --card-foreground: oklch(0.97 0.01 220);
+  --popover: oklch(0.22 0.04 240);
+  --popover-foreground: oklch(0.97 0.01 220);
+  --primary: oklch(0.62 0.09 210);
+  --primary-foreground: oklch(0.15 0.03 245);
+  --secondary: oklch(0.26 0.04 240);
+  --secondary-foreground: oklch(0.97 0.01 220);
+  --muted: oklch(0.26 0.04 240);
+  --muted-foreground: oklch(0.72 0.03 220);
+  --accent: oklch(0.30 0.05 235);
+  --accent-foreground: oklch(0.97 0.01 220);
   --destructive: oklch(0.70 0.19 22);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 0.12);
-  --input: oklch(1 0 0 / 0.15);
-  --ring: oklch(0.6 0.04 230);
-  --header: oklch(0.30 0.03 230);
-  --header-foreground: oklch(0.97 0.01 230);
-  --brand: oklch(0.42 0.05 230);
-  --brand-foreground: oklch(0.99 0 0);
-  --accent-gold: oklch(0.78 0.15 80);
+  --border: oklch(1 0 0 / 0.10);
+  --input: oklch(1 0 0 / 0.14);
+  --ring: oklch(0.62 0.09 210);
+  --header: oklch(0.22 0.04 240);
+  --header-foreground: oklch(0.97 0.01 220);
+  --brand: oklch(0.62 0.09 210);
+  --brand-foreground: oklch(0.15 0.03 245);
+  --brand-soft: oklch(0.30 0.05 235);
+  --accent-teal: oklch(0.62 0.09 210);
+  --accent-gold: oklch(0.78 0.13 195);
 }
 
 @layer base {
@@ -120,12 +131,34 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Tabular numerals for money */
+  /* Arabic text uses Cairo naturally through the fallback chain,
+     but headings prefer Sora when Latin glyphs are used */
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  /* Latin numerals for money, tabular */
   .nums {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
+
+  /* Global keyboard focus ring — accessible on any bg */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Reusable utility for the brand gradient */
+@utility bg-brand-gradient {
+  background-image: var(--gradient-brand);
 }
 
 /* Quantum Lovable - watermark removal */
@@ -143,4 +176,3 @@ div[style*="Edit with Lovable"],
   position: absolute !important;
   z-index: -9999 !important;
 }
-

@@ -20,33 +20,34 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useMyRole, can, type Permission } from "@/hooks/use-permissions";
 
-type NavItem = { to: string; label: string; icon: LucideIcon };
+type NavItem = { to: string; label: string; icon: LucideIcon; perm: Permission };
 
 const PRIMARY: NavItem[] = [
-  { to: "/", label: "الرئيسية", icon: Home },
-  { to: "/cashier", label: "الكاشير", icon: ShoppingCart },
-  { to: "/products", label: "المنتجات", icon: Package },
-  { to: "/invoices", label: "الفواتير", icon: Receipt },
-  { to: "/accounts", label: "الحسابات", icon: BarChart3 },
+  { to: "/", label: "الرئيسية", icon: Home, perm: "cashier.use" },
+  { to: "/cashier", label: "الكاشير", icon: ShoppingCart, perm: "cashier.use" },
+  { to: "/products", label: "المنتجات", icon: Package, perm: "products.view" },
+  { to: "/invoices", label: "الفواتير", icon: Receipt, perm: "invoices.view" },
+  { to: "/accounts", label: "الحسابات", icon: BarChart3, perm: "accounts.view" },
 ];
 
 const SECONDARY: NavItem[] = [
-  { to: "/customers", label: "العملاء", icon: Users },
-  { to: "/suppliers", label: "الموردين", icon: Truck },
-  { to: "/expenses", label: "المصروفات", icon: Wallet },
-  { to: "/prices", label: "الأسعار", icon: Tags },
-  { to: "/returns", label: "المرتجعات", icon: RotateCcw },
-  { to: "/reports", label: "التقارير", icon: PieChart },
+  { to: "/customers", label: "العملاء", icon: Users, perm: "customers.view" },
+  { to: "/suppliers", label: "الموردين", icon: Truck, perm: "suppliers.view" },
+  { to: "/expenses", label: "المصروفات", icon: Wallet, perm: "expenses.view" },
+  { to: "/prices", label: "الأسعار", icon: Tags, perm: "products.write" },
+  { to: "/returns", label: "المرتجعات", icon: RotateCcw, perm: "returns.view" },
+  { to: "/reports", label: "التقارير", icon: PieChart, perm: "reports.view" },
 ];
 
 const UTILITY: NavItem[] = [
-  { to: "/payment-methods", label: "طرق الدفع", icon: CreditCard },
-  { to: "/import", label: "استيراد", icon: FileSpreadsheet },
-  { to: "/export", label: "تصدير", icon: Download },
-  { to: "/notifications", label: "الإشعارات", icon: Bell },
-  { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+  { to: "/payment-methods", label: "طرق الدفع", icon: CreditCard, perm: "payment_methods.view" },
+  { to: "/import", label: "استيراد", icon: FileSpreadsheet, perm: "import_export" },
+  { to: "/export", label: "تصدير", icon: Download, perm: "import_export" },
+  { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
+  { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },
+  { to: "/settings", label: "الإعدادات", icon: Settings, perm: "settings.write" },
 ];
 
 function NavGroup({ label, items, currentPath }: { label: string; items: NavItem[]; currentPath: string }) {

@@ -27,6 +27,9 @@ import { formatSDG } from "@/lib/format";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { useUnreadNotifications } from "@/hooks/use-notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/errors";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({

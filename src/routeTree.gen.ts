@@ -31,6 +31,7 @@ import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
+import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -146,6 +147,11 @@ const InvoicesInvoiceIdRoute = InvoicesInvoiceIdRouteImport.update({
   path: '/$invoiceId',
   getParentRoute: () => InvoicesRoute,
 } as any)
+const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
+  id: '/$customerId',
+  path: '/$customerId',
+  getParentRoute: () => CustomersRoute,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -175,7 +181,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
@@ -203,7 +210,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
@@ -232,7 +240,7 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
@@ -306,6 +316,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
@@ -334,6 +345,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
@@ -347,7 +359,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   AuthRoute: typeof AuthRoute
   CashierRoute: typeof CashierRoute
-  CustomersRoute: typeof CustomersRoute
+  CustomersRoute: typeof CustomersRouteWithChildren
   ExpensesRoute: typeof ExpensesRoute
   ExportRoute: typeof ExportRoute
   ImportRoute: typeof ImportRoute
@@ -526,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvoicesInvoiceIdRouteImport
       parentRoute: typeof InvoicesRoute
     }
+    '/customers/$customerId': {
+      id: '/customers/$customerId'
+      path: '/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof CustomersCustomerIdRouteImport
+      parentRoute: typeof CustomersRoute
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -557,6 +576,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CustomersRouteChildren {
+  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
+}
+
+const CustomersRouteChildren: CustomersRouteChildren = {
+  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
+}
+
+const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
+  CustomersRouteChildren,
+)
+
 interface InvoicesRouteChildren {
   InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
 }
@@ -574,7 +605,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   AuthRoute: AuthRoute,
   CashierRoute: CashierRoute,
-  CustomersRoute: CustomersRoute,
+  CustomersRoute: CustomersRouteWithChildren,
   ExpensesRoute: ExpensesRoute,
   ExportRoute: ExportRoute,
   ImportRoute: ImportRoute,

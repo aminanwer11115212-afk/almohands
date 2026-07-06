@@ -20,7 +20,6 @@ function safeNext(next: string | undefined): string {
 
 const emailSchema = z.string().trim().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة").max(255, "البريد طويل جداً");
 const passwordSchema = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72, "كلمة المرور طويلة جداً");
-
 const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
 
 function AuthPage() {
@@ -45,13 +44,8 @@ function AuthPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setInfo(null);
 
-    // Client-side validation
-    const parsed =
-      mode === "signin"
-        ? signInSchema.safeParse({ email, password })
-        : signUpSchema.safeParse({ email, password, fullName });
+    const parsed = signInSchema.safeParse({ email, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
       return;
@@ -59,39 +53,20 @@ function AuthPage() {
 
     setLoading(true);
     try {
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: parsed.data.email,
-          password: parsed.data.password,
-        });
-        if (error) throw error;
-        window.location.assign(nextPath);
-      } else {
-        const data = parsed.data as z.infer<typeof signUpSchema>;
-        const { error } = await supabase.auth.signUp({
-          email: data.email,
-          password: data.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}${nextPath}`,
-            data: { full_name: data.fullName },
-          },
-        });
-        if (error) throw error;
-        toast.success("تم إنشاء الحساب بنجاح");
-        setInfo("تم إنشاء الحساب. يمكنك تسجيل الدخول الآن.");
-        setMode("signin");
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: parsed.data.email,
+        password: parsed.data.password,
+      });
+      if (error) throw error;
+      window.location.assign(nextPath);
     } catch (err) {
-      const msg = getErrorMessage(err, "تعذّر إتمام العملية");
+      const msg = getErrorMessage(err, "تعذّر تسجيل الدخول");
       setError(msg);
       toast.error(msg);
     } finally {
       setLoading(false);
     }
   }
-
-
-
 
   return (
     <div className="min-h-dvh bg-background grid place-items-center px-4">
@@ -103,36 +78,7 @@ function AuthPage() {
         </div>
 
         <div className="rounded-2xl bg-card border border-border shadow-card p-5">
-          <div className="grid grid-cols-2 gap-2 mb-5 rounded-xl bg-muted p-1">
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className={`h-9 rounded-lg text-sm font-bold transition ${mode === "signin" ? "bg-card text-brand shadow-sm" : "text-muted-foreground"}`}
-            >
-              دخول
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              className={`h-9 rounded-lg text-sm font-bold transition ${mode === "signup" ? "bg-card text-brand shadow-sm" : "text-muted-foreground"}`}
-            >
-              حساب جديد
-            </button>
-          </div>
-
           <form onSubmit={onSubmit} className="space-y-3">
-            {mode === "signup" && (
-              <Field label="الاسم">
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  className="input-base"
-                  placeholder="اسمك الكامل"
-                />
-              </Field>
-            )}
             <Field label="البريد الإلكتروني">
               <input
                 type="email"
@@ -158,25 +104,18 @@ function AuthPage() {
             </Field>
 
             {error && <p className="text-xs text-destructive text-center">{error}</p>}
-            {info && <p className="text-xs text-brand text-center">{info}</p>}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {loading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : mode === "signin" ? (
-                <>
-                  <LogIn className="size-4" /> تسجيل الدخول
-                </>
-              ) : (
-                <>
-                  <UserPlus className="size-4" /> إنشاء الحساب
-                </>
-              )}
+              {loading ? <Loader2 className="size-4 animate-spin" /> : (<><LogIn className="size-4" /> تسجيل الدخول</>)}
             </button>
+
+            <p className="text-[11px] text-muted-foreground text-center pt-2">
+              الحسابات تُنشأ من قبل المدير فقط عبر صفحة الصلاحيات.
+            </p>
           </form>
         </div>
       </div>
@@ -207,6 +146,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
-
-
-

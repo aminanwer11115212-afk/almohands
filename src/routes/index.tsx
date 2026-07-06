@@ -200,7 +200,7 @@ function HomePage() {
           <h3 id="menu-title" className="text-sm lg:text-base font-bold text-foreground font-display">
             القائمة الرئيسية
           </h3>
-          <span className="text-[11px] lg:text-xs text-muted-foreground">14 قسم</span>
+          <span className="text-[11px] lg:text-xs text-muted-foreground">15 قسم</span>
         </div>
 
         <nav aria-label="أقسام النظام" className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 lg:gap-4">
@@ -218,12 +218,14 @@ function HomePage() {
           <MenuTile to="/export" icon={Download} label="تصدير" />
           <MenuTile to="/permissions" icon={ShieldCheck} label="الصلاحيات" />
           <MenuTile to="/settings" icon={Settings} label="الإعدادات" />
+          <MenuTile to="/about" icon={UserCircle2} label="حول المطوّر" />
         </nav>
       </section>
 
       <p className="mt-8 text-center text-[11px] text-muted-foreground">
-        إصدار تجريبي — البيانات المعروضة للعرض فقط
+        © {new Date().getFullYear()} نظام المهندس — طوّره أمين أنور أحمد
       </p>
+
     </AppShell>
   );
 }

@@ -111,11 +111,15 @@ export function AppSidebar() {
       </nav>
 
       <div className="p-4 border-t border-white/10">
-        <div className="rounded-2xl bg-white/5 p-3 text-[11px] leading-relaxed text-white/70">
-          <div className="font-bold text-white/90 mb-1">إصدار تجريبي</div>
-          البيانات المعروضة للعرض فقط
-        </div>
+        <Link
+          to="/about"
+          className="block rounded-2xl bg-white/5 hover:bg-white/10 transition p-3 text-[11px] leading-relaxed text-white/70"
+        >
+          <div className="font-bold text-white/90 mb-1">نظام المهندس</div>
+          طوّره أمين أنور أحمد — تعرّف على المطوّر
+        </Link>
       </div>
+
     </aside>
   );
 }

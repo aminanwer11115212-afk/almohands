@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   Settings,
   CreditCard,
+  UserCircle2,
 } from "lucide-react";
+
 import type { LucideIcon } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useMyRole, can, type Permission } from "@/hooks/use-permissions";
@@ -48,7 +50,9 @@ const UTILITY: NavItem[] = [
   { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
   { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },
   { to: "/settings", label: "الإعدادات", icon: Settings, perm: "settings.write" },
+  { to: "/about", label: "حول المطوّر", icon: UserCircle2, perm: "cashier.use" },
 ];
+
 
 function NavGroup({ label, items, currentPath }: { label: string; items: NavItem[]; currentPath: string }) {
   if (items.length === 0) return null;
@@ -107,11 +111,15 @@ export function AppSidebar() {
       </nav>
 
       <div className="p-4 border-t border-white/10">
-        <div className="rounded-2xl bg-white/5 p-3 text-[11px] leading-relaxed text-white/70">
-          <div className="font-bold text-white/90 mb-1">إصدار تجريبي</div>
-          البيانات المعروضة للعرض فقط
-        </div>
+        <Link
+          to="/about"
+          className="block rounded-2xl bg-white/5 hover:bg-white/10 transition p-3 text-[11px] leading-relaxed text-white/70"
+        >
+          <div className="font-bold text-white/90 mb-1">نظام المهندس</div>
+          طوّره أمين أنور أحمد — تعرّف على المطوّر
+        </Link>
       </div>
+
     </aside>
   );
 }

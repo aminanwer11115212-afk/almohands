@@ -343,26 +343,53 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
                 <ActionBtn onClick={() => goFull(0)} icon={FileText}>
                   PDF
                 </ActionBtn>
+
+                <div className="col-span-2 h-px bg-border my-1" />
+
                 <button
                   type="button"
-                  onClick={returnToStock}
-                  disabled={returning}
-                  className="col-span-2 flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-60 transition"
+                  onClick={() => setPartialOpen(true)}
+                  className="flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition"
                 >
-                  {returning ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="size-4" />
-                  )}
-                  إرجاع كل الأصناف إلى المخزن
+                  <SplitSquareHorizontal className="size-4" />
+                  إرجاع جزئي
+                </button>
+                <button
+                  type="button"
+                  onClick={returnAllToStock}
+                  disabled={returning}
+                  className="flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-60 transition"
+                >
+                  {returning ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                  إرجاع الكل
+                </button>
+
+                <button
+                  type="button"
+                  onClick={deleteInvoiceWithRestore}
+                  disabled={deleting}
+                  className="col-span-2 flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-60 transition"
+                >
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  حذف الفاتورة + إرجاع كل المخزون
                 </button>
               </div>
             </DialogFooter>
+
+            <PartialReturnDialog
+              invoiceId={inv.id}
+              invoiceNumber={inv.invoice_number}
+              items={items as any}
+              open={partialOpen}
+              onOpenChange={setPartialOpen}
+              onDone={() => onOpenChange(false)}
+            />
           </>
         )}
       </DialogContent>
     </Dialog>
   );
+
 }
 
 function Row({

@@ -118,18 +118,30 @@ function HomePage() {
     >
       {/* Mobile-only brand identity block (desktop shows brand in sidebar) */}
       <section className="lg:hidden flex flex-col items-center text-center pt-1 pb-5" aria-label="هوية النظام">
-        <div className="grid size-20 place-items-center rounded-3xl bg-card shadow-card ring-1 ring-border">
-          <img
-            src={logo}
-            alt="شعار المهندس لقطع غيار السيارات"
-            width={64}
-            height={64}
-            className="size-16 object-contain"
-          />
-        </div>
-        <h2 className="mt-3 text-2xl font-extrabold text-brand font-display">المهندس</h2>
-        <p className="text-xs text-muted-foreground">إدارة كاملة للمخزن والمبيعات</p>
+        <button
+          type="button"
+          onClick={() => setInstallOpen(true)}
+          className="group flex flex-col items-center rounded-3xl px-4 py-2 -mx-4 -my-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 transition"
+          aria-label="تثبيت تطبيق المهندس على جهازك"
+        >
+          <div className="grid size-20 place-items-center rounded-3xl bg-card shadow-card ring-1 ring-border group-hover:ring-brand/40 group-active:scale-95 transition">
+            <img
+              src={logo}
+              alt="شعار المهندس لقطع غيار السيارات"
+              width={64}
+              height={64}
+              className="size-16 object-contain"
+            />
+          </div>
+          <h2 className="mt-3 text-2xl font-extrabold text-brand font-display">المهندس</h2>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Download className="size-3" aria-hidden="true" />
+            اضغط للتثبيت على الشاشة الرئيسية
+          </p>
+        </button>
       </section>
+      <InstallAppDialog open={installOpen} onClose={() => setInstallOpen(false)} />
+
 
       {/* KPI row */}
       <section aria-label="ملخص المبيعات" className="grid grid-cols-4 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">

@@ -55,10 +55,13 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const qc = useQueryClient();
   const { data: store } = useStoreProfile();
   const [returning, setReturning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [partialOpen, setPartialOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoice-modal", invoiceId],
     enabled: !!invoiceId && open,
+
     queryFn: async () => {
       const [invRes, itemsRes] = await Promise.all([
         supabase.from("invoices").select("*").eq("id", invoiceId!).maybeSingle(),

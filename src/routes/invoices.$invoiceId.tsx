@@ -4,9 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
+import { buildInvoiceText, downloadElementAsPdf, openWhatsAppShare } from "@/lib/invoice-share";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
@@ -26,6 +28,8 @@ function InvoiceDetailPage() {
 
   const [format, setFormat] = useState<PrintFormat>("a4");
   const [formatReady, setFormatReady] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (storeProfile?.print_size) {
@@ -106,15 +110,40 @@ function InvoiceDetailPage() {
   const baseLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
   const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
+  async function handleDownloadPdf() {
+    if (!printRef.current || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const filename = `فاتورة-${inv.invoice_number}.pdf`;
+      await downloadElementAsPdf(printRef.current, filename, format);
+      toast.success("تم تنزيل الـ PDF");
+    } catch (e) {
+      console.error(e);
+      toast.error("تعذّر إنشاء الـ PDF");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  function handleWhatsAppShare() {
+    const text = buildInvoiceText(
+      inv,
+      items,
+      storeName,
+      { includeItems: true, footer: invoiceFooter || undefined },
+    );
+    openWhatsAppShare(inv.customer_phone, text);
+  }
+
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
-        <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-3">
+        <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-2 flex-wrap">
           <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-2 rounded-md hover:bg-white/10">
             <ArrowRight className="size-5" />
           </Link>
-          <h1 className="text-lg font-bold flex-1">فاتورة #{inv.invoice_number}</h1>
+          <h1 className="text-lg font-bold flex-1 min-w-[140px]">فاتورة #{inv.invoice_number}</h1>
 
           <div className="flex items-center rounded-lg bg-white/10 p-0.5 text-sm">
             <button
@@ -132,6 +161,24 @@ function InvoiceDetailPage() {
           </div>
 
           <button
+            onClick={handleDownloadPdf}
+            disabled={pdfBusy}
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
+            title="تنزيل PDF"
+          >
+            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            PDF
+          </button>
+
+          <button
+            onClick={handleWhatsAppShare}
+            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-3 py-1.5"
+            title="مشاركة عبر واتساب"
+          >
+            <Share2 className="size-4" /> واتساب
+          </button>
+
+          <button
             onClick={() => window.print()}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
           >
@@ -141,6 +188,7 @@ function InvoiceDetailPage() {
       </header>
 
       <main className="py-6 px-4 print:p-0">
+        <div ref={printRef}>
         {format === "a4" ? (
           <A4Invoice
             inv={inv}
@@ -167,6 +215,7 @@ function InvoiceDetailPage() {
             paymentLabel={paymentLabel}
           />
         )}
+        </div>
       </main>
 
       <style>{`

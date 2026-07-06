@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User, Printer, Eye,
+  Wallet, Landmark, Package, X, User, Printer, Eye, Share2,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
@@ -15,6 +15,7 @@ import type { Product } from "@/types/product";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
@@ -46,7 +47,12 @@ function CashierPage() {
   const [paid, setPaid] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastInvoice, setLastInvoice] = useState<{ id: string; number: number } | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<{
+    id: string;
+    number: number;
+    phone: string;
+    text: string;
+  } | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 
@@ -248,7 +254,7 @@ function CashierPage() {
         }
       }
 
-      let savedInvoice: { id: string; number: number } | null = null;
+      let savedInvoice: { id: string; number: number; phone: string; text: string } | null = null;
       try {
         const { data: inv, error: e1 } = await supabase
           .from("invoices")
@@ -289,7 +295,13 @@ function CashierPage() {
           throw e2;
         }
 
-        savedInvoice = { id: inv.id, number: inv.invoice_number };
+        const shareText = buildInvoiceText(
+          { invoice_number: inv.invoice_number, customer_name: trimmedName || null, total, paid: paidNum, remaining, created_at: new Date().toISOString() },
+          cart.map((i) => ({ product_name: i.name, quantity: i.quantity, unit_price: i.unitPrice, line_total: i.unitPrice * i.quantity })),
+          storeProfile?.name || "المتجر",
+          { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
+        );
+        savedInvoice = { id: inv.id, number: inv.invoice_number, phone, text: shareText };
         setLastInvoice(savedInvoice);
       } catch (invErr) {
         // Roll back a customer we just created; leave pre-existing ones untouched.
@@ -388,6 +400,13 @@ function CashierPage() {
             className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg px-3 py-1.5"
           >
             <Printer className="size-3.5" /> طباعة
+          </button>
+          <button
+            onClick={() => openWhatsAppShare(lastInvoice.phone, lastInvoice.text)}
+            className="flex items-center gap-1.5 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg px-3 py-1.5"
+            title="مشاركة عبر واتساب"
+          >
+            <Share2 className="size-3.5" /> واتساب
           </button>
           <button
             onClick={() => navigate({ to: "/invoices" })}

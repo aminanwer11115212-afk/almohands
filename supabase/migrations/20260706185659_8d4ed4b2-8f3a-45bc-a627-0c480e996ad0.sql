@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.restore_stock_on_return_accepted() FROM PUBLIC, anon, authenticated;

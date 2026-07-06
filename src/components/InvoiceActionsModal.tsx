@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
+import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {
   Printer,
   Share2,
@@ -25,9 +26,12 @@ import {
   User,
   Calendar,
   Wallet,
+  Trash2,
+  SplitSquareHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+
 
 type Props = {
   invoiceId: string | null;
@@ -51,10 +55,13 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const qc = useQueryClient();
   const { data: store } = useStoreProfile();
   const [returning, setReturning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [partialOpen, setPartialOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoice-modal", invoiceId],
     enabled: !!invoiceId && open,
+
     queryFn: async () => {
       const [invRes, itemsRes] = await Promise.all([
         supabase.from("invoices").select("*").eq("id", invoiceId!).maybeSingle(),
@@ -89,7 +96,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     openWhatsAppShare(inv.customer_phone, text);
   }
 
-  async function returnToStock() {
+  async function returnAllToStock() {
     if (!inv || returning) return;
     const eligibleItems = items.filter((i: any) => i.product_id);
     if (eligibleItems.length === 0) {
@@ -116,10 +123,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       }));
       const { error } = await supabase.from("returns").insert(rows);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["returns"] });
-      qc.invalidateQueries({ queryKey: ["invoices"] });
-      qc.invalidateQueries({ queryKey: ["invoice-modal", inv.id] });
+      invalidateAll();
       toast.success("تم إرجاع الأصناف إلى المخزن");
       onOpenChange(false);
     } catch (err) {
@@ -128,6 +132,84 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       setReturning(false);
     }
   }
+
+  async function deleteInvoiceWithRestore() {
+    if (!inv || deleting) return;
+    const ok = window.confirm(
+      `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً\n\n` +
+        `- ستُعاد كل الأصناف إلى المخزن\n` +
+        `- ستُخصم من إجمالي المبيعات\n` +
+        `- لا يمكن التراجع عن هذا الإجراء\n\nمتابعة؟`,
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("غير مسجّل الدخول");
+
+      // 1) Restore stock via returns (only for still-in-stock-linked items)
+      const eligibleItems = items.filter((i: any) => i.product_id);
+      if (eligibleItems.length > 0) {
+        // Skip items already fully returned to avoid double-restore
+        const { data: prev } = await supabase
+          .from("returns")
+          .select("product_id, quantity")
+          .eq("invoice_id", inv.id)
+          .eq("status", "accepted");
+        const returnedMap: Record<string, number> = {};
+        (prev ?? []).forEach((r: any) => {
+          if (!r.product_id) return;
+          returnedMap[r.product_id] = (returnedMap[r.product_id] ?? 0) + Number(r.quantity || 0);
+        });
+        const rows = eligibleItems
+          .map((it: any) => {
+            const already = returnedMap[it.product_id] ?? 0;
+            const qty = Math.max(0, Number(it.quantity) - already);
+            return qty > 0
+              ? {
+                  user_id: u.user!.id,
+                  invoice_id: inv.id,
+                  product_id: it.product_id,
+                  product_name: it.product_name,
+                  quantity: qty,
+                  reason: `حذف فاتورة #${inv.invoice_number}`,
+                  status: "accepted" as const,
+                }
+              : null;
+          })
+          .filter(Boolean) as any[];
+        if (rows.length > 0) {
+          const { error: retErr } = await supabase.from("returns").insert(rows);
+          if (retErr) throw retErr;
+        }
+      }
+
+      // 2) Delete invoice (invoice_items cascade; returns.invoice_id set NULL)
+      const { error: delErr } = await supabase.from("invoices").delete().eq("id", inv.id);
+      if (delErr) throw delErr;
+
+      invalidateAll();
+      toast.success("تم حذف الفاتورة وإرجاع المخزون");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "تعذّر حذف الفاتورة"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function invalidateAll() {
+    if (!inv) return;
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["returns"] });
+    qc.invalidateQueries({ queryKey: ["invoices"] });
+    qc.invalidateQueries({ queryKey: ["invoice-modal", inv.id] });
+    qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    qc.invalidateQueries({ queryKey: ["dashboard-insights"] });
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+  }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,26 +343,53 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
                 <ActionBtn onClick={() => goFull(0)} icon={FileText}>
                   PDF
                 </ActionBtn>
+
+                <div className="col-span-2 h-px bg-border my-1" />
+
                 <button
                   type="button"
-                  onClick={returnToStock}
-                  disabled={returning}
-                  className="col-span-2 flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-60 transition"
+                  onClick={() => setPartialOpen(true)}
+                  className="flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition"
                 >
-                  {returning ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="size-4" />
-                  )}
-                  إرجاع كل الأصناف إلى المخزن
+                  <SplitSquareHorizontal className="size-4" />
+                  إرجاع جزئي
+                </button>
+                <button
+                  type="button"
+                  onClick={returnAllToStock}
+                  disabled={returning}
+                  className="flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-60 transition"
+                >
+                  {returning ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                  إرجاع الكل
+                </button>
+
+                <button
+                  type="button"
+                  onClick={deleteInvoiceWithRestore}
+                  disabled={deleting}
+                  className="col-span-2 flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-60 transition"
+                >
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  حذف الفاتورة + إرجاع كل المخزون
                 </button>
               </div>
             </DialogFooter>
+
+            <PartialReturnDialog
+              invoiceId={inv.id}
+              invoiceNumber={inv.invoice_number}
+              items={items as any}
+              open={partialOpen}
+              onOpenChange={setPartialOpen}
+              onDone={() => onOpenChange(false)}
+            />
           </>
         )}
       </DialogContent>
     </Dialog>
   );
+
 }
 
 function Row({

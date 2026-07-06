@@ -375,6 +375,12 @@ function CashierPage() {
 
   return (
     <AppShell title="الكاشير" showBack>
+      <InvoiceActionsModal
+        invoiceId={actionsModalId}
+        open={actionsModalId !== null}
+        onOpenChange={(v) => { if (!v) setActionsModalId(null); }}
+      />
+
       {lastInvoice !== null && (
         <div className="mb-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 flex items-center flex-wrap gap-2">
           <CheckCircle2 className="size-5 shrink-0" />

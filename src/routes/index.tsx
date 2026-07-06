@@ -19,6 +19,7 @@ import {
   Download,
   Bell,
   TrendingUp,
+  UserCircle2,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";

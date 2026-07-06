@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
+import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),

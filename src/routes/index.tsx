@@ -144,7 +144,7 @@ function HomePage() {
               <span className="text-xs lg:text-sm opacity-85">مبيعات هذا الشهر</span>
               <span className="text-[10px] font-semibold bg-white/15 rounded-full px-2 py-0.5">SDG</span>
             </div>
-            <div className="mt-2 text-3xl lg:text-4xl font-extrabold nums leading-tight font-display">
+            <div className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold nums leading-tight font-display break-words">
               {formatSDG(stats?.thisMonth ?? 0)}
             </div>
             {growth !== null && (
@@ -160,16 +160,16 @@ function HomePage() {
           </div>
         </article>
 
-        <article className="col-span-2 sm:col-span-1 lg:col-span-3 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
+        <article className="col-span-2 sm:col-span-1 lg:col-span-3 min-w-0 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
           <div className="text-[11px] lg:text-xs text-muted-foreground font-semibold">اليوم</div>
-          <div className="mt-1 lg:mt-2 text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display">
+          <div className="mt-1 lg:mt-2 text-base sm:text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display break-words">
             {formatSDG(stats?.today ?? 0)}
           </div>
         </article>
 
-        <article className="col-span-2 sm:col-span-1 lg:col-span-3 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
+        <article className="col-span-2 sm:col-span-1 lg:col-span-3 min-w-0 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
           <div className="text-[11px] lg:text-xs text-muted-foreground font-semibold">الشهر الماضي</div>
-          <div className="mt-1 lg:mt-2 text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display">
+          <div className="mt-1 lg:mt-2 text-base sm:text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display break-words">
             {formatSDG(stats?.lastMonth ?? 0)}
           </div>
         </article>

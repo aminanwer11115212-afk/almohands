@@ -15,7 +15,7 @@ type Props = {
 
 export function AppShell({ title, children, showBack = false, rightAction, subtitle, wide = false }: Props) {
   return (
-    <div className="min-h-dvh bg-background flex" dir="rtl">
+    <div className="min-h-dvh bg-background flex overflow-x-hidden" dir="rtl">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:text-brand-foreground focus:shadow-elevated"
@@ -64,7 +64,7 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
         <main
           id="main-content"
           className={
-            "flex-1 mx-auto w-full px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
+            "flex-1 mx-auto w-full min-w-0 overflow-x-hidden px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
             (wide ? "max-w-none" : "max-w-3xl lg:max-w-6xl")
           }
           tabIndex={-1}

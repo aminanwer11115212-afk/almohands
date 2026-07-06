@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Loader2, LogIn, UserPlus } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";

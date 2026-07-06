@@ -15,7 +15,7 @@ type Props = {
 
 export function AppShell({ title, children, showBack = false, rightAction, subtitle, wide = false }: Props) {
   return (
-    <div className="min-h-dvh bg-background flex" dir="rtl">
+    <div className="min-h-dvh bg-background flex overflow-x-hidden" dir="rtl">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:text-brand-foreground focus:shadow-elevated"

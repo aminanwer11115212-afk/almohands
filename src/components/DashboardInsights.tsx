@@ -78,7 +78,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Low stock */}
-      <div className="rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
         <PanelHeader
           icon={AlertTriangle}
           title="مخزون منخفض"

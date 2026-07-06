@@ -64,7 +64,7 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
         <main
           id="main-content"
           className={
-            "flex-1 mx-auto w-full px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
+            "flex-1 mx-auto w-full min-w-0 overflow-x-hidden px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
             (wide ? "max-w-none" : "max-w-3xl lg:max-w-6xl")
           }
           tabIndex={-1}

@@ -20,10 +20,8 @@ function safeNext(next: string | undefined): string {
 
 const emailSchema = z.string().trim().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة").max(255, "البريد طويل جداً");
 const passwordSchema = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72, "كلمة المرور طويلة جداً");
-const nameSchema = z.string().trim().min(1, "الاسم مطلوب").max(100, "الاسم طويل جداً");
 
 const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
-const signUpSchema = z.object({ email: emailSchema, password: passwordSchema, fullName: nameSchema });
 
 function AuthPage() {
   const search = Route.useSearch();

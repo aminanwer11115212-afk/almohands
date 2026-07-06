@@ -144,7 +144,7 @@ function HomePage() {
               <span className="text-xs lg:text-sm opacity-85">مبيعات هذا الشهر</span>
               <span className="text-[10px] font-semibold bg-white/15 rounded-full px-2 py-0.5">SDG</span>
             </div>
-            <div className="mt-2 text-3xl lg:text-4xl font-extrabold nums leading-tight font-display">
+            <div className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold nums leading-tight font-display break-words">
               {formatSDG(stats?.thisMonth ?? 0)}
             </div>
             {growth !== null && (

@@ -50,7 +50,9 @@ const UTILITY: NavItem[] = [
   { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
   { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },
   { to: "/settings", label: "الإعدادات", icon: Settings, perm: "settings.write" },
+  { to: "/about", label: "حول المطوّر", icon: UserCircle2, perm: "cashier.use" },
 ];
+
 
 function NavGroup({ label, items, currentPath }: { label: string; items: NavItem[]; currentPath: string }) {
   if (items.length === 0) return null;

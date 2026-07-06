@@ -254,7 +254,7 @@ function CashierPage() {
         }
       }
 
-      let savedInvoice: { id: string; number: number } | null = null;
+      let savedInvoice: { id: string; number: number; phone: string; text: string } | null = null;
       try {
         const { data: inv, error: e1 } = await supabase
           .from("invoices")
@@ -295,7 +295,13 @@ function CashierPage() {
           throw e2;
         }
 
-        savedInvoice = { id: inv.id, number: inv.invoice_number };
+        const shareText = buildInvoiceText(
+          { invoice_number: inv.invoice_number, customer_name: trimmedName || null, total, paid: paidNum, remaining, created_at: new Date().toISOString() },
+          cart.map((i) => ({ product_name: i.name, quantity: i.quantity, unit_price: i.unitPrice, line_total: i.unitPrice * i.quantity })),
+          storeProfile?.name || "المتجر",
+          { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
+        );
+        savedInvoice = { id: inv.id, number: inv.invoice_number, phone, text: shareText };
         setLastInvoice(savedInvoice);
       } catch (invErr) {
         // Roll back a customer we just created; leave pre-existing ones untouched.

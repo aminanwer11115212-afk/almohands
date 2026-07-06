@@ -33,7 +33,8 @@ export function DashboardInsights() {
   return (
     <section aria-label="لوحة الأداء" className="grid gap-4 lg:grid-cols-3 mb-6 lg:mb-8">
       {/* Chart — spans 2 on desktop */}
-      <div className="lg:col-span-2 rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="lg:col-span-2 min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
+
         <PanelHeader
           icon={TrendingUp}
           title="مبيعات آخر 14 يوم"

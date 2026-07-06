@@ -218,10 +218,10 @@ function InvoicesPage() {
             <ul className="divide-y divide-border">
               {(query.data ?? []).map((inv) => (
                 <li key={inv.id}>
-                  <Link
-                    to="/invoices/$invoiceId"
-                    params={{ invoiceId: inv.id }}
-                    className="p-3 flex items-center gap-3 hover:bg-muted/50 transition"
+                  <button
+                    type="button"
+                    onClick={() => setOpenInvoiceId(inv.id)}
+                    className="w-full text-right p-3 flex items-center gap-3 hover:bg-muted/50 transition"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -244,13 +244,19 @@ function InvoicesPage() {
                         <div className="text-[11px] text-rose-600">متبقي {formatSDG(Number(inv.remaining))}</div>
                       )}
                     </div>
-                  </Link>
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      <InvoiceActionsModal
+        invoiceId={openInvoiceId}
+        open={openInvoiceId !== null}
+        onOpenChange={(v) => { if (!v) setOpenInvoiceId(null); }}
+      />
     </AppShell>
   );
 }

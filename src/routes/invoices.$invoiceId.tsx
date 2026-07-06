@@ -4,9 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
+import { buildInvoiceText, downloadElementAsPdf, openWhatsAppShare } from "@/lib/invoice-share";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),

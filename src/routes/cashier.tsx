@@ -407,6 +407,7 @@ function CashierPage() {
             title="مشاركة عبر واتساب"
           >
             <Share2 className="size-3.5" /> واتساب
+          </button>
           <button
             onClick={() => navigate({ to: "/invoices" })}
             className="text-xs underline"

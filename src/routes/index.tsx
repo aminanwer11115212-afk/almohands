@@ -46,8 +46,10 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const [email, setEmail] = useState<string | null>(null);
+  const [installOpen, setInstallOpen] = useState(false);
   const { data: stats } = useDashboardStats();
   const { data: unread = 0 } = useUnreadNotifications();
+
 
   useEffect(() => {
     let alive = true;

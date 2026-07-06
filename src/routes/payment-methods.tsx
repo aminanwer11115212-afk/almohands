@@ -57,8 +57,9 @@ function PaymentMethodsPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [open, setOpen] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(e?: React.FormEvent | React.MouseEvent) {
+    e?.preventDefault?.();
+    if (createMut.isPending) return;
     if (!form.name.trim()) {
       toast.error("أدخل اسم طريقة الدفع");
       return;
@@ -83,6 +84,7 @@ function PaymentMethodsPage() {
       setForm(emptyForm);
       setOpen(false);
     } catch (err) {
+      console.error("[payment-methods] create failed", err);
       toast.error(getErrorMessage(err, "تعذّرت الإضافة"));
     }
   }

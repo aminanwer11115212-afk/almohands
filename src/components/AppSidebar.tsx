@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   Settings,
   CreditCard,
+  UserCircle2,
 } from "lucide-react";
+
 import type { LucideIcon } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useMyRole, can, type Permission } from "@/hooks/use-permissions";

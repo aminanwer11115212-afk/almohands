@@ -64,7 +64,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Recent invoices — spans 2 */}
-      <div className="lg:col-span-2 rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="lg:col-span-2 min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
         <PanelHeader icon={Receipt} title="آخر الفواتير" to="/invoices" />
         {data.recent.length === 0 ? (
           <Empty text="لم يتم إصدار أي فواتير بعد" />

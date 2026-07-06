@@ -332,6 +332,8 @@ function CashierPage() {
           });
           return;
         }
+        // Otherwise open the actions modal (print / WhatsApp / preview / return)
+        setActionsModalId(savedInvoice.id);
       }
       searchRef.current?.focus();
     } catch (err) {

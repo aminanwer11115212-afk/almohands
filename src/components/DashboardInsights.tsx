@@ -44,7 +44,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Pending invoices */}
-      <div className="rounded-2xl bg-card border border-border shadow-card p-4 flex flex-col">
+      <div className="min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 flex flex-col overflow-hidden">
         <PanelHeader
           icon={Clock}
           title="فواتير معلّقة"

@@ -402,6 +402,12 @@ function CashierPage() {
             <Printer className="size-3.5" /> طباعة
           </button>
           <button
+            onClick={() => openWhatsAppShare(lastInvoice.phone, lastInvoice.text)}
+            className="flex items-center gap-1.5 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg px-3 py-1.5"
+            title="مشاركة عبر واتساب"
+          >
+            <Share2 className="size-3.5" /> واتساب
+          <button
             onClick={() => navigate({ to: "/invoices" })}
             className="text-xs underline"
           >

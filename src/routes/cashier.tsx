@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
+import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
@@ -53,6 +54,7 @@ function CashierPage() {
     phone: string;
     text: string;
   } | null>(null);
+  const [actionsModalId, setActionsModalId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 
@@ -330,6 +332,8 @@ function CashierPage() {
           });
           return;
         }
+        // Otherwise open the actions modal (print / WhatsApp / preview / return)
+        setActionsModalId(savedInvoice.id);
       }
       searchRef.current?.focus();
     } catch (err) {
@@ -371,6 +375,12 @@ function CashierPage() {
 
   return (
     <AppShell title="الكاشير" showBack>
+      <InvoiceActionsModal
+        invoiceId={actionsModalId}
+        open={actionsModalId !== null}
+        onOpenChange={(v) => { if (!v) setActionsModalId(null); }}
+      />
+
       {lastInvoice !== null && (
         <div className="mb-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 flex items-center flex-wrap gap-2">
           <CheckCircle2 className="size-5 shrink-0" />

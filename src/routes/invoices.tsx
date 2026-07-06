@@ -1,12 +1,13 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Receipt, Calendar } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
+import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
 
@@ -61,6 +62,7 @@ export const Route = createFileRoute("/invoices")({
 function InvoicesPage() {
   const { q, status, from, to } = Route.useSearch();
   const navigate = useNavigate({ from: "/invoices" });
+  const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["invoices", { q, status, from, to }],
@@ -216,10 +218,10 @@ function InvoicesPage() {
             <ul className="divide-y divide-border">
               {(query.data ?? []).map((inv) => (
                 <li key={inv.id}>
-                  <Link
-                    to="/invoices/$invoiceId"
-                    params={{ invoiceId: inv.id }}
-                    className="p-3 flex items-center gap-3 hover:bg-muted/50 transition"
+                  <button
+                    type="button"
+                    onClick={() => setOpenInvoiceId(inv.id)}
+                    className="w-full text-right p-3 flex items-center gap-3 hover:bg-muted/50 transition"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -242,13 +244,19 @@ function InvoicesPage() {
                         <div className="text-[11px] text-rose-600">متبقي {formatSDG(Number(inv.remaining))}</div>
                       )}
                     </div>
-                  </Link>
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      <InvoiceActionsModal
+        invoiceId={openInvoiceId}
+        open={openInvoiceId !== null}
+        onOpenChange={(v) => { if (!v) setOpenInvoiceId(null); }}
+      />
     </AppShell>
   );
 }

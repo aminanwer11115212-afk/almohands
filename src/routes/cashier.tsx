@@ -54,6 +54,7 @@ function CashierPage() {
     phone: string;
     text: string;
   } | null>(null);
+  const [actionsModalId, setActionsModalId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
 

@@ -28,6 +28,8 @@ function InvoiceDetailPage() {
 
   const [format, setFormat] = useState<PrintFormat>("a4");
   const [formatReady, setFormatReady] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (storeProfile?.print_size) {

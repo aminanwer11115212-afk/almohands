@@ -38,34 +38,43 @@ function CustomersPage() {
       ) : (
         <ul className="space-y-3">
           {customers.map((c) => (
-            <li key={c.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="font-bold text-foreground truncate">{c.name}</h3>
-                  {c.phone && (
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                      <Phone className="size-3" /> <span dir="ltr">{c.phone}</span>
-                    </div>
-                  )}
-                  {c.workshop && (
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                      <Wrench className="size-3" /> {c.workshop}
-                    </div>
-                  )}
+            <li key={c.id}>
+              <Link
+                to="/customers/$customerId"
+                params={{ customerId: c.id }}
+                className="block rounded-2xl border border-border bg-card p-4 shadow-card hover:border-brand hover:shadow-md transition"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-foreground truncate flex items-center gap-1.5">
+                      {c.name}
+                      <ChevronLeft className="size-3.5 text-muted-foreground" />
+                    </h3>
+                    {c.phone && (
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <Phone className="size-3" /> <span dir="ltr">{c.phone}</span>
+                      </div>
+                    )}
+                    {c.workshop && (
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <Wrench className="size-3" /> {c.workshop}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-left shrink-0">
+                    {c.balance > 0 && (
+                      <div className="text-xs text-destructive font-bold nums">دين: {formatSDG(c.balance)}</div>
+                    )}
+                    {c.creditLimit > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                        <CreditCard className="size-3" />
+                        <span className="nums">{formatSDG(c.creditLimit)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-left shrink-0">
-                  {c.balance > 0 && (
-                    <div className="text-xs text-destructive font-bold nums">دين: {formatSDG(c.balance)}</div>
-                  )}
-                  {c.creditLimit > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                      <CreditCard className="size-3" />
-                      <span className="nums">{formatSDG(c.creditLimit)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {c.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{c.notes}</p>}
+                {c.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{c.notes}</p>}
+              </Link>
             </li>
           ))}
         </ul>

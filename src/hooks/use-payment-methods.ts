@@ -46,8 +46,9 @@ export function usePaymentMethods(activeOnly = false) {
 }
 
 async function getUid() {
-  const { data } = await supabase.auth.getSession();
-  const uid = data.session?.user?.id;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  const uid = data.user?.id;
   if (!uid) throw new Error("يجب تسجيل الدخول");
   return uid;
 }

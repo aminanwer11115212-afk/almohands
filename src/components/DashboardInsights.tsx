@@ -33,7 +33,8 @@ export function DashboardInsights() {
   return (
     <section aria-label="لوحة الأداء" className="grid gap-4 lg:grid-cols-3 mb-6 lg:mb-8">
       {/* Chart — spans 2 on desktop */}
-      <div className="lg:col-span-2 rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="lg:col-span-2 min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
+
         <PanelHeader
           icon={TrendingUp}
           title="مبيعات آخر 14 يوم"
@@ -43,7 +44,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Pending invoices */}
-      <div className="rounded-2xl bg-card border border-border shadow-card p-4 flex flex-col">
+      <div className="min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 flex flex-col overflow-hidden">
         <PanelHeader
           icon={Clock}
           title="فواتير معلّقة"
@@ -63,7 +64,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Recent invoices — spans 2 */}
-      <div className="lg:col-span-2 rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="lg:col-span-2 min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
         <PanelHeader icon={Receipt} title="آخر الفواتير" to="/invoices" />
         {data.recent.length === 0 ? (
           <Empty text="لم يتم إصدار أي فواتير بعد" />
@@ -77,7 +78,7 @@ export function DashboardInsights() {
       </div>
 
       {/* Low stock */}
-      <div className="rounded-2xl bg-card border border-border shadow-card p-4">
+      <div className="min-w-0 rounded-2xl bg-card border border-border shadow-card p-4 overflow-hidden">
         <PanelHeader
           icon={AlertTriangle}
           title="مخزون منخفض"
@@ -192,26 +193,43 @@ function InvoiceRow({ inv, showRemaining }: { inv: DashInvoice; showRemaining?: 
 
 function SalesChart({ data }: { data: DailyPoint[] }) {
   const max = Math.max(...data.map((d) => d.amount), 1);
+  // On mobile show every other label to prevent overflow/truncation
+  const n = data.length;
   return (
-    <div className="flex items-end gap-1 h-32 mt-2" role="img" aria-label="مخطط المبيعات اليومي">
-      {data.map((d) => {
-        const h = (d.amount / max) * 100;
-        return (
-          <div
-            key={d.date}
-            className="flex-1 flex flex-col items-center gap-1 min-w-0 group"
-          >
+    <div className="mt-2 w-full overflow-hidden" role="img" aria-label="مخطط المبيعات اليومي">
+      <div className="flex items-end gap-[3px] sm:gap-1 h-32">
+        {data.map((d) => {
+          const h = (d.amount / max) * 100;
+          return (
             <div
-              className="w-full rounded-t bg-gradient-to-t from-brand to-brand/60 hover:from-brand hover:to-brand transition-all min-h-[3px]"
-              style={{ height: `${Math.max(h, 2)}%` }}
+              key={d.date}
+              className="flex-1 min-w-0 flex flex-col justify-end"
               title={`${d.label}: ${formatSDG(d.amount)}`}
-            />
-            <div className="text-[9px] text-muted-foreground truncate w-full text-center">
-              {d.label}
+            >
+              <div
+                className="w-full rounded-t bg-gradient-to-t from-brand to-brand/60 min-h-[3px]"
+                style={{ height: `${Math.max(h, 2)}%` }}
+              />
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <div className="mt-1 flex items-start gap-[3px] sm:gap-1">
+        {data.map((d, i) => {
+          // Mobile: show label every 3rd bar + last. Desktop (sm+): every 2nd.
+          const showMobile = i % 3 === 0 || i === n - 1;
+          const showDesktop = i % 2 === 0 || i === n - 1;
+          return (
+            <div key={d.date} className="flex-1 min-w-0 text-center">
+              <span
+                className={`nums text-[8px] sm:text-[9px] text-muted-foreground ${showMobile ? "inline" : "hidden"} ${showDesktop ? "sm:inline" : "sm:hidden"}`}
+              >
+                {d.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

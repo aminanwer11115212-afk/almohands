@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
+import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {
   Printer,
   Share2,
@@ -25,9 +26,12 @@ import {
   User,
   Calendar,
   Wallet,
+  Trash2,
+  SplitSquareHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+
 
 type Props = {
   invoiceId: string | null;

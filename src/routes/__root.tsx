@@ -133,13 +133,21 @@ function RootComponent() {
 
   useEffect(() => {
     registerPwa();
+    const onUnhandled = (e: PromiseRejectionEvent) => {
+      handleError(e.reason, "حدث خطأ في الخلفية");
+    };
+    window.addEventListener("unhandledrejection", onUnhandled);
+    return () => window.removeEventListener("unhandledrejection", onUnhandled);
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <OnlineStatus />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <Toaster position="top-center" richColors closeButton />
+      <ErrorBoundary>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }

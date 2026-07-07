@@ -373,6 +373,101 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string | null
+          method: string | null
+          notes: string | null
+          party_id: string
+          party_type: string
+          purchase_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          method?: string | null
+          notes?: string | null
+          party_id: string
+          party_type: string
+          purchase_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          method?: string | null
+          notes?: string | null
+          party_id?: string
+          party_type?: string
+          purchase_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_history: {
+        Row: {
+          created_at: string
+          id: string
+          new_price: number
+          old_price: number
+          product_id: string
+          purchase_id: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_price?: number
+          old_price?: number
+          product_id: string
+          purchase_id?: string | null
+          source?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_price?: number
+          old_price?: number
+          product_id?: string
+          purchase_id?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_history_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           barcode: string | null
@@ -426,6 +521,110 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      purchase_items: {
+        Row: {
+          cost_price: number
+          created_at: string
+          id: string
+          product_id: string | null
+          product_name: string
+          purchase_id: string
+          quantity: number
+          total: number
+          user_id: string
+        }
+        Insert: {
+          cost_price?: number
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          product_name: string
+          purchase_id: string
+          quantity?: number
+          total?: number
+          user_id: string
+        }
+        Update: {
+          cost_price?: number
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          product_name?: string
+          purchase_id?: string
+          quantity?: number
+          total?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          paid: number
+          purchase_number: number
+          remaining: number
+          status: string
+          supplier_id: string | null
+          supplier_name: string | null
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid?: number
+          purchase_number?: number
+          remaining?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid?: number
+          purchase_number?: number
+          remaining?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       returns: {
         Row: {

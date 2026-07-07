@@ -13,6 +13,9 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerPwa } from "../lib/pwa-register";
 import { OnlineStatus } from "../components/OnlineStatus";
+import { Toaster } from "../components/ui/sonner";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { handleError } from "../lib/errors";
 
 function NotFoundComponent() {
   return (

@@ -20,6 +20,8 @@ import {
   Bell,
   TrendingUp,
   UserCircle2,
+  ShoppingBag,
+  History,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
@@ -201,18 +203,20 @@ function HomePage() {
           <h3 id="menu-title" className="text-sm lg:text-base font-bold text-foreground font-display">
             القائمة الرئيسية
           </h3>
-          <span className="text-[11px] lg:text-xs text-muted-foreground">15 قسم</span>
+          <span className="text-[11px] lg:text-xs text-muted-foreground">17 قسم</span>
         </div>
 
         <nav aria-label="أقسام النظام" className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 lg:gap-4">
           <MenuTile to="/cashier" icon={ShoppingCart} label="الكاشير" hint="نقطة البيع" variant="highlight" span="2" />
           <MenuTile to="/products" icon={Package} label="المنتجات" hint="المخزن" />
           <MenuTile to="/invoices" icon={Receipt} label="الفواتير" />
+          <MenuTile to="/purchases" icon={ShoppingBag} label="المشتريات" />
           <MenuTile to="/accounts" icon={BarChart3} label="الحسابات" />
           <MenuTile to="/customers" icon={Users} label="العملاء" />
           <MenuTile to="/suppliers" icon={Truck} label="الموردين" />
           <MenuTile to="/expenses" icon={Wallet} label="المصروفات" />
           <MenuTile to="/prices" icon={Tags} label="الأسعار" />
+          <MenuTile to="/price-history" icon={History} label="سجل الأسعار" />
           <MenuTile to="/returns" icon={RotateCcw} label="المرتجعات" />
           <MenuTile to="/reports" icon={PieChart} label="التقارير" />
           <MenuTile to="/import" icon={FileSpreadsheet} label="استيراد" />

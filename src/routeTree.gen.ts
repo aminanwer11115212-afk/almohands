@@ -13,7 +13,9 @@ import { Route as SuppliersRouteImport } from './routes/suppliers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as PricesRouteImport } from './routes/prices'
+import { Route as PriceHistoryRouteImport } from './routes/price-history'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as PaymentMethodsRouteImport } from './routes/payment-methods'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -29,6 +31,7 @@ import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
+import { Route as SuppliersSupplierIdRouteImport } from './routes/suppliers.$supplierId'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
@@ -58,9 +61,19 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PurchasesRoute = PurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricesRoute = PricesRouteImport.update({
   id: '/prices',
   path: '/prices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PriceHistoryRoute = PriceHistoryRouteImport.update({
+  id: '/price-history',
+  path: '/price-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PermissionsRoute = PermissionsRouteImport.update({
@@ -138,6 +151,11 @@ const ProductsIndexRoute = ProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuppliersSupplierIdRoute = SuppliersSupplierIdRouteImport.update({
+  id: '/$supplierId',
+  path: '/$supplierId',
+  getParentRoute: () => SuppliersRoute,
+} as any)
 const ProductsNewRoute = ProductsNewRouteImport.update({
   id: '/products/new',
   path: '/products/new',
@@ -197,17 +215,20 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
+  '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
   '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -227,17 +248,20 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
+  '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
   '/products': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -258,17 +282,20 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
+  '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
+  '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
   '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
@@ -290,7 +317,9 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
+    | '/purchases'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -301,6 +330,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/suppliers/$supplierId'
     | '/products/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -320,7 +350,9 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
+    | '/purchases'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -331,6 +363,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/suppliers/$supplierId'
     | '/products'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -350,7 +383,9 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
+    | '/purchases'
     | '/reports'
     | '/returns'
     | '/settings'
@@ -361,6 +396,7 @@ export interface FileRouteTypes {
     | '/invoices/$invoiceId'
     | '/products/$productId'
     | '/products/new'
+    | '/suppliers/$supplierId'
     | '/products/'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
@@ -381,11 +417,13 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PaymentMethodsRoute: typeof PaymentMethodsRoute
   PermissionsRoute: typeof PermissionsRoute
+  PriceHistoryRoute: typeof PriceHistoryRoute
   PricesRoute: typeof PricesRoute
+  PurchasesRoute: typeof PurchasesRoute
   ReportsRoute: typeof ReportsRoute
   ReturnsRoute: typeof ReturnsRoute
   SettingsRoute: typeof SettingsRoute
-  SuppliersRoute: typeof SuppliersRoute
+  SuppliersRoute: typeof SuppliersRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
@@ -425,11 +463,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/purchases': {
+      id: '/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof PurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/prices': {
       id: '/prices'
       path: '/prices'
       fullPath: '/prices'
       preLoaderRoute: typeof PricesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/price-history': {
+      id: '/price-history'
+      path: '/price-history'
+      fullPath: '/price-history'
+      preLoaderRoute: typeof PriceHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions': {
@@ -537,6 +589,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/suppliers/$supplierId': {
+      id: '/suppliers/$supplierId'
+      path: '/$supplierId'
+      fullPath: '/suppliers/$supplierId'
+      preLoaderRoute: typeof SuppliersSupplierIdRouteImport
+      parentRoute: typeof SuppliersRoute
+    }
     '/products/new': {
       id: '/products/new'
       path: '/products/new'
@@ -620,6 +679,18 @@ const InvoicesRouteWithChildren = InvoicesRoute._addFileChildren(
   InvoicesRouteChildren,
 )
 
+interface SuppliersRouteChildren {
+  SuppliersSupplierIdRoute: typeof SuppliersSupplierIdRoute
+}
+
+const SuppliersRouteChildren: SuppliersRouteChildren = {
+  SuppliersSupplierIdRoute: SuppliersSupplierIdRoute,
+}
+
+const SuppliersRouteWithChildren = SuppliersRoute._addFileChildren(
+  SuppliersRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -635,11 +706,13 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PaymentMethodsRoute: PaymentMethodsRoute,
   PermissionsRoute: PermissionsRoute,
+  PriceHistoryRoute: PriceHistoryRoute,
   PricesRoute: PricesRoute,
+  PurchasesRoute: PurchasesRoute,
   ReportsRoute: ReportsRoute,
   ReturnsRoute: ReturnsRoute,
   SettingsRoute: SettingsRoute,
-  SuppliersRoute: SuppliersRoute,
+  SuppliersRoute: SuppliersRouteWithChildren,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,

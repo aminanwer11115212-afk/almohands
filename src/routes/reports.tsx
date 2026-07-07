@@ -36,33 +36,47 @@ function ReportsGuarded() {
 
 /* ------------------------ types & helpers ------------------------ */
 
-type Period = "day" | "week" | "month" | "year" | "all";
+type Period = "day" | "yesterday" | "week" | "month" | "last30" | "lastMonth" | "year" | "all";
 type Tab = "overview" | "detailed" | "by-user";
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: "day", label: "اليوم" },
-  { key: "week", label: "أسبوع" },
-  { key: "month", label: "شهر" },
-  { key: "year", label: "سنة" },
-  { key: "all", label: "الكل" },
+  { key: "yesterday", label: "أمس" },
+  { key: "week", label: "آخر 7 أيام" },
+  { key: "month", label: "هذا الشهر" },
+  { key: "last30", label: "آخر 30 يوم" },
+  { key: "lastMonth", label: "الشهر الماضي" },
+  { key: "year", label: "السنة" },
+  { key: "all", label: "مدى العمل" },
 ];
 
-function fromDate(period: Period): string | null {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  if (period === "day") return d.toISOString();
+function periodRange(period: Period): { from: string | null; to: string | null } {
+  const now = new Date();
+  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+  if (period === "day") return { from: startOfToday.toISOString(), to: null };
+  if (period === "yesterday") {
+    const y = new Date(startOfToday); y.setDate(y.getDate() - 1);
+    return { from: y.toISOString(), to: startOfToday.toISOString() };
+  }
   if (period === "week") {
-    d.setDate(d.getDate() - 6);
-    return d.toISOString();
+    const d = new Date(startOfToday); d.setDate(d.getDate() - 6);
+    return { from: d.toISOString(), to: null };
   }
   if (period === "month") {
-    d.setDate(1);
-    return d.toISOString();
+    const d = new Date(startOfToday); d.setDate(1);
+    return { from: d.toISOString(), to: null };
   }
-  if (period === "year") {
-    return new Date(new Date().getFullYear(), 0, 1).toISOString();
+  if (period === "last30") {
+    const d = new Date(startOfToday); d.setDate(d.getDate() - 29);
+    return { from: d.toISOString(), to: null };
   }
-  return null;
+  if (period === "lastMonth") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
+  if (period === "year") return { from: new Date(now.getFullYear(), 0, 1).toISOString(), to: null };
+  return { from: null, to: null };
 }
 
 const PM_LABELS: Record<string, string> = {
@@ -77,7 +91,7 @@ type Row = Record<string, any>;
 /* ------------------------ shared data ------------------------ */
 
 function useReportBundle(period: Period) {
-  const from = fromDate(period);
+  const { from, to } = periodRange(period);
   return useQuery({
     queryKey: ["reports-bundle", period],
     queryFn: async () => {
@@ -89,24 +103,28 @@ function useReportBundle(period: Period) {
         )
         .order("created_at", { ascending: false });
       if (from) qInv = qInv.gte("created_at", from);
+      if (to) qInv = qInv.lt("created_at", to);
 
       // Invoice items (for top products & profit)
       let qItems = supabase
         .from("invoice_items")
         .select("user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
       if (from) qItems = qItems.gte("created_at", from);
+      if (to) qItems = qItems.lt("created_at", to);
 
       // Expenses
       let qExp = supabase
         .from("expenses")
         .select("user_id, amount, target, date, notes, created_at");
       if (from) qExp = qExp.gte("created_at", from);
+      if (to) qExp = qExp.lt("created_at", to);
 
       // Returns
       let qRet = supabase
         .from("returns")
         .select("user_id, quantity, status, created_at");
       if (from) qRet = qRet.gte("created_at", from);
+      if (to) qRet = qRet.lt("created_at", to);
 
       const [inv, items, exp, ret, prods, cust] = await Promise.all([
         qInv,

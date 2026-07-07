@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Search, Plus, Phone, MapPin, Loader2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -47,26 +47,32 @@ function SuppliersPage() {
       ) : (
         <ul className="space-y-3">
           {suppliers.map((s) => (
-            <li key={s.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="font-bold text-foreground truncate">{s.name}</h3>
-                  {s.phone && (
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                      <Phone className="size-3" /> <span dir="ltr">{s.phone}</span>
-                    </div>
-                  )}
-                  {s.address && (
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                      <MapPin className="size-3" /> {s.address}
-                    </div>
+            <li key={s.id}>
+              <Link
+                to="/suppliers/$supplierId"
+                params={{ supplierId: s.id }}
+                className="block rounded-2xl border border-border bg-card p-4 shadow-card hover:border-brand/40 transition"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-foreground truncate">{s.name}</h3>
+                    {s.phone && (
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <Phone className="size-3" /> <span dir="ltr">{s.phone}</span>
+                      </div>
+                    )}
+                    {s.address && (
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <MapPin className="size-3" /> {s.address}
+                      </div>
+                    )}
+                  </div>
+                  {s.balance > 0 && (
+                    <div className="text-xs text-destructive font-bold nums shrink-0">دين: {formatSDG(s.balance)}</div>
                   )}
                 </div>
-                {s.balance > 0 && (
-                  <div className="text-xs text-destructive font-bold nums shrink-0">دين: {formatSDG(s.balance)}</div>
-                )}
-              </div>
-              {s.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{s.notes}</p>}
+                {s.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{s.notes}</p>}
+              </Link>
             </li>
           ))}
         </ul>

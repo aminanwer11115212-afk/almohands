@@ -13,6 +13,9 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerPwa } from "../lib/pwa-register";
 import { OnlineStatus } from "../components/OnlineStatus";
+import { Toaster } from "../components/ui/sonner";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { handleError } from "../lib/errors";
 
 function NotFoundComponent() {
   return (
@@ -130,13 +133,21 @@ function RootComponent() {
 
   useEffect(() => {
     registerPwa();
+    const onUnhandled = (e: PromiseRejectionEvent) => {
+      handleError(e.reason, "حدث خطأ في الخلفية");
+    };
+    window.addEventListener("unhandledrejection", onUnhandled);
+    return () => window.removeEventListener("unhandledrejection", onUnhandled);
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <OnlineStatus />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <Toaster position="top-center" richColors closeButton />
+      <ErrorBoundary>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }

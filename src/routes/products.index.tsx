@@ -183,7 +183,7 @@ function ProductsPage() {
         </div>
         <button type="button" onClick={() => setSearch({ low: !low })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
-            low ? "border-warn bg-warn/10 text-warn" : "border-border bg-card text-muted-foreground"
+            low ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
           }`}>
           <AlertTriangle className="inline size-4 ml-1" /> منخفض المخزون
         </button>
@@ -240,12 +240,12 @@ function ProductsPage() {
                 const isLow = p.quantity <= p.minQuantity;
                 const d = drafts[p.id];
                 return (
-                  <tr key={p.id} className={isLow ? "bg-warn/5" : "hover:bg-muted/40"}>
+                  <tr key={p.id} className={isLow ? "bg-destructive/5" : "hover:bg-muted/40"}>
                     <td className="px-3 py-2 text-right font-semibold">
                       <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand">
                         {p.name}
                       </Link>
-                      {isLow && <span className="mr-2 text-[10px] text-warn">● منخفض</span>}
+                      {isLow && <span className="mr-2 text-[10px] text-destructive">● منخفض</span>}
                     </td>
                     <td className="px-2 py-2 text-center text-muted-foreground nums text-xs">{p.barcode || "—"}</td>
                     <td className="px-2 py-2 text-center nums">
@@ -324,9 +324,9 @@ function StatCard({ icon, label, value, tone = "default" }: {
   icon: React.ReactNode; label: string; value: string; tone?: "default" | "warn";
 }) {
   return (
-    <div className={`rounded-xl border p-3 ${tone === "warn" ? "border-warn/40 bg-warn/5" : "border-border bg-card"}`}>
+    <div className={`rounded-xl border p-3 ${tone === "warn" ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">{icon} {label}</div>
-      <div className={`mt-1 text-base font-extrabold nums ${tone === "warn" ? "text-warn" : "text-foreground"}`}>{value}</div>
+      <div className={`mt-1 text-base font-extrabold nums ${tone === "warn" ? "text-destructive" : "text-foreground"}`}>{value}</div>
     </div>
   );
 }

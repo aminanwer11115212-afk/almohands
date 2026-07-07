@@ -163,7 +163,7 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
     try {
       await create.mutateAsync({
         supplier_id: supplierId || null,
-        supplier_name: supplierName || suppliers.find((s) => s.id === supplierId)?.name || null,
+        supplier_name: supplierName || suppliers.find((s) => s.id === supplierId)?.name || undefined,
         paid: Number(paid) || 0,
         notes,
         items: valid.map(({ key: _k, ...rest }) => rest),

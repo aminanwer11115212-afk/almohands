@@ -91,7 +91,7 @@ type Row = Record<string, any>;
 /* ------------------------ shared data ------------------------ */
 
 function useReportBundle(period: Period) {
-  const from = fromDate(period);
+  const { from, to } = periodRange(period);
   return useQuery({
     queryKey: ["reports-bundle", period],
     queryFn: async () => {
@@ -103,24 +103,28 @@ function useReportBundle(period: Period) {
         )
         .order("created_at", { ascending: false });
       if (from) qInv = qInv.gte("created_at", from);
+      if (to) qInv = qInv.lt("created_at", to);
 
       // Invoice items (for top products & profit)
       let qItems = supabase
         .from("invoice_items")
         .select("user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
       if (from) qItems = qItems.gte("created_at", from);
+      if (to) qItems = qItems.lt("created_at", to);
 
       // Expenses
       let qExp = supabase
         .from("expenses")
         .select("user_id, amount, target, date, notes, created_at");
       if (from) qExp = qExp.gte("created_at", from);
+      if (to) qExp = qExp.lt("created_at", to);
 
       // Returns
       let qRet = supabase
         .from("returns")
         .select("user_id, quantity, status, created_at");
       if (from) qRet = qRet.gte("created_at", from);
+      if (to) qRet = qRet.lt("created_at", to);
 
       const [inv, items, exp, ret, prods, cust] = await Promise.all([
         qInv,

@@ -15,6 +15,7 @@ import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as PricesRouteImport } from './routes/prices'
+import { Route as PriceHistoryRouteImport } from './routes/price-history'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as PaymentMethodsRouteImport } from './routes/payment-methods'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -68,6 +69,11 @@ const PurchasesRoute = PurchasesRouteImport.update({
 const PricesRoute = PricesRouteImport.update({
   id: '/prices',
   path: '/prices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PriceHistoryRoute = PriceHistoryRouteImport.update({
+  id: '/price-history',
+  path: '/price-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PermissionsRoute = PermissionsRouteImport.update({
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
@@ -241,6 +248,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
@@ -274,6 +282,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
+  '/price-history': typeof PriceHistoryRoute
   '/prices': typeof PricesRoute
   '/purchases': typeof PurchasesRoute
   '/reports': typeof ReportsRoute
@@ -308,6 +317,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
     | '/purchases'
     | '/reports'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
     | '/purchases'
     | '/reports'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payment-methods'
     | '/permissions'
+    | '/price-history'
     | '/prices'
     | '/purchases'
     | '/reports'
@@ -405,6 +417,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PaymentMethodsRoute: typeof PaymentMethodsRoute
   PermissionsRoute: typeof PermissionsRoute
+  PriceHistoryRoute: typeof PriceHistoryRoute
   PricesRoute: typeof PricesRoute
   PurchasesRoute: typeof PurchasesRoute
   ReportsRoute: typeof ReportsRoute
@@ -462,6 +475,13 @@ declare module '@tanstack/react-router' {
       path: '/prices'
       fullPath: '/prices'
       preLoaderRoute: typeof PricesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/price-history': {
+      id: '/price-history'
+      path: '/price-history'
+      fullPath: '/price-history'
+      preLoaderRoute: typeof PriceHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions': {
@@ -686,6 +706,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PaymentMethodsRoute: PaymentMethodsRoute,
   PermissionsRoute: PermissionsRoute,
+  PriceHistoryRoute: PriceHistoryRoute,
   PricesRoute: PricesRoute,
   PurchasesRoute: PurchasesRoute,
   ReportsRoute: ReportsRoute,

@@ -20,6 +20,8 @@ import {
   Bell,
   TrendingUp,
   UserCircle2,
+  ShoppingBag,
+  History,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";

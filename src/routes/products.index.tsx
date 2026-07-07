@@ -127,7 +127,7 @@ function ProductsPage() {
       }
       if (!updates.length) return 0;
       for (const u of updates) {
-        const { error } = await supabase.from("products").update(u.patch).eq("id", u.id);
+        const { error } = await supabase.from("products").update(u.patch as never).eq("id", u.id);
         if (error) throw error;
       }
       return updates.length;

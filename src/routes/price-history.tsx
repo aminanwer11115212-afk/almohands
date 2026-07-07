@@ -10,7 +10,7 @@ import { formatSDG } from "@/lib/format";
 export const Route = createFileRoute("/price-history")({
   head: () => ({ meta: [{ title: "سجل تغيير الأسعار — المهندس" }] }),
   component: () => (
-    <PermissionGate perm="products.read">
+    <PermissionGate perm="products.write">
       <PriceHistoryPage />
     </PermissionGate>
   ),

@@ -378,16 +378,45 @@ function CancelledInvoicesPage() {
                     </div>
                     {(() => {
                       const ret = returnsByInvoice.get(r.id);
-                      if (!ret || ret.items.length === 0) return null;
+                      const soldQty = itemsByInvoice.get(r.id) ?? 0;
+                      const retQty = ret?.qty ?? 0;
+                      const mismatch = soldQty > 0 && retQty !== soldQty;
                       return (
-                        <div className="mt-2 rounded-md bg-emerald-50 border border-emerald-200 p-2 text-xs">
-                          <div className="font-bold text-emerald-800 mb-1">📦 عاد للمخزون ({ret.qty} قطعة)</div>
-                          <ul className="space-y-0.5 text-emerald-900">
-                            {ret.items.map((it) => (
-                              <li key={it.id}>• {it.product_name} × {it.quantity}{it.reason ? ` — ${it.reason}` : ""}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        <>
+                          <div className={`mt-2 rounded-md p-2 text-xs border ${
+                            mismatch
+                              ? "bg-amber-50 border-amber-300 text-amber-900"
+                              : retQty > 0
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                                : "bg-muted/40 border-border text-muted-foreground"
+                          }`}>
+                            <div className="font-bold flex items-center justify-between gap-2">
+                              <span>🔄 تسوية المخزون</span>
+                              <span className="nums">
+                                مُباع: {soldQty} · مُرتجع: {retQty}
+                                {mismatch && <span className="ms-1">⚠️ فرق {Math.abs(soldQty - retQty)}</span>}
+                                {!mismatch && retQty === soldQty && soldQty > 0 && <span className="ms-1">✓ مطابق</span>}
+                              </span>
+                            </div>
+                            {mismatch && (
+                              <div className="mt-1 text-[11px]">
+                                {retQty < soldQty
+                                  ? `لم يتم إرجاع ${soldQty - retQty} قطعة إلى المخزون — يرجى المراجعة.`
+                                  : `عدد المرتجعات أكثر من المُباع بـ ${retQty - soldQty} قطعة.`}
+                              </div>
+                            )}
+                          </div>
+                          {ret && ret.items.length > 0 && (
+                            <div className="mt-2 rounded-md bg-emerald-50 border border-emerald-200 p-2 text-xs">
+                              <div className="font-bold text-emerald-800 mb-1">📦 عاد للمخزون ({ret.qty} قطعة)</div>
+                              <ul className="space-y-0.5 text-emerald-900">
+                                {ret.items.map((it) => (
+                                  <li key={it.id}>• {it.product_name} × {it.quantity}{it.reason ? ` — ${it.reason}` : ""}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
                   </div>

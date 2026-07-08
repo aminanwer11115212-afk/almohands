@@ -174,7 +174,7 @@ function InvoiceRow({ inv, showRemaining }: { inv: DashInvoice; showRemaining?: 
           <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
             <span>{formatDate(inv.created_at)}</span>
             <span>·</span>
-            <span>{PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}</span>
+            <span>{PM_LABELS[String(inv.payment_method ?? "")] ?? inv.payment_method ?? "—"}</span>
           </div>
         </div>
         <div className="text-end shrink-0">

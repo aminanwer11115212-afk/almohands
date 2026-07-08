@@ -1,14 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2 } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
-import { buildInvoiceText, downloadElementAsPdf, openWhatsAppShare } from "@/lib/invoice-share";
+import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp } from "@/lib/invoice-share";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errors";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),

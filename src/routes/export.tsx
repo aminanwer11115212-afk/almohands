@@ -170,6 +170,7 @@ function ExportPage() {
           }
         }
       }
+      const partialPayload = { export_type: "partial", format, tables: [...selected], from, to };
       await logMut.mutateAsync({
         export_type: "partial",
         format,
@@ -178,12 +179,14 @@ function ExportPage() {
         status: "success",
         duration_ms: Date.now() - started,
         notes: from || to ? `فلترة تاريخ: ${from || "?"} → ${to || "?"}` : undefined,
+        payload: partialPayload,
       });
       toast.success(`تم تصدير ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
         export_type: "partial", format, tables: [...selected], row_count: 0,
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
+        payload: { export_type: "partial", format, tables: [...selected], from, to },
       }).catch(() => {});
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
@@ -208,18 +211,34 @@ function ExportPage() {
         tables: TABLES.map((t) => t.key), row_count: total,
         status: "success", duration_ms: Date.now() - started,
         notes: "نسخة احتياطية كاملة",
+        payload: { export_type: "full_backup", format: "json" },
       });
       toast.success(`نسخة احتياطية: ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
         export_type: "full_backup", format: "json", tables: TABLES.map((t) => t.key), row_count: 0,
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
+        payload: { export_type: "full_backup", format: "json" },
       }).catch(() => {});
       toast.error("فشل النسخ الاحتياطي");
     } finally {
       setBusy(false);
     }
   };
+
+  function retryFromLog(l: any) {
+    const p = l?.payload;
+    if (!p) { toast.error("لا يمكن إعادة تشغيل هذه العملية"); return; }
+    if (!confirm("سيتم إعادة تشغيل العملية بنفس الإعدادات. متابعة؟")) return;
+    if (p.export_type === "full_backup") { void fullBackup(); return; }
+    if (Array.isArray(p.tables)) setSelected(new Set(p.tables));
+    if (p.format) setFormat(p.format);
+    if (typeof p.from === "string") setFrom(p.from);
+    if (typeof p.to === "string") setTo(p.to);
+    setTimeout(() => { void runExport(); }, 0);
+  }
+
+
 
   const stats = useMemo(() => {
     const success = logs.filter((l: any) => l.status === "success").length;

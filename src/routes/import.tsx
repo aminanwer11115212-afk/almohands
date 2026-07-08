@@ -30,17 +30,18 @@ function ImportPageGuarded() {
 type ColKey = "name" | "barcode" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
 
 const COL_ALIASES: Record<ColKey, string[]> = {
-  name: ["الاسم", "اسم المنتج", "name", "product", "product_name"],
-  barcode: ["الباركود", "باركود", "barcode", "sku"],
-  category: ["الفئة", "التصنيف", "category"],
+  name: ["الاسم", "اسم المنتج", "اسم الصنف", "الصنف", "المنتج", "name", "product", "product_name", "item", "item_name"],
+  barcode: ["الباركود", "باركود", "الكود", "كود", "رمز", "barcode", "sku", "code"],
+  category: ["الفئة", "التصنيف", "القسم", "category", "type"],
   unit: ["الوحدة", "unit"],
-  location: ["الموقع", "location"],
-  quantity: ["الكمية", "المخزون", "quantity", "stock", "qty"],
-  min_quantity: ["الحد الأدنى", "min", "min_quantity"],
-  cost_price: ["سعر الشراء", "التكلفة", "cost", "cost_price"],
-  sale_price: ["سعر البيع", "السعر", "price", "sale_price"],
-  notes: ["ملاحظات", "notes"],
+  location: ["الموقع", "المخزن", "الرف", "location", "shelf"],
+  quantity: ["الكمية", "المخزون", "الرصيد", "quantity", "stock", "qty"],
+  min_quantity: ["الحد الأدنى", "الحد الادنى", "أدنى كمية", "ادنى كمية", "min", "min_quantity", "reorder"],
+  cost_price: ["سعر الشراء", "سعر الجملة", "التكلفة", "تكلفة", "سعر التكلفة", "شراء", "الشراء", "cost", "cost_price", "purchase", "purchase_price", "buy", "buy_price"],
+  sale_price: ["سعر البيع", "السعر", "سعر", "بيع", "البيع", "سعر التجزئة", "price", "sale_price", "selling_price", "sell", "sell_price", "retail", "retail_price"],
+  notes: ["ملاحظات", "ملاحظة", "notes", "note", "remark"],
 };
+
 
 type ParsedRow = {
   name: string;

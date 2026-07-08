@@ -513,11 +513,12 @@ function ImportPage() {
                       <RefreshCw className="size-3.5 text-brand" />
                     </button>
                   )}
-                <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
-
-                  <Trash2 className="size-3.5 text-destructive" />
-                </button>
+                  <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </button>
+                </div>
               </li>
+
             ))}
           </ul>
         )}

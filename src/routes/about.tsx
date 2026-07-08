@@ -9,15 +9,15 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "حول المطوّر — المهندس" },
-      { name: "description", content: "تعرّف على أمين أنور أحمد، مهندس برمجيات ومنتج للجهات وصانع محتوى." },
+      { name: "description", content: "تعرّف على أمين أنور أحمد، مهندس برمجيات ومنتج فيديوهات وصانع محتوى." },
     ],
   }),
   component: AboutDeveloperPage,
 });
 
-const PHONE_DISPLAY = "0193 743 333";
-const PHONE_TEL = "+249193743333";
-const PHONE_WA = "249193743333";
+const PHONE_DISPLAY = "0910 374 333";
+const PHONE_TEL = "+249910374333";
+const PHONE_WA = "249910374333";
 
 function AboutDeveloperPage() {
   const [copied, setCopied] = useState(false);

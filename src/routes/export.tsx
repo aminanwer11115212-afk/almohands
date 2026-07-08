@@ -244,6 +244,11 @@ function ExportPage() {
         notes: from || to ? `فلترة تاريخ: ${from || "?"} → ${to || "?"}` : undefined,
         payload: partialPayload,
       });
+      const { data: au } = await supabase.auth.getUser();
+      if (au?.user) await supabase.from("audit_logs").insert({
+        user_id: au.user.id, action: "data.export", table_name: [...selected].join(","),
+        details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
+      }).then(() => undefined, () => undefined);
       toast.success(`تم تصدير ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
@@ -251,6 +256,11 @@ function ExportPage() {
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
         payload: { export_type: "partial", format, tables: [...selected], from, to },
       }).catch(() => {});
+      const { data: au } = await supabase.auth.getUser();
+      if (au?.user) await supabase.from("audit_logs").insert({
+        user_id: au.user.id, action: "data.export.failed", table_name: [...selected].join(","),
+        details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
+      }).then(() => undefined, () => undefined);
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
       setBusy(false);

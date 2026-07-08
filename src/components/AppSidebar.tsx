@@ -91,7 +91,7 @@ export function AppSidebar() {
 
   return (
     <aside
-      className="hidden lg:flex sticky top-0 h-dvh w-64 shrink-0 flex-col bg-header text-header-foreground border-l border-white/10"
+      className="hidden md:flex sticky top-0 h-dvh w-56 lg:w-64 shrink-0 flex-col bg-header text-header-foreground border-l border-white/10 z-40"
       aria-label="القائمة الرئيسية"
     >
       <div className="flex items-center gap-3 px-6 h-16 border-b border-white/10">

@@ -533,65 +533,87 @@ function InvoiceDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-100">
-                  {editRows.map((row, i) => (
+                  {editRows.map((row, i) => {
+                    const err = rowErrors[row.id] ?? {};
+                    return (
                     <tr key={row.id}>
-                      <td className="p-2">{row.product_name}</td>
-                      <td className="p-2">
+                      <td className="p-2 align-top">{row.product_name}</td>
+                      <td className="p-2 align-top">
                         <input
                           type="number"
-                          min={0}
+                          min={1}
                           step="1"
+                          inputMode="numeric"
                           value={row.quantity}
                           onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                            const raw = e.target.value;
+                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
                             setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
+                            const msg = validateItemField("quantity", v);
+                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: msg ?? undefined } }));
                           }}
-                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                          aria-invalid={!!err.quantity}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity ? "border-destructive" : "border-input"}`}
                         />
+                        {err.quantity && <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>}
                       </td>
-                      <td className="p-2">
+                      <td className="p-2 align-top">
                         <input
                           type="number"
                           min={0}
                           step="0.01"
+                          inputMode="decimal"
                           value={row.unit_price}
                           onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                            const raw = e.target.value;
+                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
                             setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, unit_price: v } : r)));
+                            const msg = validateItemField("unit_price", v);
+                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], unit_price: msg ?? undefined } }));
                           }}
-                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                          aria-invalid={!!err.unit_price}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.unit_price ? "border-destructive" : "border-input"}`}
                         />
+                        {err.unit_price && <div className="text-[11px] text-destructive mt-1">{err.unit_price}</div>}
                       </td>
-                      <td className="p-2 text-center font-semibold nums">
+                      <td className="p-2 text-center font-semibold nums align-top">
                         {formatSDG(row.quantity * row.unit_price)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            {hasFieldErrors && (
+              <div className="mt-2 text-sm text-destructive flex items-center gap-1">
+                <AlertTriangle className="size-4" /> يوجد قيم غير صالحة — صحّحها قبل الحفظ.
+              </div>
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => setEditMode(false)}
+                onClick={() => { setEditMode(false); setRowErrors({}); }}
                 className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
               >
                 إلغاء
               </button>
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending}
-                className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+                disabled={saveMutation.isPending || hasFieldErrors}
+                className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
               >
                 {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 حفظ التعديلات
               </button>
             </div>
             <p className="text-xs text-amber-800 mt-2">
-              ملاحظة: تعديل الكمية سيُعدّل المخزون تلقائياً (زيادة الكمية تخصم من المخزون، وتقليصها يُعيد للمخزون).
+              ملاحظة: زيادة الكمية تخصم من المخزون تلقائياً — إذا كان المخزون غير كافٍ سيتم رفض الحفظ ورسالة الخطأ ستوضّح الصنف والكمية المتاحة.
             </p>
           </div>
         </section>
       )}
+
 
       <main className="py-6 px-4 print:p-0">
         <div ref={printRef}>

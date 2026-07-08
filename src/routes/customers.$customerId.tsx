@@ -233,6 +233,8 @@ function CustomerLedgerPage() {
             </div>
           )}
         </section>
+
+        <ProductsPurchasedSection customerId={customerId} customerName={c.name} />
       </div>
 
       <style>{`

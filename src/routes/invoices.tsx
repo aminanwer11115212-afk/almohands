@@ -198,10 +198,11 @@ function InvoicesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
           <SummaryCard label="فواتير" value={String(totals.count)} />
           <SummaryCard label="الإجمالي" value={formatSDG(totals.total)} />
-          <SummaryCard label="المتبقي" value={formatSDG(totals.remaining)} />
+          <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="emerald" />
+          <SummaryCard label="المتبقي" value={formatSDG(totals.remaining)} tone="rose" />
         </div>
 
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -217,34 +218,68 @@ function InvoicesPage() {
           ) : (
             <ul className="divide-y divide-border">
               {(query.data ?? []).map((inv) => (
-                <li key={inv.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenInvoiceId(inv.id)}
-                    className="w-full text-right p-3 flex items-center gap-3 hover:bg-muted/50 transition"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-primary">#{inv.invoice_number}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
-                          {statusLabels[inv.status] ?? inv.status}
-                        </span>
+                <li key={inv.id} className="group">
+                  <div className="flex items-stretch hover:bg-muted/50 transition">
+                    <Link
+                      to="/invoices/$invoiceId"
+                      params={{ invoiceId: inv.id }}
+                      search={{ autoprint: 0 }}
+                      className="flex-1 min-w-0 text-right p-3 flex items-center gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-primary nums">#{inv.invoice_number}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
+                            {statusLabels[inv.status] ?? inv.status}
+                          </span>
+                        </div>
+                        <div className="text-sm text-foreground truncate">
+                          {inv.customer_name || "عميل نقدي"}
+                          {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground nums">
+                          {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                        </div>
                       </div>
-                      <div className="text-sm text-foreground truncate">
-                        {inv.customer_name || "عميل نقدي"}
-                        {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
+                      <div className="text-left shrink-0">
+                        <div className="text-sm font-semibold nums">{formatSDG(Number(inv.total))}</div>
+                        {Number(inv.remaining) > 0 && (
+                          <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
+                        )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
-                      </div>
+                    </Link>
+                    <div className="flex items-center gap-0.5 pl-2 pr-1 border-r border-border/60">
+                      <Link
+                        to="/invoices/$invoiceId"
+                        params={{ invoiceId: inv.id }}
+                        search={{ autoprint: 1 }}
+                        title="طباعة"
+                        aria-label="طباعة"
+                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
+                      >
+                        <Printer className="size-4" />
+                      </Link>
+                      <Link
+                        to="/invoices/$invoiceId"
+                        params={{ invoiceId: inv.id }}
+                        search={{ autoprint: 0 }}
+                        title="عرض التفاصيل"
+                        aria-label="عرض التفاصيل"
+                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground hidden sm:inline-flex"
+                      >
+                        <Eye className="size-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setOpenInvoiceId(inv.id)}
+                        title="إجراءات"
+                        aria-label="إجراءات"
+                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
+                      >
+                        <MoreVertical className="size-4" />
+                      </button>
                     </div>
-                    <div className="text-left">
-                      <div className="text-sm font-semibold">{formatSDG(Number(inv.total))}</div>
-                      {Number(inv.remaining) > 0 && (
-                        <div className="text-[11px] text-rose-600">متبقي {formatSDG(Number(inv.remaining))}</div>
-                      )}
-                    </div>
-                  </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -261,11 +296,13 @@ function InvoicesPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: "emerald" | "rose" }) {
+  const toneClass =
+    tone === "emerald" ? "text-emerald-600" : tone === "rose" ? "text-rose-600" : "text-foreground";
   return (
     <div className="bg-card rounded-xl border border-border p-2 shadow-sm">
       <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-bold text-foreground mt-1 truncate">{value}</div>
+      <div className={`text-sm font-bold mt-1 truncate nums ${toneClass}`}>{value}</div>
     </div>
   );
 }

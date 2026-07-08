@@ -323,7 +323,9 @@ function CashierPage() {
       setSelectedCustomerId(null);
       setDiscount("0");
       setPaid("");
+      setReferenceNumber("");
       setQuery("");
+
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       if (savedInvoice) {

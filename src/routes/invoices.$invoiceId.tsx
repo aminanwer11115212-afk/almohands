@@ -668,8 +668,70 @@ function InvoiceDetailPage() {
             {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
             {editMode ? "إلغاء" : "تعديل"}
           </button>
+
+          {inv.status !== "cancelled" && (
+            <button
+              onClick={() => setCancelOpen(true)}
+              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-3 py-1.5"
+              title="إلغاء الفاتورة مع إدخال سبب"
+            >
+              <X className="size-4" /> إلغاء الفاتورة
+            </button>
+          )}
         </div>
       </header>
+
+      {inv.status === "cancelled" && (
+        <div className="mx-auto max-w-4xl px-4 pt-3 print:hidden">
+          <div className="rounded-lg border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+            <div className="font-bold mb-0.5">هذه الفاتورة ملغاة</div>
+            {inv.cancellation_reason && <div>السبب: {inv.cancellation_reason}</div>}
+            {inv.cancelled_at && (
+              <div className="text-xs opacity-80 mt-0.5">
+                وقت الإلغاء: {new Date(inv.cancelled_at).toLocaleString("ar-EG")}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>إلغاء الفاتورة #{inv.invoice_number}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">سبب الإلغاء (مطلوب)</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="مثال: طلب العميل الإلغاء، خطأ في الأصناف، ..."
+              className="w-full rounded-md border border-input bg-background p-2 text-sm"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">سيصل تنبيه فوري للمدير يوضّح السبب.</p>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setCancelOpen(false)}
+              className="px-4 h-9 rounded-md border border-input bg-background text-sm"
+            >
+              تراجع
+            </button>
+            <button
+              onClick={() => cancelMutation.mutate(cancelReason)}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 3}
+              className="px-4 h-9 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              تأكيد الإلغاء
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Inline edit panel */}
       {editMode && (

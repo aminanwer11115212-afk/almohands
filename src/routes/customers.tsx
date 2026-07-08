@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useState } from "react";
 import { Search, Plus, Phone, Wrench, CreditCard, Loader2, X, ChevronLeft, Receipt, TrendingDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -7,7 +8,7 @@ import { useCustomers, useAddCustomer } from "@/hooks/use-customers";
 
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "العملاء — المهندس" }] }),
-  component: CustomersPage,
+  component: () => (<PermissionGate perm="customers.view"><CustomersPage /></PermissionGate>),
 });
 
 function CustomersPage() {

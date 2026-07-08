@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
@@ -20,7 +21,7 @@ import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
-  component: CashierPage,
+  component: () => (<PermissionGate perm="cashier.use"><CashierPage /></PermissionGate>),
 });
 
 type CartItem = {

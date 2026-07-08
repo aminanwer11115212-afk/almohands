@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
@@ -14,7 +15,7 @@ import {
 
 export const Route = createFileRoute("/accounts")({
   head: () => ({ meta: [{ title: "إدارة الحسابات — المهندس" }] }),
-  component: AccountsPage,
+  component: () => (<PermissionGate perm="accounts.view"><AccountsPage /></PermissionGate>),
 });
 
 const mainTabs = ["نظرة عامة", "الحسابات", "المصروفات", "التقارير"] as const;

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle } from "lucide-react";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/customers/$customerId")({
   head: () => ({ meta: [{ title: "دفتر العميل — المهندس" }] }),
-  component: CustomerLedgerPage,
+  component: () => (<PermissionGate perm="customers.view"><CustomerLedgerPage /></PermissionGate>),
 });
 
 type InvoiceRow = {

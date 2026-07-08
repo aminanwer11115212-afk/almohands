@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -30,7 +31,7 @@ type ProductsSearch = z.infer<typeof searchSchema>;
 export const Route = createFileRoute("/products/")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),
-  component: ProductsPage,
+  component: () => (<PermissionGate perm="products.view"><ProductsPage /></PermissionGate>),
 });
 
 type Draft = {

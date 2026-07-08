@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useState, useEffect } from "react";
 import { Loader2, Save, Trash2, AlertCircle } from "lucide-react";
 import { z } from "zod";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({ meta: [{ title: "تعديل منتج — المهندس" }] }),
-  component: EditProductPage,
+  component: () => (<PermissionGate perm="products.write"><EditProductPage /></PermissionGate>),
 });
 
 const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر"];

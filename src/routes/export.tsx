@@ -42,17 +42,49 @@ const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
 /** Auto/technical columns pushed to the end when ordering exported rows. */
 const AUTO_COLS_LAST = ["id", "user_id", "created_at", "updated_at"];
 
-/** Reorder columns: business fields first (as declared in the row), then auto/tech columns at the end. */
-function orderCols(cols: string[]): string[] {
-  const business = cols.filter((c) => !AUTO_COLS_LAST.includes(c));
-  const tail = AUTO_COLS_LAST.filter((c) => cols.includes(c));
-  return [...business, ...tail];
+/** Canonical, stable column order per table — guarantees identical output between exports. */
+const SCHEMA_ORDER: Partial<Record<TableKey, string[]>> = {
+  products: ["name", "barcode", "category", "unit", "location", "quantity", "min_quantity", "cost_price", "sale_price", "notes"],
+  customers: ["name", "phone", "email", "address", "notes", "balance"],
+  suppliers: ["name", "phone", "email", "address", "notes"],
+  invoices: ["invoice_number", "customer_id", "status", "subtotal", "discount", "tax", "total", "paid", "payment_method_id", "transaction_ref", "notes", "cancelled_at", "cancelled_by", "cancellation_reason"],
+  invoice_items: ["invoice_id", "product_id", "product_name", "quantity", "unit_price", "discount", "total"],
+  expenses: ["expense_date", "category", "description", "amount", "payment_method_id", "notes"],
+  returns: ["invoice_id", "product_id", "quantity", "reason", "refund_amount", "notes"],
+  purchases: ["supplier_id", "purchase_number", "subtotal", "discount", "tax", "total", "paid", "notes"],
+  purchase_items: ["purchase_id", "product_id", "quantity", "unit_cost", "total"],
+  payments: ["invoice_id", "amount", "payment_method_id", "transaction_ref", "notes"],
+};
+
+/** Reorder columns deterministically: canonical schema first, then any extras, then tech columns last. */
+function orderCols(cols: string[], table?: TableKey): string[] {
+  const canonical = (table && SCHEMA_ORDER[table]) || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of canonical) if (cols.includes(c) && !seen.has(c)) { out.push(c); seen.add(c); }
+  const extras = cols.filter((c) => !seen.has(c) && !AUTO_COLS_LAST.includes(c)).sort();
+  for (const c of extras) { out.push(c); seen.add(c); }
+  for (const c of AUTO_COLS_LAST) if (cols.includes(c) && !seen.has(c)) { out.push(c); seen.add(c); }
+  return out;
 }
 
-function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, string>): string {
+/** Dev-only invariant: CSV headers (standard mode) must equal the import page's canonical Arabic labels. */
+function assertHeadersMatchImport(table: TableKey, cols: string[], headers: string[]) {
+  const map = STANDARD_HEADERS[table];
+  if (!map) return;
+  const expectedCols = Object.keys(map);
+  const missing = expectedCols.filter((c) => !cols.includes(c));
+  if (missing.length) console.warn(`[export] ${table}: أعمدة مفقودة عن معيار الاستيراد:`, missing);
+  const mismatched = cols.map((c, i) => ({ c, want: map[c], got: headers[i] })).filter((x) => x.want && x.want !== x.got);
+  if (mismatched.length) console.error(`[export] ${table}: عناوين CSV لا تطابق أسماء الاستيراد`, mismatched);
+}
+
+function toCSV(rows: Record<string, unknown>[], table?: TableKey, headerMap?: Record<string, string>): string {
   if (rows.length === 0) return "";
-  const cols = headerMap ? Object.keys(headerMap) : orderCols(Object.keys(rows[0]));
+  const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, table);
   const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
+  if (headerMap && table) assertHeadersMatchImport(table, cols, headers);
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";
     const s = typeof v === "object" ? JSON.stringify(v) : String(v);
@@ -61,9 +93,10 @@ function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, strin
   return [headers.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
-function toJSON(rows: Record<string, unknown>[]): string {
+function toJSON(rows: Record<string, unknown>[], table?: TableKey): string {
   if (rows.length === 0) return "[]";
-  const cols = orderCols(Object.keys(rows[0]));
+  const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  const cols = orderCols(allKeys, table);
   const ordered = rows.map((r) => Object.fromEntries(cols.map((c) => [c, r[c]])));
   return JSON.stringify(ordered, null, 2);
 }

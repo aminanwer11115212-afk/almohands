@@ -97,7 +97,7 @@ function ActivityLogPage() {
       ];
       for (const c of configs) {
         const ch = supabase
-          .channel(`activity:${c.table}:${uid}`)
+          .channel(`activity:${c.table}:${uid}:${crypto.randomUUID()}`)
           .on("postgres_changes", { event: "INSERT", schema: "public", table: c.table, filter: `user_id=eq.${uid}` }, (p) => {
             const row: any = p.new;
             const ok = row.status ? row.status === "success" : true;

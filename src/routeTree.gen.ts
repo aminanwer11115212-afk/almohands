@@ -26,6 +26,7 @@ import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CashierRouteImport } from './routes/cashier'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ActivityLogRouteImport } from './routes/activity-log'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -126,6 +127,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivityLogRoute = ActivityLogRouteImport.update({
+  id: '/activity-log',
+  path: '/activity-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountsRoute = AccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/accounts': typeof AccountsRoute
+  '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRouteWithChildren
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/accounts': typeof AccountsRoute
+  '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRouteWithChildren
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/accounts': typeof AccountsRoute
+  '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
   '/customers': typeof CustomersRouteWithChildren
@@ -306,6 +315,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/accounts'
+    | '/activity-log'
     | '/auth'
     | '/cashier'
     | '/customers'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/accounts'
+    | '/activity-log'
     | '/auth'
     | '/cashier'
     | '/customers'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/accounts'
+    | '/activity-log'
     | '/auth'
     | '/cashier'
     | '/customers'
@@ -406,6 +418,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AccountsRoute: typeof AccountsRoute
+  ActivityLogRoute: typeof ActivityLogRoute
   AuthRoute: typeof AuthRoute
   CashierRoute: typeof CashierRoute
   CustomersRoute: typeof CustomersRouteWithChildren
@@ -555,6 +568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/activity-log': {
+      id: '/activity-log'
+      path: '/activity-log'
+      fullPath: '/activity-log'
+      preLoaderRoute: typeof ActivityLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/accounts': {
       id: '/accounts'
       path: '/accounts'
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AccountsRoute: AccountsRoute,
+  ActivityLogRoute: ActivityLogRoute,
   AuthRoute: AuthRoute,
   CashierRoute: CashierRoute,
   CustomersRoute: CustomersRouteWithChildren,

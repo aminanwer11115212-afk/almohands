@@ -82,7 +82,7 @@ function ImportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string }) => {
+    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: unknown }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       await supabase.from("import_logs").insert({ ...entry, user_id: u.user.id, source: "products", format: "xlsx" });
@@ -96,6 +96,29 @@ function ImportPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["import_logs"] }),
   });
+
+  // Realtime: notify on any new import log for the current user.
+  useEffect(() => {
+    let uid: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      uid = data.user?.id ?? null;
+      if (!uid) return;
+      channel = supabase
+        .channel(`import_logs:${uid}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "import_logs", filter: `user_id=eq.${uid}` }, (p) => {
+          const row = p.new as { status: string; imported_rows: number; file_name: string | null; error_message: string | null };
+          if (row.status === "success") toast.success(`استيراد ناجح: ${row.imported_rows} صف${row.file_name ? ` — ${row.file_name}` : ""}`);
+          else toast.error(`فشل الاستيراد${row.file_name ? ` — ${row.file_name}` : ""}${row.error_message ? `: ${row.error_message}` : ""}`);
+          qc.invalidateQueries({ queryKey: ["import_logs"] });
+        })
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [qc]);
+
+
 
 
   /** Preview sale price after applying the % increase. */

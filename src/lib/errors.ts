@@ -69,30 +69,54 @@ export function getErrorMessage(err: unknown, fallback = "حدث خطأ غير �
 }
 
 /**
- * Log the raw error and show a user-friendly toast.
- * Use in catch blocks: `catch (e) { handleError(e, "فشل الحفظ") }`.
+ * Log the raw error, persist it with correlation context, and show a user-friendly toast.
+ * Use in catch blocks: `handleError(e, "فشل الحفظ", { context: { invoiceId } })`.
+ * Returns the resolved user-facing message string and a request id for support.
  */
-export function handleError(err: unknown, fallback = "حدث خطأ غير متوقع", opts: { silent?: boolean } = {}): string {
+export function handleError(
+  err: unknown,
+  fallback = "حدث خطأ غير متوقع",
+  opts: {
+    silent?: boolean;
+    context?: Record<string, unknown>;
+    event?: string;
+    action?: { label: string; onClick: () => void };
+  } = {},
+): { message: string; requestId: string } {
   const message = getErrorMessage(err, fallback);
-  // Preserve stack for debugging
+  const requestId = newRequestId("err");
+  const rawMsg = err instanceof Error ? err.message : typeof err === "string" ? err : undefined;
+  logger.error(opts.event ?? "app_error", {
+    message: rawMsg ?? message,
+    context: { ...opts.context, requestId, userMessage: message },
+  });
   if (err instanceof Error) console.error(err);
-  else console.error("[handleError]", err);
-  if (!opts.silent) toast.error(message);
-  return message;
+  if (!opts.silent) {
+    toast.error(message, {
+      description: `رمز الخطأ: ${requestId}`,
+      action: opts.action,
+    });
+  }
+  return { message, requestId };
 }
 
 /**
  * Wrap an async operation with unified error handling.
  * Returns the resolved value or undefined on error (toast shown).
  */
-export async function tryAsync<T>(fn: () => Promise<T>, fallback = "حدث خطأ غير متوقع"): Promise<T | undefined> {
+export async function tryAsync<T>(
+  fn: () => Promise<T>,
+  fallback = "حدث خطأ غير متوقع",
+  opts: { context?: Record<string, unknown>; event?: string } = {},
+): Promise<T | undefined> {
   try {
     return await fn();
   } catch (e) {
-    handleError(e, fallback);
+    handleError(e, fallback, opts);
     return undefined;
   }
 }
+
 
 /**
  * Safely parse a numeric input. Clamps to [min, max]; returns fallback on invalid.

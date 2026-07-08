@@ -195,3 +195,37 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+function MiniStat({ label, value, tone = "brand" }: { label: string; value: string; tone?: "brand" | "ok" | "warn" }) {
+  const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-brand";
+  return (
+    <div className="rounded-xl border border-border bg-card p-2 text-center shadow-sm">
+      <div className="text-[10px] font-bold text-muted-foreground">{label}</div>
+      <div className={`text-sm font-extrabold nums mt-0.5 truncate ${cls}`}>{value}</div>
+    </div>
+  );
+}
+
+function MiniInline({
+  label,
+  value,
+  icon: Icon,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  tone?: "muted" | "ok" | "warn";
+}) {
+  const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-foreground";
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+        {Icon && <Icon className="size-3" />}
+        {label}
+      </div>
+      <div className={`text-[11px] font-bold nums mt-0.5 truncate ${cls}`}>{value}</div>
+    </div>
+  );
+}
+

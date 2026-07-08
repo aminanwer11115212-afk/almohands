@@ -494,11 +494,12 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={() => window.print()}
+            onClick={tryPrint}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
           >
             <Printer className="size-4" /> طباعة
           </button>
+
 
           <button
             onClick={() => setEditMode((v) => !v)}

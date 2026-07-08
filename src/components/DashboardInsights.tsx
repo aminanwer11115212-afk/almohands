@@ -277,9 +277,10 @@ function formatDate(iso: string) {
   const dayStart = new Date(d);
   dayStart.setHours(0, 0, 0, 0);
   const diffDays = Math.round((today.getTime() - dayStart.getTime()) / 86400000);
-  if (diffDays === 0)
+  if (diffDays <= 0)
     return `اليوم ${d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}`;
   if (diffDays === 1) return "أمس";
   if (diffDays < 7) return `قبل ${diffDays} أيام`;
   return d.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit" });
+
 }

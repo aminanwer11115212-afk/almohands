@@ -360,12 +360,39 @@ function ImportPage() {
         )}
       </section>
 
+      {rows.length > 0 && (missingStandard.length > 0 || unmatchedHeaders.length > 0) && (
+        <>
+          <hr className="my-6 border-border" />
+          <section className={`rounded-2xl border-2 p-4 ${missingStandard.some((k) => k === "name" || k === "cost_price" || k === "sale_price") ? "border-destructive/60 bg-destructive/10" : "border-amber-400/60 bg-amber-50 dark:bg-amber-950/30"}`}>
+            <h3 className="text-sm font-extrabold flex items-center gap-2">
+              ⚠️ رؤوس الأعمدة لا تطابق المعيار
+            </h3>
+            <div className="mt-2 text-xs space-y-1.5">
+              {missingStandard.length > 0 && (
+                <div>
+                  <span className="font-bold">أعمدة معيارية لم تُكتشف: </span>
+                  <span>{missingStandard.map((k) => COL_LABEL[k]).join("، ")}</span>
+                  <div className="text-muted-foreground mt-0.5">استخدم قائمة الربط أدناه لاختيار عمود يدوياً، أو أعد تسمية الرؤوس في الملف لتطابق النموذج.</div>
+                </div>
+              )}
+              {unmatchedHeaders.length > 0 && (
+                <div>
+                  <span className="font-bold">أعمدة في الملف لم يتم استخدامها: </span>
+                  <span>{unmatchedHeaders.join("، ")}</span>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
       {rows.length > 0 && (
         <>
           <hr className="my-6 border-border" />
           {/* Column mapping preview */}
           <section className="rounded-2xl bg-card shadow-card border border-border p-5">
             <h2 className="text-base font-extrabold mb-3">معاينة ربط الأعمدة</h2>
+
             <p className="text-xs text-muted-foreground mb-3">
               تحقّق من الأعمدة المكتشفة تلقائياً. عدّل الربط يدوياً إذا لم يتم التعرف على عمود.
             </p>

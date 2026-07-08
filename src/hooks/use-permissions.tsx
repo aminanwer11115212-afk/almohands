@@ -29,15 +29,15 @@ export type Permission =
   | "permissions.manage"
   | "import_export";
 
-// admin implicitly gets everything.
+// admin implicitly gets everything. Only "seller" (labelled as كاشير) is exposed to admins.
+// Legacy roles (accountant, warehouse) are still recognised for existing accounts but not offered in the UI.
 const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
   seller: [
     "cashier.use",
     "products.view",
-    "invoices.view",
+    "invoices.view",             // view own invoices (no write/delete)
     "customers.view", "customers.write",
     "payment_methods.view",
-    "returns.view",
   ],
   accountant: [
     "products.view",
@@ -63,10 +63,11 @@ export type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   admin: "مدير",
-  seller: "بائع",
+  seller: "كاشير",
   accountant: "محاسب",
   warehouse: "أمين مخزن",
 };
+
 
 export interface UserRole {
   id: string;

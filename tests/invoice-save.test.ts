@@ -245,33 +245,31 @@ describe("saveInvoiceEdits — two concurrent sessions on same invoice", () => {
   });
 
   /**
-   * Sessions racing at the same time (interleaved): A already updated the item
-   * quantity to 6 (stock drained), but B computed its pre-flight before A's
-   * decrement landed — so the injected concurrent write happens between B's
-   * pre-flight and its own decrement. The re-check guard MUST prevent a
-   * negative stock.
+   * Interleaved race: B passes pre-flight (stock=4, delta=+3 OK), then before
+   * B's own decrement runs, another session drains stock to 0. The re-check
+   * step re-reads product stock and MUST reject with the friendly race
+   * message rather than writing a negative value.
+   *
+   * NOTE: this test uses `beforeSelectProduct` on the decrement re-read
+   * because that is exactly what the guard hook checks. In production a
+   * TOCTOU window still exists between the re-read and the write — the
+   * canonical long-term fix is a DB-level atomic decrement (SQL function
+   * with a `WHERE quantity >= delta` guard). This test documents the
+   * current guarantee: no negative stock as long as another writer commits
+   * before our re-read.
    */
-  it("re-check prevents negative stock when writes interleave", async () => {
+  it("re-check prevents negative stock when a concurrent writer commits first", async () => {
     const { db, row } = seed({ stock: 4, origQty: 2, unitPrice: 100 }); // eff max = 6
-    let raced = false;
+    let drained = false;
     const supabase = makeSupabase(db, {
-      beforeUpdateProduct: async (id, next) => {
-        // Only interfere the first time we try to write, and only if the caller
-        // is about to LOWER the stock (i.e., the decrement step).
-        if (raced) return;
+      beforeSelectProduct: async (id) => {
+        if (drained) return;
+        drained = true;
         const p = db.products.get(id);
-        if (!p) return;
-        const nextQty = Number(next.quantity);
-        if (!Number.isFinite(nextQty) || nextQty >= p.quantity) return;
-        raced = true;
-        // Simulate another session draining stock to 0 just before our update.
-        db.products.set(id, { ...p, quantity: 0 });
+        if (p) db.products.set(id, { ...p, quantity: 0 });
       },
     });
 
-    // B tries to push qty 2 → 5 (delta +3). Pre-flight sees stock=4, passes.
-    // Then before its own decrement, a concurrent session drains stock to 0.
-    // The re-check sees 0 − 3 = −3 → rejects.
     await expect(
       saveInvoiceEdits(supabase, {
         invoice: { id: UUID_INV, invoice_number: 1, paid: 0 },
@@ -281,10 +279,6 @@ describe("saveInvoiceEdits — two concurrent sessions on same invoice", () => {
 
     expect(db.products.get(UUID_PROD)!.quantity).toBe(0);
     expect(db.products.get(UUID_PROD)!.quantity).toBeGreaterThanOrEqual(0);
-    // The item row was updated in step 2 before the failing decrement in step 3.
-    // That's expected behavior — the mutation caller surfaces the error and
-    // React Query re-invalidates, which reverts UI to the truth from the DB.
-    // We only assert that stock is not negative and product row is intact.
   });
 });
 

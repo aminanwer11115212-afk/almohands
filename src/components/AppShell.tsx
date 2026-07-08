@@ -15,7 +15,12 @@ type Props = {
 
 export function AppShell({ title, children, showBack = false, rightAction, subtitle, wide = false }: Props) {
   return (
-    <div className="min-h-dvh bg-background flex overflow-x-clip" dir="rtl">
+    // Full-viewport shell with independent scroll areas:
+    //  - the sidebar owns its own scroll (nav is overflow-y-auto inside)
+    //  - the main column owns its own scroll here
+    // The outer container is fixed to the viewport height, so neither side
+    // creates document-level scroll and there is no empty gap under either.
+    <div className="h-dvh bg-background flex overflow-hidden" dir="rtl">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:text-brand-foreground focus:shadow-elevated"
@@ -25,9 +30,9 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
 
       <AppSidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col h-dvh overflow-hidden">
         <header
-          className="sticky top-0 z-30 bg-header text-header-foreground shadow-elevated backdrop-blur supports-[backdrop-filter]:bg-header/95 lg:bg-background lg:text-foreground lg:shadow-none lg:border-b lg:border-border lg:supports-[backdrop-filter]:bg-background/80"
+          className="shrink-0 bg-header text-header-foreground shadow-elevated backdrop-blur supports-[backdrop-filter]:bg-header/95 lg:bg-background lg:text-foreground lg:shadow-none lg:border-b lg:border-border lg:supports-[backdrop-filter]:bg-background/80"
           role="banner"
         >
           <div
@@ -64,7 +69,7 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
         <main
           id="main-content"
           className={
-            "flex-1 mx-auto w-full min-w-0 overflow-x-clip px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
+            "flex-1 mx-auto w-full min-w-0 overflow-y-auto overflow-x-clip px-4 lg:px-8 py-5 sm:py-7 lg:py-8 " +
             (wide ? "max-w-none" : "max-w-3xl lg:max-w-6xl")
           }
           tabIndex={-1}

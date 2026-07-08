@@ -82,7 +82,8 @@ export function DashboardInsights() {
         <PanelHeader
           icon={AlertTriangle}
           title="مخزون منخفض"
-          hint={data.lowStock.length ? `${formatNumber(data.lowStock.length)} صنف` : undefined}
+          hint={data.lowStockCount ? `${formatNumber(data.lowStockCount)} صنف` : undefined}
+
           tone="rose"
           to="/products"
         />

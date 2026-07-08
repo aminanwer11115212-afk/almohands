@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
-import { formatSDG } from "@/lib/format";
+import { formatSDG, formatSDGShort } from "@/lib/format";
 import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
@@ -137,7 +137,10 @@ function InvoiceDetailPage() {
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
   type EditRow = { id: string; product_id: string | null; product_name: string; quantity: number; unit_price: number; _origQty: number };
   const [editRows, setEditRows] = useState<EditRow[]>([]);
+  const draftKey = `invoice-edit-draft:${invoiceId}`;
+  const [draftRestored, setDraftRestored] = useState(false);
 
+  // Hydrate rows from server whenever data changes and we're NOT editing.
   useEffect(() => {
     if (data?.items && !editMode) {
       setEditRows(
@@ -153,10 +156,77 @@ function InvoiceDetailPage() {
     }
   }, [data?.items, editMode]);
 
+  // Restore local draft on entering edit mode (survives PDF failures / refreshes).
+  useEffect(() => {
+    if (!editMode || draftRestored || !data?.items) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { rows: EditRow[]; savedAt: number };
+        if (Array.isArray(parsed?.rows) && parsed.rows.length === data.items.length) {
+          setEditRows(parsed.rows);
+          toast.info("تم استعادة مسودة محلية للتعديلات غير المحفوظة", {
+            description: new Date(parsed.savedAt).toLocaleString("ar-EG"),
+            action: {
+              label: "تجاهل المسودة",
+              onClick: () => {
+                localStorage.removeItem(draftKey);
+                setEditRows(
+                  data.items.map((it: any) => ({
+                    id: it.id, product_id: it.product_id, product_name: it.product_name,
+                    quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0,
+                    _origQty: Number(it.quantity) || 0,
+                  })),
+                );
+              },
+            },
+          });
+        }
+      }
+    } catch { /* ignore corrupted draft */ }
+    setDraftRestored(true);
+  }, [editMode, draftRestored, data?.items, draftKey]);
+
+  // Auto-save draft on every change while editing.
+  useEffect(() => {
+    if (!editMode || editRows.length === 0) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ rows: editRows, savedAt: Date.now() }));
+    } catch { /* quota / private mode — ignore */ }
+  }, [editMode, editRows, draftKey]);
+
+  // Stock availability lookup for edit mode: for each product used, fetch current stock.
+  // Effective max we can enter for a row = currentStock + row._origQty
+  // (because the row's original qty is currently reflected in stock as "already sold").
+  const editProductIds = useMemo(
+    () => Array.from(new Set(editRows.map((r) => r.product_id).filter(Boolean) as string[])),
+    [editRows],
+  );
+  const { data: stockMap } = useQuery({
+    queryKey: ["invoice-edit-stock", invoiceId, editProductIds.sort().join(",")],
+    enabled: editMode && editProductIds.length > 0,
+    queryFn: async () => {
+      const { data: prods, error } = await supabase
+        .from("products").select("id, name, quantity").in("id", editProductIds);
+      if (error) throw error;
+      const map = new Map<string, { id: string; name: string; quantity: number }>();
+      for (const p of prods ?? []) map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
+      return map;
+    },
+    staleTime: 5_000,
+  });
+
   const editTotal = useMemo(
     () => editRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
     [editRows],
   );
+
+  const maxAllowedFor = (row: EditRow): number | null => {
+    if (!row.product_id || !stockMap) return null;
+    const p = stockMap.get(row.product_id);
+    if (!p) return null;
+    return p.quantity + row._origQty;
+  };
 
   // Per-row inline validation errors — {rowId: {quantity?, unit_price?}}
   const [rowErrors, setRowErrors] = useState<Record<string, { quantity?: string; unit_price?: string }>>({});
@@ -164,6 +234,19 @@ function InvoiceDetailPage() {
     () => Object.values(rowErrors).some((e) => e.quantity || e.unit_price),
     [rowErrors],
   );
+
+  // Overstock rows (quantity exceeds available). Blocks save with clear message.
+  const overstockRows = useMemo(() => {
+    return editRows
+      .map((r) => {
+        const max = maxAllowedFor(r);
+        if (max === null) return null;
+        if (r.quantity > max) return { row: r, max };
+        return null;
+      })
+      .filter((x): x is { row: EditRow; max: number } => !!x);
+  }, [editRows, stockMap]);
+  const hasOverstock = overstockRows.length > 0;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -260,6 +343,40 @@ function InvoiceDetailPage() {
         .eq("id", inv.id);
       if (invErr) throw invErr;
 
+      // ---------- 6) Best-effort audit log (never fails the save) ----------
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        if (uid) {
+          const changes = parsed.data.map((r) => ({
+            item_id: r.id,
+            product_id: r.product_id,
+            product_name: r.product_name,
+            qty_from: r._origQty,
+            qty_to: r.quantity,
+            unit_price: r.unit_price,
+            stock_delta: r._origQty - r.quantity, // + = stock returned, − = stock deducted
+          }));
+          await supabase.from("audit_logs").insert({
+            user_id: uid,
+            action: "invoice.items.updated",
+            table_name: "invoices",
+            record_id: inv.id,
+            details: {
+              req_id: reqId,
+              invoice_number: inv.invoice_number,
+              changes,
+              new_total: newTotal,
+              paid,
+              remaining,
+              status,
+            },
+          });
+        }
+      } catch (auditErr) {
+        logger.warn("audit_log_write_failed", { message: (auditErr as Error)?.message, context: { reqId } });
+      }
+
       logger.info("invoice_edit_save_success", {
         context: { reqId, invoiceId: inv.id, newTotal, paid, remaining, status },
       });
@@ -271,6 +388,8 @@ function InvoiceDetailPage() {
       });
       setEditMode(false);
       setRowErrors({});
+      setDraftRestored(false);
+      try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -535,6 +654,8 @@ function InvoiceDetailPage() {
                 <tbody className="divide-y divide-amber-100">
                   {editRows.map((row, i) => {
                     const err = rowErrors[row.id] ?? {};
+                    const max = maxAllowedFor(row);
+                    const over = max !== null && row.quantity > max;
                     return (
                     <tr key={row.id}>
                       <td className="p-2 align-top">{row.product_name}</td>
@@ -552,10 +673,39 @@ function InvoiceDetailPage() {
                             const msg = validateItemField("quantity", v);
                             setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: msg ?? undefined } }));
                           }}
-                          aria-invalid={!!err.quantity}
-                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity ? "border-destructive" : "border-input"}`}
+                          aria-invalid={!!err.quantity || over}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity || over ? "border-destructive" : "border-input"}`}
                         />
                         {err.quantity && <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>}
+                        {over && (
+                          <div className="mt-1 space-y-1">
+                            <div className="text-[11px] text-destructive font-semibold flex items-center gap-1">
+                              <AlertTriangle className="size-3" /> تتجاوز المتاح (الأقصى {max})
+                            </div>
+                            <input
+                              type="range"
+                              min={1}
+                              max={Math.max(1, max!)}
+                              value={Math.min(row.quantity, max!)}
+                              onChange={(e) => {
+                                const v = Number(e.target.value) || 1;
+                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
+                                setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: undefined } }));
+                              }}
+                              className="w-full accent-brand"
+                              aria-label="اختر كمية بديلة ضمن المتاح"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: max! } : r)));
+                              }}
+                              className="text-[11px] underline text-amber-900"
+                            >
+                              استخدم الحد الأقصى ({max})
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="p-2 align-top">
                         <input
@@ -590,18 +740,36 @@ function InvoiceDetailPage() {
                 <AlertTriangle className="size-4" /> يوجد قيم غير صالحة — صحّحها قبل الحفظ.
               </div>
             )}
+            {hasOverstock && (
+              <div className="mt-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="flex items-center gap-1 font-bold mb-1">
+                  <AlertTriangle className="size-4" /> لا يمكن الحفظ — كميات تتجاوز المخزون المتاح
+                </div>
+                <ul className="list-disc pr-5 space-y-0.5 text-xs">
+                  {overstockRows.map(({ row, max }) => (
+                    <li key={row.id}>
+                      <span className="font-semibold">{row.product_name}</span> — طُلب {row.quantity}، الأقصى المتاح {max}. استخدم المنزلقة أعلاه لاختيار كمية بديلة.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => { setEditMode(false); setRowErrors({}); }}
+                onClick={() => {
+                  setEditMode(false);
+                  setRowErrors({});
+                  setDraftRestored(false);
+                }}
                 className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
               >
                 إلغاء
               </button>
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || hasFieldErrors}
+                disabled={saveMutation.isPending || hasFieldErrors || hasOverstock}
                 className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
+                title={hasOverstock ? "صحّح الكميات المتجاوزة للمخزون" : hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
               >
                 {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 حفظ التعديلات
@@ -779,9 +947,9 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           <tr className="bg-white">
             <th className="border border-black py-1.5 w-10">م</th>
             <th className="border border-black py-1.5">الصنف</th>
-            <th className="border border-black py-1.5 w-24">السعر (وحدة)</th>
+            <th className="border border-black py-1.5 w-40">السعر (وحدة)</th>
             <th className="border border-black py-1.5 w-16">الكمية</th>
-            <th className="border border-black py-1.5 w-24">الإجمالي</th>
+            <th className="border border-black py-1.5 w-40">الإجمالي</th>
           </tr>
         </thead>
         <tbody>
@@ -789,14 +957,14 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
             <tr key={i} className="h-7">
               <td className="border border-black text-center nums">{i + 1}</td>
               <td className="border border-black px-2">{it?.product_name ?? ""}</td>
-              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
+              <td className="border border-black text-center nums px-1">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
               <td className="border border-black text-center nums">{it?.quantity ?? ""}</td>
-              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.line_total)) : ""}</td>
+              <td className="border border-black text-center nums px-1">{it ? formatSDG(Number(it.line_total)) : ""}</td>
             </tr>
           ))}
           <tr className="h-9 font-bold">
             <td colSpan={4} className="border border-black text-left px-3">المجموع الكلي:</td>
-            <td className="border border-black text-center nums text-base">{formatSDG(Number(inv.total))}</td>
+            <td className="border border-black text-center nums text-base px-1">{formatSDG(Number(inv.total))}</td>
           </tr>
         </tbody>
       </table>
@@ -877,10 +1045,10 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
             <tr key={it.id} className="align-top">
               <td className="py-0.5">
                 <div>{it.product_name}</div>
-                <div className="text-[10px] text-black/60 nums">{formatSDG(Number(it.unit_price))} × {it.quantity}</div>
+                <div className="text-[10px] text-black/60 nums">{formatSDGShort(Number(it.unit_price))} × {it.quantity}</div>
               </td>
               <td className="text-center py-0.5 nums">{it.quantity}</td>
-              <td className="text-left py-0.5 nums">{formatSDG(Number(it.line_total))}</td>
+              <td className="text-left py-0.5 nums">{formatSDGShort(Number(it.line_total))}</td>
             </tr>
           ))}
         </tbody>
@@ -893,7 +1061,7 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
         </div>
         <div className="flex justify-between">
           <span>المدفوع</span>
-          <span className="nums">{formatSDG(Number(inv.paid))}</span>
+          <span className="nums">{formatSDGShort(Number(inv.paid))}</span>
         </div>
         {Number(inv.remaining) > 0 && (
           <div className="flex justify-between font-bold">

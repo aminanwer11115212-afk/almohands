@@ -9,15 +9,15 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "حول المطوّر — المهندس" },
-      { name: "description", content: "تعرّف على أمين أنور أحمد، مهندس برمجيات ومنتج للجهات وصانع محتوى." },
+      { name: "description", content: "تعرّف على أمين أنور أحمد، مهندس برمجيات ومنتج فيديوهات وصانع محتوى." },
     ],
   }),
   component: AboutDeveloperPage,
 });
 
-const PHONE_DISPLAY = "0193 743 333";
-const PHONE_TEL = "+249193743333";
-const PHONE_WA = "249193743333";
+const PHONE_DISPLAY = "0910 374 333";
+const PHONE_TEL = "+249910374333";
+const PHONE_WA = "249910374333";
 
 function AboutDeveloperPage() {
   const [copied, setCopied] = useState(false);
@@ -66,8 +66,8 @@ function AboutDeveloperPage() {
             {/* Roles */}
             <section aria-label="الأدوار المهنية" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <RoleCard icon={Code2} title="مهندس برمجيات" hint="تطوير أنظمة ويب متكاملة" tone="brand" />
-              <RoleCard icon={PackageIcon} title="منتِج في الجهات" hint="إدارة وتنسيق المشاريع" tone="amber" />
-              <RoleCard icon={Video} title="صانع محتوى" hint="إنتاج محتوى رقمي مميز" tone="rose" />
+              <RoleCard icon={Video} title="منتج فيديوهات" hint="إنتاج ومونتاج محتوى مرئي" tone="amber" />
+              <RoleCard icon={PackageIcon} title="صانع محتوى" hint="محتوى رقمي مميز" tone="rose" />
             </section>
 
             {/* About text */}
@@ -75,8 +75,8 @@ function AboutDeveloperPage() {
               <h2 className="text-sm font-bold text-muted-foreground mb-2">نبذة</h2>
               <p className="text-sm leading-relaxed text-foreground">
                 أمين أنور أحمد — مهندس برمجيات شغوف بتصميم وبناء الأنظمة التي تسهّل أعمال الناس. يجمع
-                بين الخبرة التقنية والإحساس البصري لصنع حلول عملية وجميلة، ويعمل أيضاً منتِجاً في
-                الجهات وصانع محتوى رقمي.
+                بين الخبرة التقنية والإحساس البصري لصنع حلول عملية وجميلة، ويعمل أيضاً منتج فيديوهات
+                وصانع محتوى رقمي.
               </p>
             </section>
 

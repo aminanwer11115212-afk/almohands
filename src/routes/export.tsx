@@ -286,6 +286,11 @@ function ExportPage() {
         notes: "نسخة احتياطية كاملة",
         payload: { export_type: "full_backup", format: "json" },
       });
+      const { data: au } = await supabase.auth.getUser();
+      if (au?.user) await supabase.from("audit_logs").insert({
+        user_id: au.user.id, action: "data.export.backup", table_name: "*",
+        details: { row_count: total, duration_ms: Date.now() - started },
+      }).then(() => undefined, () => undefined);
       toast.success(`نسخة احتياطية: ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({

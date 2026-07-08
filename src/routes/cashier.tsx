@@ -732,6 +732,20 @@ function CashierPage() {
                 </select>
               )
             )}
+            {paymentType === "bank" && (
+              <div>
+                <label className="block text-[11px] text-muted-foreground mb-1">
+                  رقم العملية / التحويل البنكي <span className="text-[10px]">(اختياري — يُعرض في التقارير للحساب البنكي)</span>
+                </label>
+                <input
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  placeholder="مثال: TRX-123456789"
+                  className="w-full h-8 rounded border border-border bg-background px-2 text-xs nums"
+                />
+              </div>
+            )}
+
           </div>
 
           {/* Totals */}

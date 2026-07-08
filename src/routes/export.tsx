@@ -165,14 +165,15 @@ function ExportPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["export_logs"] }),
   });
 
-  // Realtime notifications on export log inserts.
+  // Realtime notifications on export log inserts. Guarded against StrictMode double-mount.
   useEffect(() => {
+    let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       const { data } = await supabase.auth.getUser();
       const uid = data.user?.id;
-      if (!uid) return;
-      channel = supabase
+      if (!uid || cancelled) return;
+      const ch = supabase
         .channel(`export_logs:${uid}:${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
           const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
@@ -181,8 +182,10 @@ function ExportPage() {
           qc.invalidateQueries({ queryKey: ["export_logs"] });
         })
         .subscribe();
+      if (cancelled) { supabase.removeChannel(ch); return; }
+      channel = ch;
     })();
-    return () => { if (channel) supabase.removeChannel(channel); };
+    return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
   }, [qc]);
 
 

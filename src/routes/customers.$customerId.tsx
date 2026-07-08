@@ -1,14 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle } from "lucide-react";
+import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { openWhatsAppShare, buildInvoiceText } from "@/lib/invoice-share";
+import { openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/customers/$customerId")({
   head: () => ({ meta: [{ title: "دفتر العميل — المهندس" }] }),

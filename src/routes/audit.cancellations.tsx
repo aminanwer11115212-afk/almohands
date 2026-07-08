@@ -122,6 +122,7 @@ function AuditCancellationsPage() {
     return filtered.map((r) => ({
       "التاريخ": new Date(r.created_at).toLocaleString("ar-EG"),
       "رقم الفاتورة": r.details?.invoice_number ?? "—",
+      "العميل": invMap.get(r.record_id ?? "") ?? r.details?.customer_name ?? "—",
       "الكاشير": users.get(r.user_id) ?? r.user_id.slice(0, 8),
       "سبب الإلغاء": r.details?.reason ?? "— (لم يُذكر)",
       "معرف الفاتورة": r.record_id ?? "—",

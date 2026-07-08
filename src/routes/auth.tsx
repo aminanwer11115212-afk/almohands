@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
+import authBg from "@/assets/auth-bg.mp4.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "تسجيل الدخول — المهندس" }] }),

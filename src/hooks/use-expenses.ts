@@ -59,6 +59,10 @@ export function useDeleteExpense() {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["account-balances"] });
+    },
   });
 }
+

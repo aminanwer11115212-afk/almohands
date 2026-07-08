@@ -260,3 +260,196 @@ function SummaryCard({
     </div>
   );
 }
+
+type PurchasedItem = {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  created_at: string;
+  invoice_id: string;
+  invoice_number: number | null;
+  invoice_status: string | null;
+};
+
+function ProductsPurchasedSection({ customerId, customerName }: { customerId: string; customerName: string }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [quick, setQuick] = useState<"" | "7d" | "30d" | "month" | "year">("");
+  const [search, setSearch] = useState("");
+
+  const range = useMemo(() => {
+    if (!quick) return null;
+    const now = new Date();
+    const t = new Date(now); t.setHours(23, 59, 59, 999);
+    const f = new Date(now);
+    if (quick === "7d") f.setDate(now.getDate() - 7);
+    else if (quick === "30d") f.setDate(now.getDate() - 30);
+    else if (quick === "month") { f.setDate(1); f.setHours(0, 0, 0, 0); }
+    else if (quick === "year") { f.setMonth(0, 1); f.setHours(0, 0, 0, 0); }
+    return { from: f.toISOString(), to: t.toISOString() };
+  }, [quick]);
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["customer-products", customerId, from, to, quick],
+    queryFn: async () => {
+      let q = supabase
+        .from("invoices")
+        .select("id, invoice_number, status, created_at, invoice_items(id, product_name, quantity, unit, unit_price, line_total, created_at)")
+        .eq("customer_id", customerId)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (range) q = q.gte("created_at", range.from).lte("created_at", range.to);
+      else {
+        if (from) q = q.gte("created_at", new Date(from).toISOString());
+        if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); q = q.lte("created_at", end.toISOString()); }
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      const out: PurchasedItem[] = [];
+      for (const inv of (data ?? []) as any[]) {
+        for (const it of (inv.invoice_items ?? [])) {
+          out.push({
+            id: it.id,
+            product_name: it.product_name,
+            quantity: Number(it.quantity),
+            unit: it.unit,
+            unit_price: Number(it.unit_price),
+            line_total: Number(it.line_total),
+            created_at: inv.created_at,
+            invoice_id: inv.id,
+            invoice_number: inv.invoice_number,
+            invoice_status: inv.status,
+          });
+        }
+      }
+      return out;
+    },
+  });
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return items;
+    return items.filter((i) => i.product_name.toLowerCase().includes(s));
+  }, [items, search]);
+
+  const grouped = useMemo(() => {
+    const m = new Map<string, { name: string; qty: number; total: number; times: number }>();
+    for (const it of filtered) {
+      const key = it.product_name;
+      const cur = m.get(key) ?? { name: key, qty: 0, total: 0, times: 0 };
+      cur.qty += it.quantity;
+      cur.total += it.line_total;
+      cur.times += 1;
+      m.set(key, cur);
+    }
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [filtered]);
+
+  const totalQty = filtered.reduce((s, i) => s + i.quantity, 0);
+  const totalSum = filtered.reduce((s, i) => s + i.line_total, 0);
+
+  function exportCSV() {
+    if (filtered.length === 0) return;
+    const headers = ["التاريخ", "رقم الفاتورة", "المنتج", "الكمية", "الوحدة", "السعر", "الإجمالي"];
+    const lines = [headers.join(",")];
+    for (const it of filtered) {
+      const row = [
+        new Date(it.created_at).toLocaleDateString("ar-EG"),
+        String(it.invoice_number ?? ""),
+        it.product_name,
+        String(it.quantity),
+        it.unit,
+        String(it.unit_price),
+        String(it.line_total),
+      ].map((v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+      lines.push(row.join(","));
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `products-${customerName}-${Date.now()}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden print:hidden">
+      <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
+        <Package className="size-4 text-brand" />
+        <h2 className="font-bold text-sm">المنتجات المشتراة</h2>
+        <span className="text-xs text-muted-foreground">({filtered.length} سطر · {totalQty} قطعة · {formatSDG(totalSum)})</span>
+        <button onClick={exportCSV} className="ms-auto h-8 px-2 rounded-md bg-sky-600 text-white text-xs font-bold inline-flex items-center gap-1">
+          <FileDown className="size-3.5" /> CSV
+        </button>
+      </div>
+      <div className="p-3 space-y-2 border-b border-border">
+        <div className="grid sm:grid-cols-4 gap-2">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالمنتج..." className="h-9 rounded-lg border border-border bg-background px-3 text-sm" />
+          <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+          <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+          <div className="flex flex-wrap gap-1 text-xs">
+            {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as const).map(([v, l]) => (
+              <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-10 text-center"><Loader2 className="size-5 animate-spin text-muted-foreground inline" /></div>
+      ) : filtered.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">لا توجد مشتريات في هذا النطاق</p>
+      ) : (
+        <>
+          {grouped.length > 0 && (
+            <div className="p-3 border-b border-border bg-muted/30">
+              <div className="text-xs font-bold text-muted-foreground mb-1.5">ملخص حسب المنتج</div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                {grouped.slice(0, 12).map((g) => (
+                  <div key={g.name} className="rounded-md bg-card border border-border px-2 py-1.5 text-xs flex justify-between gap-2">
+                    <span className="truncate font-semibold">{g.name}</span>
+                    <span className="nums text-muted-foreground shrink-0">{g.qty} · {formatSDG(g.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-right px-3 py-2">التاريخ</th>
+                  <th className="text-right px-3 py-2">الفاتورة</th>
+                  <th className="text-right px-3 py-2">المنتج</th>
+                  <th className="text-left px-3 py-2">الكمية</th>
+                  <th className="text-left px-3 py-2">السعر</th>
+                  <th className="text-left px-3 py-2">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice(0, 300).map((it) => (
+                  <tr key={it.id} className="border-t border-border hover:bg-muted/40">
+                    <td className="px-3 py-2 text-xs nums text-muted-foreground">{new Date(it.created_at).toLocaleDateString("ar-EG")}</td>
+                    <td className="px-3 py-2 nums text-xs">
+                      <Link to="/invoices/$invoiceId" params={{ invoiceId: it.invoice_id }} search={{ autoprint: 0 }} className="text-brand underline">#{it.invoice_number ?? "—"}</Link>
+                    </td>
+                    <td className="px-3 py-2 font-semibold">{it.product_name}</td>
+                    <td className="px-3 py-2 text-left nums">{it.quantity} <span className="text-xs text-muted-foreground">{it.unit}</span></td>
+                    <td className="px-3 py-2 text-left nums text-muted-foreground">{formatSDG(it.unit_price)}</td>
+                    <td className="px-3 py-2 text-left nums font-bold">{formatSDG(it.line_total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length > 300 && (
+              <div className="text-xs text-muted-foreground text-center py-2">تم عرض أول 300 سطر · صدّر CSV للحصول على الكل</div>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+

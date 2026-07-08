@@ -76,8 +76,9 @@ function PermissionsPage() {
               <li><strong>مدير:</strong> صلاحية كاملة على النظام — منتجات، فواتير، حسابات، تقارير، إدارة الموظفين.</li>
               <li><strong>كاشير:</strong> بيع من نقطة البيع فقط — يستطيع إنشاء فواتير جديدة وعرض قائمة الفواتير، لكن <span className="text-destructive font-bold">لا يستطيع تعديل أو حذف فواتير</span>، ولا الوصول للتقارير/الحسابات/المنتجات كتابياً. يصلك تنبيه فوري عند أي فاتورة كاشير خاصة عند عدم تحديد عميل.</li>
             </ul>
-
           </div>
+
+          <RoleImpactMatrix />
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">

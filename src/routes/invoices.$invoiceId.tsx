@@ -31,7 +31,12 @@ function InvoiceDetailPage() {
   const [format, setFormat] = useState<PrintFormat>("a4");
   const [formatReady, setFormatReady] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (storeProfile?.print_size) {
@@ -75,6 +80,82 @@ function InvoiceDetailPage() {
     },
   });
 
+  // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
+  type EditRow = { id: string; product_id: string | null; product_name: string; quantity: number; unit_price: number; _origQty: number };
+  const [editRows, setEditRows] = useState<EditRow[]>([]);
+
+  useEffect(() => {
+    if (data?.items && !editMode) {
+      setEditRows(
+        data.items.map((it: any) => ({
+          id: it.id,
+          product_id: it.product_id,
+          product_name: it.product_name,
+          quantity: Number(it.quantity) || 0,
+          unit_price: Number(it.unit_price) || 0,
+          _origQty: Number(it.quantity) || 0,
+        })),
+      );
+    }
+  }, [data?.items, editMode]);
+
+  const editTotal = useMemo(
+    () => editRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
+    [editRows],
+  );
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!data?.inv) return;
+      const inv = data.inv;
+      // 1) update each invoice_item row
+      for (const row of editRows) {
+        const lineTotal = row.quantity * row.unit_price;
+        const { error: upErr } = await supabase
+          .from("invoice_items")
+          .update({ quantity: row.quantity, unit_price: row.unit_price, line_total: lineTotal })
+          .eq("id", row.id);
+        if (upErr) throw upErr;
+
+        // 2) adjust stock delta if quantity changed and product_id exists
+        const delta = row.quantity - row._origQty;
+        if (delta !== 0 && row.product_id) {
+          const { data: prod, error: prodErr } = await supabase
+            .from("products")
+            .select("quantity")
+            .eq("id", row.product_id)
+            .maybeSingle();
+          if (prodErr) throw prodErr;
+          const currentQty = Number(prod?.quantity) || 0;
+          const newQty = currentQty - delta; // increased qty on invoice → decrement stock more
+          const { error: stockErr } = await supabase
+            .from("products")
+            .update({ quantity: Math.max(0, newQty) })
+            .eq("id", row.product_id);
+          if (stockErr) throw stockErr;
+        }
+      }
+      // 3) update invoice totals
+      const newTotal = editTotal;
+      const paid = Number(inv.paid) || 0;
+      const remaining = Math.max(0, newTotal - paid);
+      const status = remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
+      const { error: invErr } = await supabase
+        .from("invoices")
+        .update({ total: newTotal, remaining, status })
+        .eq("id", inv.id);
+      if (invErr) throw invErr;
+    },
+    onSuccess: () => {
+      toast.success("تم حفظ التعديلات");
+      setEditMode(false);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e) => handleError(e, "تعذّر حفظ التعديلات"),
+  });
+
   // Auto-open print dialog only ONCE per page visit; background refetches
   // must not retrigger window.print().
   const printedRef = useRef(false);
@@ -113,29 +194,52 @@ function InvoiceDetailPage() {
   const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
   async function handleDownloadPdf() {
-    if (!printRef.current || pdfBusy) return;
+    const el = previewRef.current ?? printRef.current;
+    if (!el || pdfBusy) return;
     setPdfBusy(true);
     try {
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
-      await downloadElementAsPdf(printRef.current, filename, format);
+      await downloadElementAsPdf(el, filename, format);
       toast.success("تم تنزيل الـ PDF");
     } catch (e) {
-      console.error(e);
-      toast.error("تعذّر إنشاء الـ PDF");
+      handleError(e, "تعذّر إنشاء الـ PDF");
     } finally {
       setPdfBusy(false);
     }
   }
 
-  function handleWhatsAppShare() {
-    const text = buildInvoiceText(
-      inv,
-      items,
-      storeName,
-      { includeItems: true, footer: invoiceFooter || undefined },
-    );
-    openWhatsAppShare(inv.customer_phone, text);
+  async function handleWhatsAppShare() {
+    const el = previewRef.current ?? printRef.current;
+    if (!el || shareBusy) return;
+    setShareBusy(true);
+    const toastId = toast.loading("جارٍ تجهيز ملف الفاتورة…");
+    try {
+      const text = buildInvoiceText(inv, items, storeName, {
+        includeItems: true,
+        footer: invoiceFooter || undefined,
+        storePhone,
+      });
+      const filename = `فاتورة-${inv.invoice_number}.pdf`;
+      const result = await shareInvoicePdfViaWhatsApp(
+        el,
+        filename,
+        format,
+        text,
+        inv.customer_phone,
+      );
+      if (result === "shared") {
+        toast.success("تم فتح نافذة المشاركة", { id: toastId });
+      } else {
+        toast.success("تم تنزيل الـ PDF — أرفقه بالرسالة في واتساب", { id: toastId, duration: 6000 });
+      }
+    } catch (e) {
+      toast.dismiss(toastId);
+      handleError(e, "تعذّر مشاركة الفاتورة");
+    } finally {
+      setShareBusy(false);
+    }
   }
+
 
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">

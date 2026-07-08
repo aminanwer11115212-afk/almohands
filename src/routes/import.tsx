@@ -22,8 +22,9 @@ function ImportPageGuarded() {
   );
 }
 
-/** Columns we accept from the workbook (Arabic + English aliases). */
-const COL_ALIASES: Record<keyof ParsedRow, string[]> = {
+type ColKey = "name" | "barcode" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
+
+const COL_ALIASES: Record<ColKey, string[]> = {
   name: ["الاسم", "اسم المنتج", "name", "product", "product_name"],
   barcode: ["الباركود", "باركود", "barcode", "sku"],
   category: ["الفئة", "التصنيف", "category"],

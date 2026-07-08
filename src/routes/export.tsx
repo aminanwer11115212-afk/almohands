@@ -223,9 +223,9 @@ function ExportPage() {
           total += rows.length;
           if (format === "csv") {
             const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
-            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], headerMap));
+            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], key, headerMap));
           } else {
-            download(`${key}-${Date.now()}.json`, toJSON(rows as Record<string, unknown>[]), "application/json");
+            download(`${key}-${Date.now()}.json`, toJSON(rows as Record<string, unknown>[], key), "application/json");
           }
         }
       }

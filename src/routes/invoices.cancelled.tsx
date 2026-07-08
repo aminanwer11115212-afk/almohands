@@ -216,8 +216,13 @@ function CancelledInvoicesPage() {
                 {sortKey === k && <span>{sortDir === "asc" ? "↑" : "↓"}</span>}
               </button>
             ))}
+            <label className="ms-auto flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={onlyCashier} onChange={(e) => setOnlyCashier(e.target.checked)} className="size-3.5" />
+              <span>من الكاشير فقط</span>
+            </label>
           </div>
         </div>
+
 
         {isLoading ? (
           <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>

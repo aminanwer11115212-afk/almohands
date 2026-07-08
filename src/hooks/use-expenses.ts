@@ -8,17 +8,20 @@ export interface Expense {
   amount: number;
   date: string;
   notes: string | null;
+  account_id: string | null;
   created_at: string;
 }
 
-export function useExpenses() {
+export function useExpenses(opts?: { accountId?: string | null }) {
   return useQuery({
-    queryKey: ["expenses"],
+    queryKey: ["expenses", opts?.accountId ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("expenses")
         .select("*")
         .order("date", { ascending: false });
+      if (opts?.accountId) q = q.eq("account_id", opts.accountId);
+      const { data, error } = await q;
       if (error) throw error;
       return data as Expense[];
     },
@@ -28,7 +31,7 @@ export function useExpenses() {
 export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { target: string; amount: number; date: string; notes?: string }) => {
+    mutationFn: async (input: { target: string; amount: number; date: string; notes?: string; account_id?: string | null }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("expenses").insert({
@@ -37,12 +40,17 @@ export function useAddExpense() {
         amount: input.amount,
         date: input.date,
         notes: input.notes || null,
+        account_id: input.account_id || null,
       });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["account-balances"] });
+    },
   });
 }
+
 
 export function useDeleteExpense() {
   const qc = useQueryClient();
@@ -51,6 +59,10 @@ export function useDeleteExpense() {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["account-balances"] });
+    },
   });
 }
+

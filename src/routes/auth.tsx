@@ -145,7 +145,9 @@ function AuthPage() {
           outline: none;
         }
         .input-base:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 30%, transparent); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 0.4; } }
       `}</style>
+
     </div>
   );
 }

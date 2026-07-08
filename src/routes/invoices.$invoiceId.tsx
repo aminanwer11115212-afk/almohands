@@ -877,10 +877,10 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
             <tr key={it.id} className="align-top">
               <td className="py-0.5">
                 <div>{it.product_name}</div>
-                <div className="text-[10px] text-black/60 nums">{formatSDG(Number(it.unit_price))} × {it.quantity}</div>
+                <div className="text-[10px] text-black/60 nums">{formatSDGShort(Number(it.unit_price))} × {it.quantity}</div>
               </td>
               <td className="text-center py-0.5 nums">{it.quantity}</td>
-              <td className="text-left py-0.5 nums">{formatSDG(Number(it.line_total))}</td>
+              <td className="text-left py-0.5 nums">{formatSDGShort(Number(it.line_total))}</td>
             </tr>
           ))}
         </tbody>
@@ -893,7 +893,7 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
         </div>
         <div className="flex justify-between">
           <span>المدفوع</span>
-          <span className="nums">{formatSDG(Number(inv.paid))}</span>
+          <span className="nums">{formatSDGShort(Number(inv.paid))}</span>
         </div>
         {Number(inv.remaining) > 0 && (
           <div className="flex justify-between font-bold">

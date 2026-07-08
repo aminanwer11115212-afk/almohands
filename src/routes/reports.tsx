@@ -159,7 +159,7 @@ function useReportBundle(period: Period) {
       let qInv = supabase
         .from("invoices")
         .select(
-          "id, user_id, invoice_number, total, subtotal, discount, paid, remaining, payment_method, reference_number, status, customer_name, created_at",
+          "id, user_id, invoice_number, total, subtotal, discount, paid, remaining, payment_method, reference_number, status, customer_name, created_at, cancellation_reason, cancelled_at, cancelled_by",
         )
         .order("created_at", { ascending: false });
       if (from) qInv = qInv.gte("created_at", from);

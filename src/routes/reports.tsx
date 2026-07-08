@@ -94,6 +94,57 @@ const PM_LABELS: Record<string, string> = {
 
 type Row = Record<string, any>;
 
+/* ------------------------ export helpers ------------------------ */
+
+function buildInvoiceRows(
+  invoices: any[],
+  directory: { id: string; email: string }[],
+) {
+  const dir = new Map(directory.map((d) => [d.id, d.email]));
+  return invoices.map((inv) => ({
+    "رقم الفاتورة": inv.invoice_number,
+    "التاريخ": new Date(inv.created_at).toLocaleString("ar-EG"),
+    "الكاشير": dir.get(inv.user_id) ?? inv.user_id.slice(0, 8),
+    "العميل": inv.customer_name ?? "—",
+    "الحالة": inv.status === "cancelled" ? "ملغاة" : inv.status === "paid" ? "مدفوعة" : inv.status === "partial" ? "جزئي" : "معلقة",
+    "طريقة الدفع": PM_LABELS[String(inv.payment_method || "cash")] ?? inv.payment_method ?? "—",
+    "رقم العملية": inv.reference_number ?? "—",
+    "الإجمالي": Number(inv.total ?? 0),
+    "المدفوع": Number(inv.paid ?? 0),
+    "المتبقي": Number(inv.remaining ?? 0),
+    "الخصم": Number(inv.discount ?? 0),
+  }));
+}
+
+function exportInvoicesXLSX(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
+  if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
+  const rows = buildInvoiceRows(invoices, directory);
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = Object.keys(rows[0]).map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "الفواتير");
+  XLSX.writeFile(wb, `reports-${periodLabel}-${Date.now()}.xlsx`);
+  toast.success(`تم تصدير ${rows.length} فاتورة`);
+}
+
+function exportInvoicesPDF(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
+  if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
+  const rows = buildInvoiceRows(invoices, directory);
+  const doc = new jsPDF({ orientation: "landscape" });
+  doc.setFontSize(12);
+  doc.text(`Reports - ${periodLabel}`, 14, 12);
+  const headers = Object.keys(rows[0]);
+  autoTable(doc, {
+    startY: 18,
+    head: [headers],
+    body: rows.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
+    styles: { fontSize: 7, halign: "right" },
+    headStyles: { fillColor: [30, 41, 59] },
+  });
+  doc.save(`reports-${periodLabel}-${Date.now()}.pdf`);
+  toast.success(`تم تصدير ${rows.length} فاتورة`);
+}
+
 /* ------------------------ shared data ------------------------ */
 
 function useReportBundle(period: Period) {

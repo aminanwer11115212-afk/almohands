@@ -597,7 +597,13 @@ function DetailedTab({
                       <span className="px-1.5 py-0.5 rounded bg-muted">
                         {PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}
                       </span>
+                      {inv.payment_method === "bank" && (inv as any).reference_number && (
+                        <div className="mt-0.5 text-[10px] text-muted-foreground nums" title="رقم العملية البنكية">
+                          #{(inv as any).reference_number}
+                        </div>
+                      )}
                     </td>
+
                     <td className="px-2 py-1.5 text-end nums font-bold">
                       {formatSDG(Number(inv.total || 0))}
                     </td>

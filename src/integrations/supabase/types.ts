@@ -46,6 +46,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          address: string | null
           balance: number
           created_at: string
           credit_limit: number
@@ -58,6 +59,7 @@ export type Database = {
           workshop: string | null
         }
         Insert: {
+          address?: string | null
           balance?: number
           created_at?: string
           credit_limit?: number
@@ -70,6 +72,7 @@ export type Database = {
           workshop?: string | null
         }
         Update: {
+          address?: string | null
           balance?: number
           created_at?: string
           credit_limit?: number

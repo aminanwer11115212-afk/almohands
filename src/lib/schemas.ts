@@ -57,3 +57,47 @@ export const expenseSchema = z.object({
   description: nonEmptyString("الوصف").max(500),
   amount: requiredPositiveNumber("المبلغ"),
 });
+
+/** ============ Invoice-item inline edit ============ */
+
+/** Max allowed values guard against typos that would produce absurd totals. */
+const MAX_QTY = 1_000_000;
+const MAX_PRICE = 1_000_000_000;
+
+export const invoiceItemEditSchema = z.object({
+  id: z.string().uuid({ message: "معرّف الصنف غير صالح" }),
+  product_id: z.string().uuid().nullable(),
+  product_name: z.string().trim().min(1, { message: "اسم الصنف مطلوب" }),
+  quantity: z.coerce
+    .number({ message: "الكمية يجب أن تكون رقماً" })
+    .refine((n) => Number.isFinite(n), { message: "الكمية غير صالحة" })
+    .refine((n) => n > 0, { message: "الكمية يجب أن تكون أكبر من صفر" })
+    .refine((n) => Number.isInteger(n), { message: "الكمية يجب أن تكون رقماً صحيحاً" })
+    .refine((n) => n <= MAX_QTY, { message: `الكمية تتجاوز الحد المسموح (${MAX_QTY.toLocaleString("en")})` }),
+  unit_price: z.coerce
+    .number({ message: "سعر الوحدة يجب أن يكون رقماً" })
+    .refine((n) => Number.isFinite(n), { message: "سعر الوحدة غير صالح" })
+    .refine((n) => n >= 0, { message: "سعر الوحدة لا يمكن أن يكون سالباً" })
+    .refine((n) => n <= MAX_PRICE, { message: "سعر الوحدة كبير جداً" }),
+  _origQty: z.number(),
+});
+
+export const invoiceEditRowsSchema = z
+  .array(invoiceItemEditSchema)
+  .min(1, { message: "لا يمكن حفظ فاتورة بدون أصناف" });
+
+export type InvoiceItemEdit = z.infer<typeof invoiceItemEditSchema>;
+
+/** Field-level validator used to show inline errors while typing. */
+export function validateItemField(
+  field: "quantity" | "unit_price",
+  value: unknown,
+): string | null {
+  const schema = field === "quantity"
+    ? invoiceItemEditSchema.shape.quantity
+    : invoiceItemEditSchema.shape.unit_price;
+  const res = schema.safeParse(value);
+  if (res.success) return null;
+  return res.error.issues[0]?.message ?? "قيمة غير صالحة";
+}
+

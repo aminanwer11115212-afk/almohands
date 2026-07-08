@@ -293,6 +293,14 @@ function ImportPage() {
         payload: { rawRows, mapping, pricePct, fileName },
       }).catch(() => {});
 
+      // Audit failure too
+      const { data: au } = await supabase.auth.getUser();
+      if (au?.user) await supabase.from("audit_logs").insert({
+        user_id: au.user.id, action: "data.import.failed", table_name: "products",
+        details: { req_id: reqId, file_name: fileName, error: e?.message ?? "unknown", mapping, duration_ms: Date.now() - started },
+      }).then(() => undefined, () => undefined);
+
+
       handleError(e, "تعذّر إتمام الاستيراد", {
         event: "import_failed",
         context: { reqId, rows: validRows.length },

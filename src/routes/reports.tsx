@@ -14,12 +14,18 @@ import {
   CreditCard,
   RotateCcw,
   Calendar,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyRole, ROLE_LABELS, type AppRole } from "@/hooks/use-permissions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "التقارير — المهندس" }] }),

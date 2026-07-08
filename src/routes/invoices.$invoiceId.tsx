@@ -92,6 +92,8 @@ function InvoiceDetailPage() {
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     if (storeProfile?.print_size) {
@@ -402,6 +404,43 @@ function InvoiceDetailPage() {
     }),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const trimmed = reason.trim();
+      if (trimmed.length < 3) throw new Error("يرجى إدخال سبب واضح للإلغاء (3 أحرف على الأقل)");
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id ?? null;
+      const nowIso = new Date().toISOString();
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          status: "cancelled",
+          cancellation_reason: trimmed,
+          cancelled_at: nowIso,
+          cancelled_by: uid,
+        })
+        .eq("id", invoiceId);
+      if (error) throw error;
+      if (uid) {
+        await supabase.from("audit_logs").insert({
+          user_id: uid,
+          action: "invoice.cancelled",
+          table_name: "invoices",
+          record_id: invoiceId,
+          details: { reason: trimmed, invoice_number: data?.inv?.invoice_number },
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success("تم إلغاء الفاتورة");
+      setCancelOpen(false);
+      setCancelReason("");
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+    onError: (e) => handleError(e, "تعذّر إلغاء الفاتورة"),
+  });
+
 
   // Auto-open print dialog only ONCE per page visit; background refetches
   // must not retrigger window.print(). Wrapped in try/catch since some
@@ -629,8 +668,70 @@ function InvoiceDetailPage() {
             {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
             {editMode ? "إلغاء" : "تعديل"}
           </button>
+
+          {inv.status !== "cancelled" && (
+            <button
+              onClick={() => setCancelOpen(true)}
+              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-3 py-1.5"
+              title="إلغاء الفاتورة مع إدخال سبب"
+            >
+              <X className="size-4" /> إلغاء الفاتورة
+            </button>
+          )}
         </div>
       </header>
+
+      {inv.status === "cancelled" && (
+        <div className="mx-auto max-w-4xl px-4 pt-3 print:hidden">
+          <div className="rounded-lg border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+            <div className="font-bold mb-0.5">هذه الفاتورة ملغاة</div>
+            {inv.cancellation_reason && <div>السبب: {inv.cancellation_reason}</div>}
+            {inv.cancelled_at && (
+              <div className="text-xs opacity-80 mt-0.5">
+                وقت الإلغاء: {new Date(inv.cancelled_at).toLocaleString("ar-EG")}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>إلغاء الفاتورة #{inv.invoice_number}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">سبب الإلغاء (مطلوب)</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="مثال: طلب العميل الإلغاء، خطأ في الأصناف، ..."
+              className="w-full rounded-md border border-input bg-background p-2 text-sm"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">سيصل تنبيه فوري للمدير يوضّح السبب.</p>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setCancelOpen(false)}
+              className="px-4 h-9 rounded-md border border-input bg-background text-sm"
+            >
+              تراجع
+            </button>
+            <button
+              onClick={() => cancelMutation.mutate(cancelReason)}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 3}
+              className="px-4 h-9 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              تأكيد الإلغاء
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Inline edit panel */}
       {editMode && (

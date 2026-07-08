@@ -390,6 +390,29 @@ function ReportsPage() {
         ))}
       </div>
 
+      {/* Export */}
+      {isAdmin && data?.invoices && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => exportInvoicesXLSX(data.invoices, userDir.data ?? [], PERIODS.find((p) => p.key === period)?.label ?? period)}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+          >
+            <FileSpreadsheet className="size-4" /> تصدير Excel
+          </button>
+          <button
+            onClick={() => exportInvoicesPDF(data.invoices, userDir.data ?? [], PERIODS.find((p) => p.key === period)?.label ?? period)}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700"
+          >
+            <Download className="size-4" /> تصدير PDF
+          </button>
+          <span className="text-xs text-muted-foreground self-center">
+            تفاصيل فواتير الكاشير خلال الفترة المحددة
+          </span>
+        </div>
+      )}
+
+
+
       {isLoading || !stats ? (
         <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>
       ) : tab === "overview" ? (

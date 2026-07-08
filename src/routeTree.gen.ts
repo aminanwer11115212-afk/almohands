@@ -38,6 +38,7 @@ import { Route as ProductsProductIdRouteImport } from './routes/products.$produc
 import { Route as InvoicesCancelledRouteImport } from './routes/invoices.cancelled'
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
+import { Route as AuditCancellationsRouteImport } from './routes/audit.cancellations'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -188,6 +189,11 @@ const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
   path: '/$customerId',
   getParentRoute: () => CustomersRoute,
 } as any)
+const AuditCancellationsRoute = AuditCancellationsRouteImport.update({
+  id: '/audit/cancellations',
+  path: '/audit/cancellations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/invoices/cancelled': typeof InvoicesCancelledRoute
@@ -271,6 +278,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/invoices/cancelled': typeof InvoicesCancelledRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
   '/invoices/cancelled': typeof InvoicesCancelledRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/invoices/cancelled'
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/invoices/cancelled'
@@ -414,6 +425,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
     | '/invoices/cancelled'
@@ -450,6 +462,7 @@ export interface RootRouteChildren {
   SuppliersRoute: typeof SuppliersRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  AuditCancellationsRoute: typeof AuditCancellationsRoute
   InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
   InvoicesCancelledRoute: typeof InvoicesCancelledRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
@@ -665,6 +678,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomersCustomerIdRouteImport
       parentRoute: typeof CustomersRoute
     }
+    '/audit/cancellations': {
+      id: '/audit/cancellations'
+      path: '/audit/cancellations'
+      fullPath: '/audit/cancellations'
+      preLoaderRoute: typeof AuditCancellationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -745,6 +765,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  AuditCancellationsRoute: AuditCancellationsRoute,
   InvoicesInvoiceIdRoute: InvoicesInvoiceIdRoute,
   InvoicesCancelledRoute: InvoicesCancelledRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,

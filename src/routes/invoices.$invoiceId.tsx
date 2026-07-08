@@ -92,6 +92,8 @@ function InvoiceDetailPage() {
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     if (storeProfile?.print_size) {

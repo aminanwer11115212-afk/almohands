@@ -6,6 +6,7 @@ export interface Customer {
   name: string;
   phone: string | null;
   workshop: string | null;
+  address: string | null;
   creditLimit: number;
   balance: number;
   notes: string | null;
@@ -23,6 +24,7 @@ function toCustomer(row: any, agg?: { count: number; total: number; paid: number
     name: row.name,
     phone: row.phone,
     workshop: row.workshop,
+    address: row.address ?? null,
     creditLimit: Number(row.credit_limit),
     balance: Number(row.balance),
     notes: row.notes,

@@ -55,14 +55,18 @@ function CancelledInvoicesPage() {
   const [search, setSearch] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState<string>("");
+  const [userType, setUserType] = useState<"" | "cashier" | "admin">("");
   const [onlyCashier, setOnlyCashier] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("cancelled_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [quick, setQuick] = useState<QuickRange>("");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
   const [page, setPage] = useState(1);
+  const [showReturns, setShowReturns] = useState(true);
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["invoices-cancelled", quick],
+    queryKey: ["invoices-cancelled", quick, dFrom, dTo],
     queryFn: async () => {
       let q = supabase
         .from("invoices")
@@ -71,10 +75,33 @@ function CancelledInvoicesPage() {
         .order("cancelled_at", { ascending: false, nullsFirst: false })
         .limit(2000);
       const range = computeRange(quick);
-      if (range) q = q.gte("cancelled_at", range.from).lte("cancelled_at", range.to);
+      const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+      const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      if (fromIso) q = q.gte("cancelled_at", fromIso);
+      if (toIso) q = q.lte("cancelled_at", toIso);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Row[];
+    },
+  });
+
+  const { data: returns = [] } = useQuery({
+    queryKey: ["invoices-cancelled-returns", quick, dFrom, dTo],
+    queryFn: async () => {
+      let q = supabase
+        .from("returns")
+        .select("id, invoice_id, product_name, quantity, reason, status, created_at, user_id")
+        .eq("status", "accepted")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      const range = computeRange(quick);
+      const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+      const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      if (fromIso) q = q.gte("created_at", fromIso);
+      if (toIso) q = q.lte("created_at", toIso);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; invoice_id: string | null; product_name: string; quantity: number; reason: string | null; status: string; created_at: string; user_id: string }>;
     },
   });
 
@@ -91,12 +118,31 @@ function CancelledInvoicesPage() {
     })();
   }, []);
 
-  useEffect(() => { setPage(1); }, [search, reasonFilter, cashierFilter, onlyCashier, quick]);
+  useEffect(() => { setPage(1); }, [search, reasonFilter, cashierFilter, userType, onlyCashier, quick, dFrom, dTo]);
 
   const cashiers = useMemo(() => {
     const set = new Set(rows.map((r) => r.cancelled_by || r.user_id).filter(Boolean) as string[]);
     return Array.from(set);
   }, [rows]);
+
+  // Map invoice_id → returns aggregate (qty sum)
+  const returnsByInvoice = useMemo(() => {
+    const m = new Map<string, { qty: number; items: typeof returns }>();
+    for (const r of returns) {
+      if (!r.invoice_id) continue;
+      const cur = m.get(r.invoice_id) ?? { qty: 0, items: [] as typeof returns };
+      cur.qty += Number(r.quantity) || 0;
+      cur.items.push(r);
+      m.set(r.invoice_id, cur);
+    }
+    return m;
+  }, [returns]);
+
+  // Returns on invoices that are NOT cancelled (standalone partial returns section)
+  const standaloneReturns = useMemo(() => {
+    const cancelledIds = new Set(rows.map((r) => r.id));
+    return returns.filter((r) => !r.invoice_id || !cancelledIds.has(r.invoice_id));
+  }, [returns, rows]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -108,8 +154,10 @@ function CancelledInvoicesPage() {
       }
       if (rs && !(r.cancellation_reason ?? "").toLowerCase().includes(rs)) return false;
       if (cashierFilter && (r.cancelled_by || r.user_id) !== cashierFilter) return false;
+      const who = r.cancelled_by || r.user_id;
+      if (userType === "cashier" && (!who || adminIds.has(who))) return false;
+      if (userType === "admin" && (!who || !adminIds.has(who))) return false;
       if (onlyCashier) {
-        const who = r.cancelled_by || r.user_id;
         if (!who || adminIds.has(who)) return false;
       }
       return true;
@@ -122,7 +170,8 @@ function CancelledInvoicesPage() {
       return String(va).localeCompare(String(vb), "ar") * dir;
     });
     return out;
-  }, [rows, search, reasonFilter, cashierFilter, onlyCashier, adminIds, sortKey, sortDir]);
+  }, [rows, search, reasonFilter, cashierFilter, userType, onlyCashier, adminIds, sortKey, sortDir]);
+
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
@@ -228,11 +277,24 @@ function CancelledInvoicesPage() {
               <button onClick={exportPDF} title="PDF" className="h-10 px-2 rounded-lg bg-rose-600 text-white text-xs font-bold flex items-center gap-1"><FileText className="size-4" />PDF</button>
             </div>
           </div>
+          <div className="grid sm:grid-cols-3 gap-2">
+            <select value={userType} onChange={(e) => setUserType(e.target.value as any)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm">
+              <option value="">كل أنواع المستخدمين</option>
+              <option value="cashier">كاشير فقط</option>
+              <option value="admin">مدير فقط</option>
+            </select>
+            <input type="date" value={dFrom} disabled={!!quick} onChange={(e) => setDFrom(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+            <input type="date" value={dTo} disabled={!!quick} onChange={(e) => setDTo(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+          </div>
           <div className="flex items-center gap-1 text-xs flex-wrap">
-            <span className="font-bold text-muted-foreground">نطاق:</span>
+            <span className="font-bold text-muted-foreground">نطاق سريع:</span>
             {([["", "الكل"], ["7d", "آخر 7 أيام"], ["30d", "آخر 30 يوم"], ["month", "هذا الشهر"]] as [QuickRange, string][]).map(([v, label]) => (
               <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{label}</button>
             ))}
+            <label className="ms-auto flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={showReturns} onChange={(e) => setShowReturns(e.target.checked)} className="size-3.5" />
+              <span>عرض الإرجاعات الجزئية</span>
+            </label>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1 flex-wrap">
             <span className="font-bold">ترتيب:</span>
@@ -248,6 +310,7 @@ function CancelledInvoicesPage() {
               <span>من الكاشير فقط</span>
             </label>
           </div>
+
         </div>
 
         {isLoading ? (
@@ -291,10 +354,24 @@ function CancelledInvoicesPage() {
                       </div>
                       <div className="rounded-md bg-muted/50 p-2">
                         <div className="font-semibold text-muted-foreground mb-0.5">ألغيت بواسطة</div>
-                        <div className="truncate">{actor}</div>
+                        <div className="truncate">{actor} {who && (adminIds.has(who) ? <span className="text-[10px] text-brand">(مدير)</span> : <span className="text-[10px] text-amber-700">(كاشير)</span>)}</div>
                         {r.cancelled_at && <div className="text-muted-foreground mt-0.5">{new Date(r.cancelled_at).toLocaleString("ar-EG")}</div>}
                       </div>
                     </div>
+                    {(() => {
+                      const ret = returnsByInvoice.get(r.id);
+                      if (!ret || ret.items.length === 0) return null;
+                      return (
+                        <div className="mt-2 rounded-md bg-emerald-50 border border-emerald-200 p-2 text-xs">
+                          <div className="font-bold text-emerald-800 mb-1">📦 عاد للمخزون ({ret.qty} قطعة)</div>
+                          <ul className="space-y-0.5 text-emerald-900">
+                            {ret.items.map((it) => (
+                              <li key={it.id}>• {it.product_name} × {it.quantity}{it.reason ? ` — ${it.reason}` : ""}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -302,10 +379,35 @@ function CancelledInvoicesPage() {
             <Pager page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} />
           </>
         )}
+
+        {showReturns && standaloneReturns.length > 0 && (
+          <section className="rounded-xl bg-card border border-border p-3 shadow-card">
+            <div className="font-bold text-sm mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs">إرجاع جزئي</span>
+              <span>مرتجعات مقبولة على فواتير غير ملغاة ({standaloneReturns.length})</span>
+            </div>
+            <ul className="divide-y divide-border text-xs">
+              {standaloneReturns.slice(0, 50).map((it) => (
+                <li key={it.id} className="py-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{it.product_name} × {it.quantity}</div>
+                    <div className="text-muted-foreground text-[11px]">{new Date(it.created_at).toLocaleString("ar-EG")}{it.reason ? ` — ${it.reason}` : ""}</div>
+                  </div>
+                  {it.invoice_id && (
+                    <Link to="/invoices/$invoiceId" params={{ invoiceId: it.invoice_id }} search={{ autoprint: 0 }} className="text-xs text-brand inline-flex items-center gap-1 shrink-0">
+                      <Eye className="size-3" /> فتح الفاتورة
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </AppShell>
   );
 }
+
 
 function Pager({ page, totalPages, total, onChange }: { page: number; totalPages: number; total: number; onChange: (p: number) => void }) {
   if (totalPages <= 1) return null;

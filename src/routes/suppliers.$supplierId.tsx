@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, MapPin, Truck, Loader2, AlertCircle, Printer } from "lucide-react";
+import { Phone, MapPin, Truck, Loader2, AlertCircle, Printer, Info } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
@@ -19,15 +19,40 @@ const statusClasses: Record<string, string> = {
   pending: "bg-rose-100 text-rose-700",
 };
 
+type QuickRange = "" | "7d" | "30d" | "month" | "year";
+
+function computeRange(q: QuickRange) {
+  if (!q) return null;
+  const now = new Date();
+  const to = new Date(now); to.setHours(23, 59, 59, 999);
+  const from = new Date(now);
+  if (q === "7d") from.setDate(now.getDate() - 7);
+  else if (q === "30d") from.setDate(now.getDate() - 30);
+  else if (q === "month") { from.setDate(1); from.setHours(0, 0, 0, 0); }
+  else if (q === "year") { from.setMonth(0, 1); from.setHours(0, 0, 0, 0); }
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 function SupplierStatementPage() {
   const { supplierId } = Route.useParams();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [quick, setQuick] = useState<QuickRange>("");
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["supplier-statement", supplierId],
+    queryKey: ["supplier-statement", supplierId, from, to, quick],
     queryFn: async () => {
+      const range = computeRange(quick);
+      const fromIso = range ? range.from : (from ? new Date(from).toISOString() : null);
+      const toIso = range ? range.to : (to ? (() => { const d = new Date(to); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      let pq = supabase.from("purchases").select("*").eq("supplier_id", supplierId).order("created_at", { ascending: false }).limit(500);
+      let payq = supabase.from("payments").select("*").eq("party_type", "supplier").eq("party_id", supplierId).order("created_at", { ascending: false }).limit(500);
+      if (fromIso) { pq = pq.gte("created_at", fromIso); payq = payq.gte("created_at", fromIso); }
+      if (toIso) { pq = pq.lte("created_at", toIso); payq = payq.lte("created_at", toIso); }
       const [s, purchases, payments] = await Promise.all([
         supabase.from("suppliers").select("*").eq("id", supplierId).maybeSingle(),
-        supabase.from("purchases").select("*").eq("supplier_id", supplierId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("payments").select("*").eq("party_type", "supplier").eq("party_id", supplierId).order("created_at", { ascending: false }).limit(500),
+        pq,
+        payq,
       ]);
       if (s.error) throw s.error;
       if (purchases.error) throw purchases.error;
@@ -35,6 +60,7 @@ function SupplierStatementPage() {
       return { supplier: s.data, purchases: purchases.data ?? [], payments: payments.data ?? [] };
     },
   });
+
 
   const totals = useMemo(() => {
     const purchases = data?.purchases ?? [];
@@ -99,8 +125,26 @@ function SupplierStatementPage() {
           <Sc label="الرصيد للمورد" value={formatSDG(totals.remaining)} tone={totals.remaining > 0 ? "warn" : "ok"} />
         </section>
 
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900 flex items-start gap-2">
+          <Info className="size-3.5 shrink-0 mt-0.5" />
+          <span>الأسعار المعروضة في فواتير المشتريات محفوظة كما وقت الإدخال — أي تغيير في أسعار المنتجات لاحقًا لا يُطبَّق على الفواتير القديمة.</span>
+        </div>
+
+        <div className="rounded-xl bg-card border border-border p-3 shadow-card space-y-2">
+          <div className="grid sm:grid-cols-3 gap-2">
+            <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="من" />
+            <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="إلى" />
+            <div className="flex flex-wrap gap-1 text-xs">
+              {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as [QuickRange, string][]).map(([v, l]) => (
+                <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
           <div className="p-3 border-b border-border font-bold text-sm">فواتير المشتريات ({totals.count})</div>
+
           {data.purchases.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">لا توجد مشتريات من هذا المورد بعد</p>
           ) : (

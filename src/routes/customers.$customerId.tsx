@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown } from "lucide-react";
+import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown, Info } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
@@ -40,9 +40,24 @@ const statusClasses: Record<string, string> = {
 function CustomerLedgerPage() {
   const { customerId } = Route.useParams();
   const { data: storeProfile } = useStoreProfile();
+  const [invFrom, setInvFrom] = useState("");
+  const [invTo, setInvTo] = useState("");
+  const [invQuick, setInvQuick] = useState<"" | "7d" | "30d" | "month" | "year">("");
+
+  const invRange = useMemo(() => {
+    if (!invQuick) return null;
+    const now = new Date();
+    const t = new Date(now); t.setHours(23, 59, 59, 999);
+    const f = new Date(now);
+    if (invQuick === "7d") f.setDate(now.getDate() - 7);
+    else if (invQuick === "30d") f.setDate(now.getDate() - 30);
+    else if (invQuick === "month") { f.setDate(1); f.setHours(0, 0, 0, 0); }
+    else if (invQuick === "year") { f.setMonth(0, 1); f.setHours(0, 0, 0, 0); }
+    return { from: f.toISOString(), to: t.toISOString() };
+  }, [invQuick]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["customer-ledger", customerId],
+    queryKey: ["customer-ledger", customerId, invFrom, invTo, invQuick],
     queryFn: async () => {
       const { data: cust, error: cErr } = await supabase
         .from("customers")
@@ -52,16 +67,23 @@ function CustomerLedgerPage() {
       if (cErr) throw cErr;
       if (!cust) return { customer: null, invoices: [] as InvoiceRow[] };
 
-      const { data: invs, error: iErr } = await supabase
+      let iq = supabase
         .from("invoices")
         .select("id, invoice_number, total, paid, remaining, status, payment_method, created_at")
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false })
         .limit(500);
+      if (invRange) iq = iq.gte("created_at", invRange.from).lte("created_at", invRange.to);
+      else {
+        if (invFrom) iq = iq.gte("created_at", new Date(invFrom).toISOString());
+        if (invTo) { const end = new Date(invTo); end.setHours(23, 59, 59, 999); iq = iq.lte("created_at", end.toISOString()); }
+      }
+      const { data: invs, error: iErr } = await iq;
       if (iErr) throw iErr;
       return { customer: cust, invoices: (invs ?? []) as InvoiceRow[] };
     },
   });
+
 
   const totals = useMemo(() => {
     const invs = data?.invoices ?? [];
@@ -164,11 +186,27 @@ function CustomerLedgerPage() {
 
         {/* Invoices table */}
         <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden print:shadow-none">
-          <div className="p-3 border-b border-border flex items-center gap-2">
+          <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
             <Receipt className="size-4 text-brand" />
             <h2 className="font-bold text-sm">سجل الفواتير</h2>
             <span className="text-xs text-muted-foreground">({totals.count})</span>
           </div>
+          <div className="p-3 border-b border-border space-y-2 print:hidden">
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-2 text-[11px] text-sky-900 flex items-start gap-1.5">
+              <Info className="size-3.5 shrink-0 mt-0.5" />
+              <span>الأسعار المعروضة ضمن كل فاتورة محفوظة كما وقت البيع — أي زيادة سعر أو تعديل مديونية لاحقًا لا يُطبَّق على الفواتير القديمة، فقط على الفواتير الجديدة.</span>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-2">
+              <input type="date" value={invFrom} disabled={!!invQuick} onChange={(e) => setInvFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+              <input type="date" value={invTo} disabled={!!invQuick} onChange={(e) => setInvTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+              <div className="flex flex-wrap gap-1 text-xs">
+                {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as const).map(([v, l]) => (
+                  <button key={v} onClick={() => setInvQuick(v)} className={`px-2 py-1 rounded-md border ${invQuick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {invoices.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">لا توجد فواتير لهذا العميل بعد</p>
           ) : (

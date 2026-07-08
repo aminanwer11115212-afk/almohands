@@ -126,7 +126,7 @@ function ExportPage() {
       const uid = data.user?.id;
       if (!uid) return;
       channel = supabase
-        .channel(`export_logs:${uid}`)
+        .channel(`export_logs:${uid}:${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
           const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
           if (row.status === "success") toast.success(`تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`);

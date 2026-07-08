@@ -132,13 +132,13 @@ function ImportPage() {
   });
 
   useEffect(() => {
-    let uid: string | null = null;
+    let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       const { data } = await supabase.auth.getUser();
-      uid = data.user?.id ?? null;
-      if (!uid) return;
-      channel = supabase
+      const uid = data.user?.id ?? null;
+      if (!uid || cancelled) return;
+      const ch = supabase
         .channel(`import_logs:${uid}:${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "import_logs", filter: `user_id=eq.${uid}` }, (p) => {
           const row = p.new as { status: string; imported_rows: number; file_name: string | null; error_message: string | null };
@@ -147,8 +147,10 @@ function ImportPage() {
           qc.invalidateQueries({ queryKey: ["import_logs"] });
         })
         .subscribe();
+      if (cancelled) { supabase.removeChannel(ch); return; }
+      channel = ch;
     })();
-    return () => { if (channel) supabase.removeChannel(channel); };
+    return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
   }, [qc]);
 
   const bumpedPrice = (base: number) => {

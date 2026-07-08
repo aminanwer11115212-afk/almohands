@@ -253,10 +253,11 @@ function AccountsTab({ balances, loading }: { balances: AccountBalance[]; loadin
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <MiniStat icon={TrendingUp} label="واردات" value={Number(a.incoming) || 0} tone="ok" />
-              <MiniStat icon={TrendingDown} label="مصروفات" value={Number(a.outgoing_expense) || 0} tone="warn" />
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <MiniStat icon={Receipt} label="فواتير مدفوعة" value={Number(a.invoice_paid) || 0} tone="ok" />
+              <MiniStat icon={TrendingUp} label="دفعات عملاء" value={Number(a.customer_payments) || 0} tone="ok" />
               <MiniStat icon={Receipt} label="للموردين" value={Number(a.outgoing_supplier) || 0} tone="neutral" />
+              <MiniStat icon={TrendingDown} label="مصروفات" value={Number(a.outgoing_expense) || 0} tone="warn" />
             </div>
 
             {Number(a.opening_balance) !== 0 && (

@@ -15,6 +15,7 @@ import { registerPwa } from "../lib/pwa-register";
 import { OnlineStatus } from "../components/OnlineStatus";
 import { Toaster } from "../components/ui/sonner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { AuthGate } from "../components/AuthGate";
 import { handleError } from "../lib/errors";
 
 function NotFoundComponent() {
@@ -145,8 +146,10 @@ function RootComponent() {
       <OnlineStatus />
       <Toaster position="top-center" richColors closeButton />
       <ErrorBoundary>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <AuthGate>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </AuthGate>
       </ErrorBoundary>
     </QueryClientProvider>
   );

@@ -284,29 +284,37 @@ function InvoiceDetailPage() {
 
 
   // Auto-open print dialog only ONCE per page visit; background refetches
-  // must not retrigger window.print().
+  // must not retrigger window.print(). Wrapped in try/catch since some
+  // embedded browsers throw on window.print().
   const printedRef = useRef(false);
   const hasInv = Boolean(data?.inv);
   useEffect(() => {
     if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
     printedRef.current = true;
-    const t = setTimeout(() => window.print(), 350);
+    const t = setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        handleError(e, "تعذّر فتح نافذة الطباعة", {
+          event: "auto_print_failed",
+          context: { invoiceId },
+        });
+      }
+    }, 350);
     return () => clearTimeout(t);
-  }, [autoprint, formatReady, hasInv]);
+  }, [autoprint, formatReady, hasInv, invoiceId]);
 
   if (isLoading) {
     return (
       <AppShell title="فاتورة" showBack>
-        <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>
+        <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="size-4 animate-spin" /> جارٍ التحميل…
+        </div>
       </AppShell>
     );
   }
   if (!data?.inv) {
-    return (
-      <AppShell title="فاتورة" showBack>
-        <div className="p-6 text-center text-sm text-destructive">الفاتورة غير موجودة</div>
-      </AppShell>
-    );
+    return <InvoiceNotFound />;
   }
 
   const { inv, items, paymentMethod } = data;
@@ -320,25 +328,63 @@ function InvoiceDetailPage() {
   const baseLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
   const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
-  async function handleDownloadPdf() {
+  /** Try to safely trigger the browser print dialog. */
+  function tryPrint() {
+    try {
+      window.print();
+    } catch (e) {
+      handleError(e, "تعذّر فتح نافذة الطباعة — استخدم اختصار Ctrl+P", {
+        event: "manual_print_failed",
+        context: { invoiceId: inv.id },
+      });
+    }
+  }
+
+  async function handleDownloadPdf(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
-    if (!el || pdfBusy) return;
+    if (!el) {
+      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
+      return;
+    }
+    if (pdfBusy) return;
     setPdfBusy(true);
+    const reqId = newRequestId("pdf");
+    logger.info("pdf_download_start", { context: { reqId, invoiceId: inv.id, format, attempt } });
     try {
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       await downloadElementAsPdf(el, filename, format);
       toast.success("تم تنزيل الـ PDF");
+      logger.info("pdf_download_success", { context: { reqId, invoiceId: inv.id } });
     } catch (e) {
-      handleError(e, "تعذّر إنشاء الـ PDF");
+      // First failure: offer a one-click retry. Second: offer print fallback.
+      if (attempt < 2) {
+        handleError(e, "تعذّر إنشاء الـ PDF — قد يكون بسبب حجم الصفحة أو الذاكرة", {
+          event: "pdf_download_failed",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "إعادة المحاولة", onClick: () => handleDownloadPdf(2) },
+        });
+      } else {
+        handleError(e, "تعذّر إنشاء الـ PDF مرتين — يمكنك الطباعة مباشرة كبديل", {
+          event: "pdf_download_failed_final",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
+        });
+      }
     } finally {
       setPdfBusy(false);
     }
   }
 
-  async function handleWhatsAppShare() {
+  async function handleWhatsAppShare(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
-    if (!el || shareBusy) return;
+    if (!el) {
+      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
+      return;
+    }
+    if (shareBusy) return;
     setShareBusy(true);
+    const reqId = newRequestId("wa");
+    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, attempt } });
     const toastId = toast.loading("جارٍ تجهيز ملف الفاتورة…");
     try {
       const text = buildInvoiceText(inv, items, storeName, {
@@ -348,24 +394,50 @@ function InvoiceDetailPage() {
       });
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       const result = await shareInvoicePdfViaWhatsApp(
-        el,
-        filename,
-        format,
-        text,
-        inv.customer_phone,
+        el, filename, format, text, inv.customer_phone,
       );
       if (result === "shared") {
         toast.success("تم فتح نافذة المشاركة", { id: toastId });
       } else {
         toast.success("تم تنزيل الـ PDF — أرفقه بالرسالة في واتساب", { id: toastId, duration: 6000 });
       }
+      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, result } });
     } catch (e) {
       toast.dismiss(toastId);
-      handleError(e, "تعذّر مشاركة الفاتورة");
+      if (attempt < 2) {
+        handleError(e, "تعذّر تجهيز ملف واتساب — أعد المحاولة", {
+          event: "whatsapp_share_failed",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "إعادة المحاولة", onClick: () => handleWhatsAppShare(2) },
+        });
+      } else {
+        // Final fallback: send text-only via wa.me
+        handleError(e, "تعذّر إرفاق PDF — سيتم إرسال الرسالة النصية فقط", {
+          event: "whatsapp_share_failed_final",
+          context: { reqId, invoiceId: inv.id },
+          action: {
+            label: "إرسال نص فقط",
+            onClick: () => {
+              try {
+                const text = buildInvoiceText(inv, items, storeName, {
+                  includeItems: true,
+                  footer: invoiceFooter || undefined,
+                  storePhone,
+                });
+                openWhatsAppShare(inv.customer_phone, text);
+              } catch (err) {
+                handleError(err, "تعذّر فتح واتساب", { event: "whatsapp_text_fallback_failed" });
+              }
+            },
+          },
+        });
+      }
     } finally {
       setShareBusy(false);
     }
   }
+
+
 
 
   return (

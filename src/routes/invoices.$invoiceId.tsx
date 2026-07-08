@@ -474,7 +474,7 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={handleDownloadPdf}
+            onClick={() => handleDownloadPdf()}
             disabled={pdfBusy}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
             title="تنزيل PDF"
@@ -484,7 +484,7 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={handleWhatsAppShare}
+            onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
             className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
             title="مشاركة عبر واتساب مع ملف PDF"
@@ -667,7 +667,7 @@ function InvoiceDetailPage() {
               إغلاق
             </button>
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf()}
               disabled={pdfBusy}
               className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
@@ -675,7 +675,7 @@ function InvoiceDetailPage() {
               تنزيل PDF
             </button>
             <button
-              onClick={handleWhatsAppShare}
+              onClick={() => handleWhatsAppShare()}
               disabled={shareBusy}
               className="px-4 h-9 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >

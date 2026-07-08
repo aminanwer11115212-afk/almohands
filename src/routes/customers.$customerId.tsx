@@ -40,9 +40,24 @@ const statusClasses: Record<string, string> = {
 function CustomerLedgerPage() {
   const { customerId } = Route.useParams();
   const { data: storeProfile } = useStoreProfile();
+  const [invFrom, setInvFrom] = useState("");
+  const [invTo, setInvTo] = useState("");
+  const [invQuick, setInvQuick] = useState<"" | "7d" | "30d" | "month" | "year">("");
+
+  const invRange = useMemo(() => {
+    if (!invQuick) return null;
+    const now = new Date();
+    const t = new Date(now); t.setHours(23, 59, 59, 999);
+    const f = new Date(now);
+    if (invQuick === "7d") f.setDate(now.getDate() - 7);
+    else if (invQuick === "30d") f.setDate(now.getDate() - 30);
+    else if (invQuick === "month") { f.setDate(1); f.setHours(0, 0, 0, 0); }
+    else if (invQuick === "year") { f.setMonth(0, 1); f.setHours(0, 0, 0, 0); }
+    return { from: f.toISOString(), to: t.toISOString() };
+  }, [invQuick]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["customer-ledger", customerId],
+    queryKey: ["customer-ledger", customerId, invFrom, invTo, invQuick],
     queryFn: async () => {
       const { data: cust, error: cErr } = await supabase
         .from("customers")
@@ -52,16 +67,23 @@ function CustomerLedgerPage() {
       if (cErr) throw cErr;
       if (!cust) return { customer: null, invoices: [] as InvoiceRow[] };
 
-      const { data: invs, error: iErr } = await supabase
+      let iq = supabase
         .from("invoices")
         .select("id, invoice_number, total, paid, remaining, status, payment_method, created_at")
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false })
         .limit(500);
+      if (invRange) iq = iq.gte("created_at", invRange.from).lte("created_at", invRange.to);
+      else {
+        if (invFrom) iq = iq.gte("created_at", new Date(invFrom).toISOString());
+        if (invTo) { const end = new Date(invTo); end.setHours(23, 59, 59, 999); iq = iq.lte("created_at", end.toISOString()); }
+      }
+      const { data: invs, error: iErr } = await iq;
       if (iErr) throw iErr;
       return { customer: cust, invoices: (invs ?? []) as InvoiceRow[] };
     },
   });
+
 
   const totals = useMemo(() => {
     const invs = data?.invoices ?? [];

@@ -193,7 +193,7 @@ function ExportPage() {
             const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
             download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], headerMap));
           } else {
-            download(`${key}-${Date.now()}.json`, toJSON(rows), "application/json");
+            download(`${key}-${Date.now()}.json`, toJSON(rows as Record<string, unknown>[]), "application/json");
           }
         }
       }

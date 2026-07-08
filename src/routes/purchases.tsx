@@ -64,10 +64,11 @@ function PurchasesPage() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-center">
         <SummaryCard label="فواتير" value={String(totals.count)} />
         <SummaryCard label="الإجمالي" value={formatSDG(totals.total)} />
-        <SummaryCard label="المتبقي للموردين" value={formatSDG(totals.remaining)} />
+        <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="ok" />
+        <SummaryCard label="المتبقي للموردين" value={formatSDG(totals.remaining)} tone="warn" />
       </div>
 
       {isLoading ? (
@@ -80,27 +81,46 @@ function PurchasesPage() {
       ) : (
         <ul className="space-y-2">
           {purchases.map((p) => (
-            <li key={p.id} className="bg-card rounded-xl border border-border p-3 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-brand">#{p.purchase_number}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[p.status] ?? "bg-muted"}`}>
-                      {statusLabels[p.status] ?? p.status}
-                    </span>
+            <li key={p.id}>
+              <button
+                type="button"
+                onClick={() => setDetailsId(p.id)}
+                className="w-full text-right bg-card rounded-xl border border-border p-3 shadow-sm hover:border-brand hover:shadow-md transition"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-brand">#{p.purchase_number}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[p.status] ?? "bg-muted"}`}>
+                        {statusLabels[p.status] ?? p.status}
+                      </span>
+                    </div>
+                    <div className="text-sm truncate mt-0.5 flex items-center gap-1">
+                      <Truck className="size-3.5 text-muted-foreground shrink-0" />
+                      {p.supplier_name || "مورد غير محدد"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(p.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                    </div>
+                    {p.notes && (
+                      <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 truncate">
+                        <StickyNote className="size-3 shrink-0" />
+                        {p.notes}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm truncate mt-0.5">{p.supplier_name || "مورد غير محدد"}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {new Date(p.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                  <div className="text-left shrink-0 space-y-0.5">
+                    <div className="text-sm font-bold nums">{formatSDG(Number(p.total))}</div>
+                    <div className="text-[11px] text-emerald-700 nums">دفع {formatSDG(Number(p.paid))}</div>
+                    {Number(p.remaining) > 0 && (
+                      <div className="text-[11px] text-rose-600 font-bold nums">متبقي {formatSDG(Number(p.remaining))}</div>
+                    )}
+                    <div className="text-[10px] text-brand flex items-center gap-1 justify-end">
+                      <Eye className="size-3" /> تفاصيل
+                    </div>
                   </div>
                 </div>
-                <div className="text-left shrink-0">
-                  <div className="text-sm font-bold nums">{formatSDG(Number(p.total))}</div>
-                  {Number(p.remaining) > 0 && (
-                    <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(p.remaining))}</div>
-                  )}
-                </div>
-              </div>
+              </button>
             </li>
           ))}
         </ul>
@@ -115,9 +135,11 @@ function PurchasesPage() {
       </button>
 
       {showAdd && <CreatePurchaseModal onClose={() => setShowAdd(false)} />}
+      {detailsId && <PurchaseDetailsModal id={detailsId} onClose={() => setDetailsId(null)} />}
     </AppShell>
   );
 }
+
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (

@@ -86,6 +86,7 @@ function ExportPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [logStatus, setLogStatus] = useState<"all" | "success" | "failed">("all");
+  const [standardHeaders, setStandardHeaders] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const { data: logs = [] } = useQuery({

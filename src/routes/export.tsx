@@ -354,9 +354,17 @@ function ExportPage() {
                   {l.notes && <div className="text-muted-foreground text-[10px]">{l.notes}</div>}
                   <div className="text-muted-foreground nums text-[10px]">{new Date(l.created_at).toLocaleString("ar")}</div>
                 </div>
-                <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted shrink-0" aria-label="حذف">
-                  <Trash2 className="size-3.5 text-destructive" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {l.payload && (
+                    <button onClick={() => retryFromLog(l)} disabled={busy} className="p-1.5 rounded-md hover:bg-muted disabled:opacity-50" aria-label="إعادة المحاولة" title="إعادة المحاولة">
+                      <RefreshCw className="size-3.5 text-brand" />
+                    </button>
+                  )}
+                  <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </button>
+                </div>
+
               </li>
             ))}
           </ul>

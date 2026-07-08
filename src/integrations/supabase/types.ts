@@ -143,6 +143,7 @@ export type Database = {
           format: string
           id: string
           notes: string | null
+          payload: Json | null
           row_count: number
           status: string
           tables: string[]
@@ -156,6 +157,7 @@ export type Database = {
           format: string
           id?: string
           notes?: string | null
+          payload?: Json | null
           row_count?: number
           status?: string
           tables?: string[]
@@ -169,6 +171,7 @@ export type Database = {
           format?: string
           id?: string
           notes?: string | null
+          payload?: Json | null
           row_count?: number
           status?: string
           tables?: string[]
@@ -187,6 +190,7 @@ export type Database = {
           imported_rows: number
           invalid_rows: number
           notes: string | null
+          payload: Json | null
           source: string
           status: string
           total_rows: number
@@ -202,6 +206,7 @@ export type Database = {
           imported_rows?: number
           invalid_rows?: number
           notes?: string | null
+          payload?: Json | null
           source?: string
           status?: string
           total_rows?: number
@@ -217,6 +222,7 @@ export type Database = {
           imported_rows?: number
           invalid_rows?: number
           notes?: string | null
+          payload?: Json | null
           source?: string
           status?: string
           total_rows?: number

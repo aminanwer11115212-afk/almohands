@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
 import { logger, newRequestId } from "@/lib/logger";
 import { formatNumber } from "@/lib/format";
+
+
 
 
 export const Route = createFileRoute("/import")({
@@ -80,7 +82,7 @@ function ImportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string }) => {
+    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       await supabase.from("import_logs").insert({ ...entry, user_id: u.user.id, source: "products", format: "xlsx" });
@@ -94,6 +96,29 @@ function ImportPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["import_logs"] }),
   });
+
+  // Realtime: notify on any new import log for the current user.
+  useEffect(() => {
+    let uid: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      uid = data.user?.id ?? null;
+      if (!uid) return;
+      channel = supabase
+        .channel(`import_logs:${uid}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "import_logs", filter: `user_id=eq.${uid}` }, (p) => {
+          const row = p.new as { status: string; imported_rows: number; file_name: string | null; error_message: string | null };
+          if (row.status === "success") toast.success(`استيراد ناجح: ${row.imported_rows} صف${row.file_name ? ` — ${row.file_name}` : ""}`);
+          else toast.error(`فشل الاستيراد${row.file_name ? ` — ${row.file_name}` : ""}${row.error_message ? `: ${row.error_message}` : ""}`);
+          qc.invalidateQueries({ queryKey: ["import_logs"] });
+        })
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [qc]);
+
+
 
 
   /** Preview sale price after applying the % increase. */
@@ -232,6 +257,8 @@ function ImportPage() {
         inserted += chunk.length;
       }
 
+      const retryPayload = { rows: validRows, pricePct, fileName };
+
       await logMut.mutateAsync({
         file_name: fileName,
         total_rows: rows.length,
@@ -240,6 +267,7 @@ function ImportPage() {
         status: "success",
         duration_ms: Date.now() - started,
         notes: pricePct !== 0 ? `زيادة سعر ${pricePct}%` : undefined,
+        payload: retryPayload,
       }).catch(() => {});
 
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
@@ -255,7 +283,9 @@ function ImportPage() {
         status: "failed",
         error_message: e?.message || "unknown",
         duration_ms: Date.now() - started,
+        payload: { rows: validRows, pricePct, fileName },
       }).catch(() => {});
+
       handleError(e, "تعذّر إتمام الاستيراد", {
         event: "import_failed",
         context: { reqId, rows: validRows.length },
@@ -264,6 +294,19 @@ function ImportPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function retryFromLog(l: any) {
+    const p = l?.payload;
+    if (!p || !Array.isArray(p.rows) || p.rows.length === 0) {
+      toast.error("لا يمكن إعادة تشغيل هذه العملية — لا توجد بيانات محفوظة");
+      return;
+    }
+    if (!confirm(`سيتم إعادة تشغيل استيراد ${p.rows.length} صف من الملف "${p.fileName || "?"}" بنفس الإعدادات. متابعة؟`)) return;
+    setRows(p.rows);
+    setPricePct(Number(p.pricePct) || 0);
+    setFileName(String(p.fileName || ""));
+    setTimeout(() => { void commitImport(); }, 0);
   }
 
 
@@ -464,10 +507,18 @@ function ImportPage() {
                     {new Date(l.created_at).toLocaleString("ar")}
                   </div>
                 </div>
-                <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted shrink-0" aria-label="حذف">
-                  <Trash2 className="size-3.5 text-destructive" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {l.payload && (
+                    <button onClick={() => retryFromLog(l)} disabled={busy} className="p-1.5 rounded-md hover:bg-muted disabled:opacity-50" aria-label="إعادة المحاولة" title="إعادة المحاولة">
+                      <RefreshCw className="size-3.5 text-brand" />
+                    </button>
+                  )}
+                  <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </button>
+                </div>
               </li>
+
             ))}
           </ul>
         )}

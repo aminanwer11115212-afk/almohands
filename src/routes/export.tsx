@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock } from "lucide-react";
+import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatNumber } from "@/lib/format";
+
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "تصدير البيانات — المهندس" }] }),
@@ -89,7 +90,7 @@ function ExportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string }) => {
+    mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("no user");
       const { error } = await supabase.from("export_logs").insert({ ...entry, user_id: u.user.id });
@@ -105,6 +106,28 @@ function ExportPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["export_logs"] }),
   });
+
+  // Realtime notifications on export log inserts.
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid) return;
+      channel = supabase
+        .channel(`export_logs:${uid}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
+          const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
+          if (row.status === "success") toast.success(`تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`);
+          else toast.error(`فشل التصدير${row.error_message ? `: ${row.error_message}` : ""}`);
+          qc.invalidateQueries({ queryKey: ["export_logs"] });
+        })
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [qc]);
+
+
 
   const toggle = (k: TableKey) => {
     const s = new Set(selected);
@@ -147,6 +170,7 @@ function ExportPage() {
           }
         }
       }
+      const partialPayload = { export_type: "partial", format, tables: [...selected], from, to };
       await logMut.mutateAsync({
         export_type: "partial",
         format,
@@ -155,12 +179,14 @@ function ExportPage() {
         status: "success",
         duration_ms: Date.now() - started,
         notes: from || to ? `فلترة تاريخ: ${from || "?"} → ${to || "?"}` : undefined,
+        payload: partialPayload,
       });
       toast.success(`تم تصدير ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
         export_type: "partial", format, tables: [...selected], row_count: 0,
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
+        payload: { export_type: "partial", format, tables: [...selected], from, to },
       }).catch(() => {});
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
@@ -185,18 +211,34 @@ function ExportPage() {
         tables: TABLES.map((t) => t.key), row_count: total,
         status: "success", duration_ms: Date.now() - started,
         notes: "نسخة احتياطية كاملة",
+        payload: { export_type: "full_backup", format: "json" },
       });
       toast.success(`نسخة احتياطية: ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
         export_type: "full_backup", format: "json", tables: TABLES.map((t) => t.key), row_count: 0,
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
+        payload: { export_type: "full_backup", format: "json" },
       }).catch(() => {});
       toast.error("فشل النسخ الاحتياطي");
     } finally {
       setBusy(false);
     }
   };
+
+  function retryFromLog(l: any) {
+    const p = l?.payload;
+    if (!p) { toast.error("لا يمكن إعادة تشغيل هذه العملية"); return; }
+    if (!confirm("سيتم إعادة تشغيل العملية بنفس الإعدادات. متابعة؟")) return;
+    if (p.export_type === "full_backup") { void fullBackup(); return; }
+    if (Array.isArray(p.tables)) setSelected(new Set(p.tables));
+    if (p.format) setFormat(p.format);
+    if (typeof p.from === "string") setFrom(p.from);
+    if (typeof p.to === "string") setTo(p.to);
+    setTimeout(() => { void runExport(); }, 0);
+  }
+
+
 
   const stats = useMemo(() => {
     const success = logs.filter((l: any) => l.status === "success").length;
@@ -312,9 +354,17 @@ function ExportPage() {
                   {l.notes && <div className="text-muted-foreground text-[10px]">{l.notes}</div>}
                   <div className="text-muted-foreground nums text-[10px]">{new Date(l.created_at).toLocaleString("ar")}</div>
                 </div>
-                <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted shrink-0" aria-label="حذف">
-                  <Trash2 className="size-3.5 text-destructive" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {l.payload && (
+                    <button onClick={() => retryFromLog(l)} disabled={busy} className="p-1.5 rounded-md hover:bg-muted disabled:opacity-50" aria-label="إعادة المحاولة" title="إعادة المحاولة">
+                      <RefreshCw className="size-3.5 text-brand" />
+                    </button>
+                  )}
+                  <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </button>
+                </div>
+
               </li>
             ))}
           </ul>

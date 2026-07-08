@@ -654,6 +654,8 @@ function InvoiceDetailPage() {
                 <tbody className="divide-y divide-amber-100">
                   {editRows.map((row, i) => {
                     const err = rowErrors[row.id] ?? {};
+                    const max = maxAllowedFor(row);
+                    const over = max !== null && row.quantity > max;
                     return (
                     <tr key={row.id}>
                       <td className="p-2 align-top">{row.product_name}</td>
@@ -671,10 +673,39 @@ function InvoiceDetailPage() {
                             const msg = validateItemField("quantity", v);
                             setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: msg ?? undefined } }));
                           }}
-                          aria-invalid={!!err.quantity}
-                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity ? "border-destructive" : "border-input"}`}
+                          aria-invalid={!!err.quantity || over}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity || over ? "border-destructive" : "border-input"}`}
                         />
                         {err.quantity && <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>}
+                        {over && (
+                          <div className="mt-1 space-y-1">
+                            <div className="text-[11px] text-destructive font-semibold flex items-center gap-1">
+                              <AlertTriangle className="size-3" /> تتجاوز المتاح (الأقصى {max})
+                            </div>
+                            <input
+                              type="range"
+                              min={1}
+                              max={Math.max(1, max!)}
+                              value={Math.min(row.quantity, max!)}
+                              onChange={(e) => {
+                                const v = Number(e.target.value) || 1;
+                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
+                                setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: undefined } }));
+                              }}
+                              className="w-full accent-brand"
+                              aria-label="اختر كمية بديلة ضمن المتاح"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: max! } : r)));
+                              }}
+                              className="text-[11px] underline text-amber-900"
+                            >
+                              استخدم الحد الأقصى ({max})
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="p-2 align-top">
                         <input
@@ -709,18 +740,36 @@ function InvoiceDetailPage() {
                 <AlertTriangle className="size-4" /> يوجد قيم غير صالحة — صحّحها قبل الحفظ.
               </div>
             )}
+            {hasOverstock && (
+              <div className="mt-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="flex items-center gap-1 font-bold mb-1">
+                  <AlertTriangle className="size-4" /> لا يمكن الحفظ — كميات تتجاوز المخزون المتاح
+                </div>
+                <ul className="list-disc pr-5 space-y-0.5 text-xs">
+                  {overstockRows.map(({ row, max }) => (
+                    <li key={row.id}>
+                      <span className="font-semibold">{row.product_name}</span> — طُلب {row.quantity}، الأقصى المتاح {max}. استخدم المنزلقة أعلاه لاختيار كمية بديلة.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => { setEditMode(false); setRowErrors({}); }}
+                onClick={() => {
+                  setEditMode(false);
+                  setRowErrors({});
+                  setDraftRestored(false);
+                }}
                 className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
               >
                 إلغاء
               </button>
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending || hasFieldErrors}
+                disabled={saveMutation.isPending || hasFieldErrors || hasOverstock}
                 className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
+                title={hasOverstock ? "صحّح الكميات المتجاوزة للمخزون" : hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
               >
                 {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 حفظ التعديلات

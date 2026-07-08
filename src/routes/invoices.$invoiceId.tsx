@@ -404,6 +404,43 @@ function InvoiceDetailPage() {
     }),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const trimmed = reason.trim();
+      if (trimmed.length < 3) throw new Error("يرجى إدخال سبب واضح للإلغاء (3 أحرف على الأقل)");
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id ?? null;
+      const nowIso = new Date().toISOString();
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          status: "cancelled",
+          cancellation_reason: trimmed,
+          cancelled_at: nowIso,
+          cancelled_by: uid,
+        })
+        .eq("id", invoiceId);
+      if (error) throw error;
+      if (uid) {
+        await supabase.from("audit_logs").insert({
+          user_id: uid,
+          action: "invoice.cancelled",
+          table_name: "invoices",
+          record_id: invoiceId,
+          details: { reason: trimmed, invoice_number: data?.inv?.invoice_number },
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success("تم إلغاء الفاتورة");
+      setCancelOpen(false);
+      setCancelReason("");
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+    onError: (e) => handleError(e, "تعذّر إلغاء الفاتورة"),
+  });
+
 
   // Auto-open print dialog only ONCE per page visit; background refetches
   // must not retrigger window.print(). Wrapped in try/catch since some

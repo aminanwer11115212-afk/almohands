@@ -82,7 +82,7 @@ function ImportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: unknown }) => {
+    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       await supabase.from("import_logs").insert({ ...entry, user_id: u.user.id, source: "products", format: "xlsx" });

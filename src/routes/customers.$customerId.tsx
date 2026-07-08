@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown, Info } from "lucide-react";
+import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown, Info, MapPin } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
@@ -158,6 +158,9 @@ function CustomerLedgerPage() {
                 )}
                 {c.workshop && (
                   <span className="flex items-center gap-1"><Wrench className="size-3.5" />{c.workshop}</span>
+                )}
+                {(c as any).address && (
+                  <span className="flex items-center gap-1"><MapPin className="size-3.5" />{(c as any).address}</span>
                 )}
                 {Number(c.credit_limit) > 0 && (
                   <span>الحد الائتماني: <span className="nums font-bold">{formatSDG(Number(c.credit_limit))}</span></span>

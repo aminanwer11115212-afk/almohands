@@ -6,6 +6,7 @@ export interface Customer {
   name: string;
   phone: string | null;
   workshop: string | null;
+  address: string | null;
   creditLimit: number;
   balance: number;
   notes: string | null;
@@ -23,6 +24,7 @@ function toCustomer(row: any, agg?: { count: number; total: number; paid: number
     name: row.name,
     phone: row.phone,
     workshop: row.workshop,
+    address: row.address ?? null,
     creditLimit: Number(row.credit_limit),
     balance: Number(row.balance),
     notes: row.notes,
@@ -77,7 +79,7 @@ export function useCustomers(q: string) {
 export function useAddCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; phone?: string; workshop?: string; creditLimit?: number; notes?: string }) => {
+    mutationFn: async (input: { name: string; phone?: string; workshop?: string; address?: string; creditLimit?: number; notes?: string }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجل الدخول");
       const { error } = await supabase.from("customers").insert({
@@ -85,9 +87,39 @@ export function useAddCustomer() {
         name: input.name,
         phone: input.phone || null,
         workshop: input.workshop || null,
+        address: input.address || null,
         credit_limit: input.creditLimit ?? 0,
         notes: input.notes || null,
-      });
+      } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
+  });
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; name: string; phone?: string; workshop?: string; address?: string; creditLimit?: number; notes?: string }) => {
+      const { error } = await supabase.from("customers").update({
+        name: input.name,
+        phone: input.phone || null,
+        workshop: input.workshop || null,
+        address: input.address || null,
+        credit_limit: input.creditLimit ?? 0,
+        notes: input.notes || null,
+      } as never).eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("customers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),

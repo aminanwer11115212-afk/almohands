@@ -277,7 +277,9 @@ function CashierPage() {
             remaining,
             payment_method: paymentType,
             payment_method_id: paymentMethodId || null,
+            reference_number: paymentType === "bank" ? (referenceNumber.trim() || null) : null,
           })
+
           .select("id, invoice_number")
           .single();
         if (e1) throw e1;

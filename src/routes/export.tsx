@@ -90,7 +90,7 @@ function ExportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string }) => {
+    mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("no user");
       const { error } = await supabase.from("export_logs").insert({ ...entry, user_id: u.user.id });
@@ -106,6 +106,28 @@ function ExportPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["export_logs"] }),
   });
+
+  // Realtime notifications on export log inserts.
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid) return;
+      channel = supabase
+        .channel(`export_logs:${uid}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
+          const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
+          if (row.status === "success") toast.success(`تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`);
+          else toast.error(`فشل التصدير${row.error_message ? `: ${row.error_message}` : ""}`);
+          qc.invalidateQueries({ queryKey: ["export_logs"] });
+        })
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [qc]);
+
+
 
   const toggle = (k: TableKey) => {
     const s = new Set(selected);

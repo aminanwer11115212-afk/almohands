@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, Search, Truck, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, Truck, X, Loader2, Trash2, Package, Eye, StickyNote } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
-import { formatSDG } from "@/lib/format";
-import { usePurchases, useCreatePurchase, type PurchaseItemInput } from "@/hooks/use-purchases";
+import { formatSDG, formatNumber } from "@/lib/format";
+import { usePurchases, useCreatePurchase, usePurchase, type PurchaseItemInput } from "@/hooks/use-purchases";
 import { useSuppliers } from "@/hooks/use-suppliers";
 import { useProducts } from "@/hooks/use-products";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/purchases")({
   head: () => ({ meta: [{ title: "المشتريات — المهندس" }] }),

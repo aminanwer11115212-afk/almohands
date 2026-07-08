@@ -125,8 +125,26 @@ function SupplierStatementPage() {
           <Sc label="الرصيد للمورد" value={formatSDG(totals.remaining)} tone={totals.remaining > 0 ? "warn" : "ok"} />
         </section>
 
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900 flex items-start gap-2">
+          <Info className="size-3.5 shrink-0 mt-0.5" />
+          <span>الأسعار المعروضة في فواتير المشتريات محفوظة كما وقت الإدخال — أي تغيير في أسعار المنتجات لاحقًا لا يُطبَّق على الفواتير القديمة.</span>
+        </div>
+
+        <div className="rounded-xl bg-card border border-border p-3 shadow-card space-y-2">
+          <div className="grid sm:grid-cols-3 gap-2">
+            <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="من" />
+            <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="إلى" />
+            <div className="flex flex-wrap gap-1 text-xs">
+              {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as [QuickRange, string][]).map(([v, l]) => (
+                <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
           <div className="p-3 border-b border-border font-bold text-sm">فواتير المشتريات ({totals.count})</div>
+
           {data.purchases.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">لا توجد مشتريات من هذا المورد بعد</p>
           ) : (

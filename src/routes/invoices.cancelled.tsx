@@ -354,10 +354,24 @@ function CancelledInvoicesPage() {
                       </div>
                       <div className="rounded-md bg-muted/50 p-2">
                         <div className="font-semibold text-muted-foreground mb-0.5">ألغيت بواسطة</div>
-                        <div className="truncate">{actor}</div>
+                        <div className="truncate">{actor} {who && (adminIds.has(who) ? <span className="text-[10px] text-brand">(مدير)</span> : <span className="text-[10px] text-amber-700">(كاشير)</span>)}</div>
                         {r.cancelled_at && <div className="text-muted-foreground mt-0.5">{new Date(r.cancelled_at).toLocaleString("ar-EG")}</div>}
                       </div>
                     </div>
+                    {(() => {
+                      const ret = returnsByInvoice.get(r.id);
+                      if (!ret || ret.items.length === 0) return null;
+                      return (
+                        <div className="mt-2 rounded-md bg-emerald-50 border border-emerald-200 p-2 text-xs">
+                          <div className="font-bold text-emerald-800 mb-1">📦 عاد للمخزون ({ret.qty} قطعة)</div>
+                          <ul className="space-y-0.5 text-emerald-900">
+                            {ret.items.map((it) => (
+                              <li key={it.id}>• {it.product_name} × {it.quantity}{it.reason ? ` — ${it.reason}` : ""}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -365,10 +379,35 @@ function CancelledInvoicesPage() {
             <Pager page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} />
           </>
         )}
+
+        {showReturns && standaloneReturns.length > 0 && (
+          <section className="rounded-xl bg-card border border-border p-3 shadow-card">
+            <div className="font-bold text-sm mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs">إرجاع جزئي</span>
+              <span>مرتجعات مقبولة على فواتير غير ملغاة ({standaloneReturns.length})</span>
+            </div>
+            <ul className="divide-y divide-border text-xs">
+              {standaloneReturns.slice(0, 50).map((it) => (
+                <li key={it.id} className="py-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{it.product_name} × {it.quantity}</div>
+                    <div className="text-muted-foreground text-[11px]">{new Date(it.created_at).toLocaleString("ar-EG")}{it.reason ? ` — ${it.reason}` : ""}</div>
+                  </div>
+                  {it.invoice_id && (
+                    <Link to="/invoices/$invoiceId" params={{ invoiceId: it.invoice_id }} search={{ autoprint: 0 }} className="text-xs text-brand inline-flex items-center gap-1 shrink-0">
+                      <Eye className="size-3" /> فتح الفاتورة
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </AppShell>
   );
 }
+
 
 function Pager({ page, totalPages, total, onChange }: { page: number; totalPages: number; total: number; onChange: (p: number) => void }) {
   if (totalPages <= 1) return null;

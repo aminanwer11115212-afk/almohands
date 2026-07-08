@@ -44,6 +44,7 @@ function AuditCancellationsPage() {
   const [users, setUsers] = useState<Map<string, string>>(new Map());
   const [cashier, setCashier] = useState("");
   const [reason, setReason] = useState("");
+  const [party, setParty] = useState(""); // customer or supplier name filter
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [quick, setQuick] = useState<QuickRange>("");
@@ -70,6 +71,22 @@ function AuditCancellationsPage() {
     },
   });
 
+  // Fetch invoice→customer map for filtering by customer/supplier name
+  const invoiceIds = useMemo(() => rows.map((r) => r.record_id).filter(Boolean) as string[], [rows]);
+  const { data: invMap = new Map<string, string>() } = useQuery({
+    queryKey: ["audit-cancellations-invoices", invoiceIds.slice(0, 200).join(",")],
+    enabled: invoiceIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("invoices")
+        .select("id, customer_name")
+        .in("id", invoiceIds);
+      const m = new Map<string, string>();
+      (data ?? []).forEach((r: { id: string; customer_name: string | null }) => m.set(r.id, r.customer_name ?? ""));
+      return m;
+    },
+  });
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.rpc("admin_list_users");
@@ -79,19 +96,24 @@ function AuditCancellationsPage() {
     })();
   }, []);
 
-  useEffect(() => { setPage(1); }, [cashier, reason, from, to, quick]);
+  useEffect(() => { setPage(1); }, [cashier, reason, party, from, to, quick]);
 
   const cashiers = useMemo(() => Array.from(new Set(rows.map((r) => r.user_id))), [rows]);
 
   const filtered = useMemo(() => {
     const rs = reason.trim().toLowerCase();
+    const ps = party.trim().toLowerCase();
     return rows.filter((r) => {
       if (cashier && r.user_id !== cashier) return false;
       const rsn = String(r.details?.reason ?? "").toLowerCase();
       if (rs && !rsn.includes(rs)) return false;
+      if (ps) {
+        const cname = String(invMap.get(r.record_id ?? "") ?? r.details?.customer_name ?? "").toLowerCase();
+        if (!cname.includes(ps)) return false;
+      }
       return true;
     });
-  }, [rows, cashier, reason]);
+  }, [rows, cashier, reason, party, invMap]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);

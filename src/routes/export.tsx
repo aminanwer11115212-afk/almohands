@@ -301,6 +301,19 @@ function ExportPage() {
           </div>
         </div>
 
+        {format === "csv" && selected.has("products") && (
+          <label className="mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs cursor-pointer bg-brand/5 border-brand/20">
+            <input type="checkbox" checked={standardHeaders} onChange={(e) => setStandardHeaders(e.target.checked)} className="size-4 mt-0.5" />
+            <span>
+              <span className="font-bold block">استخدم أسماء الأعمدة المعيارية (متوافق مع الاستيراد)</span>
+              <span className="text-muted-foreground">
+                يستبدل أسماء الأعمدة الإنجليزية بالعربية (الاسم، الباركود، سعر الشراء، سعر البيع…) لتتمكّن من إعادة استيراد نفس الملف مباشرةً.
+              </span>
+            </span>
+          </label>
+        )}
+
+
         <button onClick={runExport} disabled={busy}
           className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-brand text-brand-foreground px-3 py-2.5 text-sm font-bold disabled:opacity-60">
           {format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />}

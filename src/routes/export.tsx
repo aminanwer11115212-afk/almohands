@@ -39,9 +39,19 @@ const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
   },
 };
 
+/** Auto/technical columns pushed to the end when ordering exported rows. */
+const AUTO_COLS_LAST = ["id", "user_id", "created_at", "updated_at"];
+
+/** Reorder columns: business fields first (as declared in the row), then auto/tech columns at the end. */
+function orderCols(cols: string[]): string[] {
+  const business = cols.filter((c) => !AUTO_COLS_LAST.includes(c));
+  const tail = AUTO_COLS_LAST.filter((c) => cols.includes(c));
+  return [...business, ...tail];
+}
+
 function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, string>): string {
   if (rows.length === 0) return "";
-  const cols = headerMap ? Object.keys(headerMap) : Object.keys(rows[0]);
+  const cols = headerMap ? Object.keys(headerMap) : orderCols(Object.keys(rows[0]));
   const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";

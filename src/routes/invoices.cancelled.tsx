@@ -105,6 +105,24 @@ function CancelledInvoicesPage() {
     },
   });
 
+  // Fetch invoice items for cancelled invoices to reconcile sold vs returned qty
+  const cancelledIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const { data: itemsByInvoice = new Map<string, number>() } = useQuery({
+    queryKey: ["invoices-cancelled-items", cancelledIds.slice(0, 300).join(",")],
+    enabled: cancelledIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("invoice_items")
+        .select("invoice_id, quantity")
+        .in("invoice_id", cancelledIds);
+      const m = new Map<string, number>();
+      (data ?? []).forEach((it: { invoice_id: string; quantity: number }) => {
+        m.set(it.invoice_id, (m.get(it.invoice_id) ?? 0) + Number(it.quantity || 0));
+      });
+      return m;
+    },
+  });
+
   useEffect(() => {
     (async () => {
       const [{ data: usersList }, { data: roles }] = await Promise.all([

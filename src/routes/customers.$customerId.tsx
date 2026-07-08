@@ -159,6 +159,9 @@ function CustomerLedgerPage() {
                 {c.workshop && (
                   <span className="flex items-center gap-1"><Wrench className="size-3.5" />{c.workshop}</span>
                 )}
+                {(c as any).address && (
+                  <span className="flex items-center gap-1"><MapPin className="size-3.5" />{(c as any).address}</span>
+                )}
                 {Number(c.credit_limit) > 0 && (
                   <span>الحد الائتماني: <span className="nums font-bold">{formatSDG(Number(c.credit_limit))}</span></span>
                 )}

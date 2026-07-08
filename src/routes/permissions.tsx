@@ -24,7 +24,8 @@ export const Route = createFileRoute("/permissions")({
 });
 
 type AppRole = "admin" | "seller" | "accountant" | "warehouse";
-const ROLES: AppRole[] = ["admin", "seller", "accountant", "warehouse"];
+const ROLES: AppRole[] = ["admin", "seller"]; // only two roles are actively assignable
+
 
 function PermissionsPage() {
   const { isChecking, isAdmin } = useRequireAdmin("/");

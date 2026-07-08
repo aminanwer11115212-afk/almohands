@@ -85,6 +85,7 @@ export type Database = {
       }
       expenses: {
         Row: {
+          account_id: string | null
           amount: number
           created_at: string
           date: string
@@ -95,6 +96,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_id?: string | null
           amount?: number
           created_at?: string
           date?: string
@@ -105,6 +107,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_id?: string | null
           amount?: number
           created_at?: string
           date?: string
@@ -114,7 +117,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expenses_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "account_balances"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "expenses_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       export_logs: {
         Row: {
@@ -279,6 +297,13 @@ export type Database = {
             foreignKeyName: "invoices_payment_method_id_fkey"
             columns: ["payment_method_id"]
             isOneToOne: false
+            referencedRelation: "account_balances"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "invoices_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
             referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
@@ -337,6 +362,7 @@ export type Database = {
           is_default: boolean
           name: string
           notes: string | null
+          opening_balance: number
           type: string
           updated_at: string
           user_id: string
@@ -352,6 +378,7 @@ export type Database = {
           is_default?: boolean
           name: string
           notes?: string | null
+          opening_balance?: number
           type: string
           updated_at?: string
           user_id: string
@@ -367,6 +394,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           notes?: string | null
+          opening_balance?: number
           type?: string
           updated_at?: string
           user_id?: string
@@ -375,6 +403,7 @@ export type Database = {
       }
       payments: {
         Row: {
+          account_id: string | null
           amount: number
           created_at: string
           id: string
@@ -387,6 +416,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_id?: string | null
           amount?: number
           created_at?: string
           id?: string
@@ -399,6 +429,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_id?: string | null
           amount?: number
           created_at?: string
           id?: string
@@ -411,6 +442,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "account_balances"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "payments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_purchase_id_fkey"
             columns: ["purchase_id"]
@@ -805,7 +850,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      account_balances: {
+        Row: {
+          account_id: string | null
+          balance: number | null
+          bank_name: string | null
+          incoming: number | null
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string | null
+          opening_balance: number | null
+          outgoing_expense: number | null
+          outgoing_supplier: number | null
+          type: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       __test_count_null_auth_tokens: { Args: never; Returns: number }

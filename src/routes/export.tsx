@@ -175,7 +175,8 @@ function ExportPage() {
           const rows = await fetchTable(key, from, to);
           total += rows.length;
           if (format === "csv") {
-            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[]));
+            const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
+            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], headerMap));
           } else {
             download(`${key}-${Date.now()}.json`, toJSON(rows), "application/json");
           }

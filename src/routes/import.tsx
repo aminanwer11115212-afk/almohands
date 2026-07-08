@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useMemo } from "react";
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History } from "lucide-react";
 import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
@@ -8,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
 import { logger, newRequestId } from "@/lib/logger";
+import { formatNumber } from "@/lib/format";
+
 
 export const Route = createFileRoute("/import")({
   head: () => ({ meta: [{ title: "استيراد إكسل — المهندس" }] }),
@@ -53,6 +56,7 @@ type ParsedRow = {
 };
 
 function ImportPage() {
+  const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -61,6 +65,36 @@ function ImportPage() {
 
   const validRows = useMemo(() => rows.filter((r) => !r._error), [rows]);
   const invalidRows = useMemo(() => rows.filter((r) => r._error), [rows]);
+
+  const { data: importLogs = [] } = useQuery({
+    queryKey: ["import_logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("import_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const logMut = useMutation({
+    mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string }) => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      await supabase.from("import_logs").insert({ ...entry, user_id: u.user.id, source: "products", format: "xlsx" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["import_logs"] }),
+  });
+
+  const deleteLog = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("import_logs").delete().eq("id", id);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["import_logs"] }),
+  });
+
 
   /** Preview sale price after applying the % increase. */
   const bumpedPrice = (base: number) => {
@@ -166,6 +200,7 @@ function ImportPage() {
       return;
     }
     setBusy(true);
+    const started = Date.now();
     const reqId = newRequestId("imp");
     logger.info("import_start", { context: { reqId, rows: validRows.length, pricePct } });
     try {
@@ -188,7 +223,6 @@ function ImportPage() {
         is_active: true,
       }));
 
-      // Batch in chunks of 200 to avoid payload-too-large.
       const CHUNK = 200;
       let inserted = 0;
       for (let i = 0; i < payload.length; i += CHUNK) {
@@ -198,11 +232,30 @@ function ImportPage() {
         inserted += chunk.length;
       }
 
+      await logMut.mutateAsync({
+        file_name: fileName,
+        total_rows: rows.length,
+        imported_rows: inserted,
+        invalid_rows: invalidRows.length,
+        status: "success",
+        duration_ms: Date.now() - started,
+        notes: pricePct !== 0 ? `زيادة سعر ${pricePct}%` : undefined,
+      }).catch(() => {});
+
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
       logger.info("import_success", { context: { reqId, inserted } });
       setRows([]);
       setFileName("");
-    } catch (e) {
+    } catch (e: any) {
+      await logMut.mutateAsync({
+        file_name: fileName,
+        total_rows: rows.length,
+        imported_rows: 0,
+        invalid_rows: invalidRows.length,
+        status: "failed",
+        error_message: e?.message || "unknown",
+        duration_ms: Date.now() - started,
+      }).catch(() => {});
       handleError(e, "تعذّر إتمام الاستيراد", {
         event: "import_failed",
         context: { reqId, rows: validRows.length },
@@ -212,6 +265,7 @@ function ImportPage() {
       setBusy(false);
     }
   }
+
 
   return (
     <AppShell title="استيراد المنتجات من إكسل" subtitle="نموذج جاهز · معاينة · زيادة سعر بالنسبة" showBack>
@@ -375,6 +429,50 @@ function ImportPage() {
           </section>
         </>
       )}
+
+      {/* Import history log */}
+      <hr className="my-6 border-border" />
+      <section className="rounded-2xl bg-card shadow-card border border-border p-5">
+        <h2 className="text-base font-extrabold flex items-center gap-2">
+          <History className="size-4 text-brand" /> سجل عمليات الاستيراد
+        </h2>
+        {importLogs.length === 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground text-center py-4">لا توجد عمليات استيراد بعد</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {importLogs.map((l: any) => (
+              <li key={l.id} className="flex items-start justify-between rounded-lg border p-2.5 text-xs gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 font-bold">
+                    {l.status === "success"
+                      ? <CheckCircle2 className="size-3.5 text-emerald-600" />
+                      : <XCircle className="size-3.5 text-rose-600" />}
+                    <span>{l.file_name || "استيراد منتجات"}</span>
+                    {l.duration_ms != null && (
+                      <span className="ms-auto text-muted-foreground font-normal flex items-center gap-0.5">
+                        <Clock className="size-3" />{formatNumber(l.duration_ms)}ms
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground nums mt-0.5">
+                    مُستورد {formatNumber(l.imported_rows)} / {formatNumber(l.total_rows)}
+                    {l.invalid_rows > 0 && ` · تخطي ${formatNumber(l.invalid_rows)}`}
+                  </div>
+                  {l.error_message && <div className="text-rose-600 truncate mt-0.5">خطأ: {l.error_message}</div>}
+                  {l.notes && <div className="text-muted-foreground text-[10px] mt-0.5">{l.notes}</div>}
+                  <div className="text-muted-foreground nums text-[10px] mt-0.5">
+                    {new Date(l.created_at).toLocaleString("ar")}
+                  </div>
+                </div>
+                <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted shrink-0" aria-label="حذف">
+                  <Trash2 className="size-3.5 text-destructive" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </AppShell>
+
   );
 }

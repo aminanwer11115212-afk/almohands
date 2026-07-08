@@ -6,7 +6,9 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { toast } from "sonner";
-import { Loader2, TrendingUp, TrendingDown, Calculator, AlertTriangle } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Calculator, AlertTriangle, Search, Package, ChevronLeft, ChevronRight, Radio } from "lucide-react";
+import { useEffect } from "react";
+
 
 export const Route = createFileRoute("/prices")({
   head: () => ({ meta: [{ title: "تعديل الأسعار — المهندس" }] }),
@@ -290,6 +292,9 @@ function PricesPage() {
         </div>
       </div>
 
+      {/* Current prices list */}
+      <CurrentPricesList allProducts={products} allCategories={categories} loading={isLoading} />
+
       {/* Confirmation dialog */}
       {confirm && preview && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
@@ -331,6 +336,134 @@ function PricesPage() {
     </AppShell>
   );
 }
+
+const LIST_PAGE_SIZE = 20;
+
+function CurrentPricesList({ allProducts, allCategories, loading }: { allProducts: MiniProduct[]; allCategories: string[]; loading: boolean }) {
+  const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("__all__");
+  const [sort, setSort] = useState<"name" | "sale_desc" | "sale_asc" | "margin_desc">("name");
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [q, cat, sort]);
+
+  // Realtime updates for products
+  useEffect(() => {
+    const ch = supabase
+      .channel("prices-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        qc.invalidateQueries({ queryKey: ["prices-products"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [qc]);
+
+  const filtered = useMemo(() => {
+    let list = allProducts;
+    if (cat !== "__all__") list = list.filter((p) => (p.category ?? "").trim() === cat);
+    if (q.trim()) {
+      const s = q.toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(s));
+    }
+    const arr = [...list];
+    if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+    else if (sort === "sale_desc") arr.sort((a, b) => Number(b.sale_price) - Number(a.sale_price));
+    else if (sort === "sale_asc") arr.sort((a, b) => Number(a.sale_price) - Number(b.sale_price));
+    else if (sort === "margin_desc") arr.sort((a, b) => (Number(b.sale_price) - Number(b.cost_price)) - (Number(a.sale_price) - Number(a.cost_price)));
+    return arr;
+  }, [allProducts, cat, q, sort]);
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / LIST_PAGE_SIZE));
+  const pageRows = filtered.slice(page * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE + LIST_PAGE_SIZE);
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border bg-muted/50 flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-bold text-sm flex items-center gap-2">
+          <Package className="size-4 text-brand" /> الأسعار الحالية ({formatNumber(total)})
+        </h3>
+        <span className="text-[11px] flex items-center gap-1 text-emerald-600">
+          <Radio className="size-3 animate-pulse" /> فوري
+        </span>
+      </div>
+
+      <div className="p-3 space-y-2 border-b border-border">
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث باسم المنتج"
+            className="w-full h-10 rounded-lg border border-border bg-background pr-9 pl-3 text-sm outline-none focus:border-brand" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select value={cat} onChange={(e) => setCat(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm">
+            <option value="__all__">كل التصنيفات</option>
+            {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm">
+            <option value="name">ترتيب: الاسم</option>
+            <option value="sale_desc">الأعلى سعراً</option>
+            <option value="sale_asc">الأقل سعراً</option>
+            <option value="margin_desc">الأعلى هامشاً</option>
+          </select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-10 grid place-items-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+      ) : pageRows.length === 0 ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">لا توجد نتائج</div>
+      ) : (
+        <div className="max-h-[520px] overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-card border-b border-border text-xs">
+              <tr>
+                <th className="text-right p-2 font-bold">المنتج</th>
+                <th className="text-center p-2 font-bold w-24">التكلفة</th>
+                <th className="text-center p-2 font-bold w-24">البيع</th>
+                <th className="text-center p-2 font-bold w-24">الربح</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {pageRows.map((p) => {
+                const margin = Number(p.sale_price) - Number(p.cost_price);
+                const marginPct = Number(p.cost_price) > 0 ? (margin / Number(p.cost_price)) * 100 : 0;
+                return (
+                  <tr key={p.id}>
+                    <td className="p-2">
+                      <div className="truncate max-w-[200px]">{p.name}</div>
+                      {p.category && <div className="text-[10px] text-muted-foreground">{p.category}</div>}
+                    </td>
+                    <td className="p-2 text-center nums text-muted-foreground">{formatSDG(Number(p.cost_price))}</td>
+                    <td className="p-2 text-center nums font-bold">{formatSDG(Number(p.sale_price))}</td>
+                    <td className={`p-2 text-center nums text-xs ${margin >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {formatSDG(margin)}
+                      <div className="text-[10px] opacity-70">{marginPct.toFixed(0)}%</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="p-3 flex items-center justify-between gap-2 border-t border-border">
+        <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
+          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40">
+          <ChevronRight className="size-3.5" /> السابق
+        </button>
+        <span className="text-xs text-muted-foreground nums">صفحة {page + 1} من {totalPages}</span>
+        <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
+          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40">
+          التالي <ChevronLeft className="size-3.5" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+
 
 function Pill({
   active,

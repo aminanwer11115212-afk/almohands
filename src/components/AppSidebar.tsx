@@ -18,6 +18,8 @@ import {
   Settings,
   CreditCard,
   UserCircle2,
+  Activity,
+
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";

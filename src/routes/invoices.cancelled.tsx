@@ -37,9 +37,11 @@ type SortKey = "cancelled_at" | "invoice_number" | "total" | "customer_name";
 
 function CancelledInvoicesPage() {
   const [users, setUsers] = useState<Map<string, string>>(new Map());
+  const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState<string>("");
+  const [onlyCashier, setOnlyCashier] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("cancelled_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 

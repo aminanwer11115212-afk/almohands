@@ -1,5 +1,7 @@
 import { toast } from "sonner";
 import { ZodError } from "zod";
+import { logger, newRequestId } from "@/lib/logger";
+
 
 /**
  * Extract a user-friendly Arabic error message from any thrown value.

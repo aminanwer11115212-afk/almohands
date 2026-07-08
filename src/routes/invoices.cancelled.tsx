@@ -106,7 +106,7 @@ function CancelledInvoicesPage() {
       return String(va).localeCompare(String(vb), "ar") * dir;
     });
     return out;
-  }, [rows, search, reasonFilter, cashierFilter, sortKey, sortDir]);
+  }, [rows, search, reasonFilter, cashierFilter, onlyCashier, adminIds, sortKey, sortDir]);
 
   function buildExportRows() {
     return filtered.map((r) => ({

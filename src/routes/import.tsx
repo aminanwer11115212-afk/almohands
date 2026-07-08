@@ -257,6 +257,8 @@ function ImportPage() {
         inserted += chunk.length;
       }
 
+      const retryPayload = { rows: validRows, pricePct, fileName };
+
       await logMut.mutateAsync({
         file_name: fileName,
         total_rows: rows.length,
@@ -265,6 +267,7 @@ function ImportPage() {
         status: "success",
         duration_ms: Date.now() - started,
         notes: pricePct !== 0 ? `زيادة سعر ${pricePct}%` : undefined,
+        payload: retryPayload,
       }).catch(() => {});
 
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
@@ -280,7 +283,9 @@ function ImportPage() {
         status: "failed",
         error_message: e?.message || "unknown",
         duration_ms: Date.now() - started,
+        payload: { rows: validRows, pricePct, fileName },
       }).catch(() => {});
+
       handleError(e, "تعذّر إتمام الاستيراد", {
         event: "import_failed",
         context: { reqId, rows: validRows.length },

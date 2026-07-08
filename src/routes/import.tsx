@@ -296,6 +296,19 @@ function ImportPage() {
     }
   }
 
+  function retryFromLog(l: any) {
+    const p = l?.payload;
+    if (!p || !Array.isArray(p.rows) || p.rows.length === 0) {
+      toast.error("لا يمكن إعادة تشغيل هذه العملية — لا توجد بيانات محفوظة");
+      return;
+    }
+    if (!confirm(`سيتم إعادة تشغيل استيراد ${p.rows.length} صف من الملف "${p.fileName || "?"}" بنفس الإعدادات. متابعة؟`)) return;
+    setRows(p.rows);
+    setPricePct(Number(p.pricePct) || 0);
+    setFileName(String(p.fileName || ""));
+    setTimeout(() => { void commitImport(); }, 0);
+  }
+
 
   return (
     <AppShell title="استيراد المنتجات من إكسل" subtitle="نموذج جاهز · معاينة · زيادة سعر بالنسبة" showBack>

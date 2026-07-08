@@ -79,9 +79,9 @@ function makeSupabase(db: DB, hooks: {
   };
 }
 
-const UUID_INV = "11111111-1111-1111-1111-111111111111";
-const UUID_ITEM = "22222222-2222-2222-2222-222222222222";
-const UUID_PROD = "33333333-3333-3333-3333-333333333333";
+const UUID_INV = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d";
+const UUID_ITEM = "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e";
+const UUID_PROD = "c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f";
 
 function seed(overrides: { stock?: number; origQty?: number; unitPrice?: number; paid?: number } = {}) {
   const stock = overrides.stock ?? 10;

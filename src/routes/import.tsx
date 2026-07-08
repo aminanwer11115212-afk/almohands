@@ -265,6 +265,19 @@ function ImportPage() {
         payload: retryPayload,
       }).catch(() => {});
 
+      // Audit log for later review
+      await supabase.from("audit_logs").insert({
+        user_id: uid,
+        action: "data.import",
+        table_name: "products",
+        details: {
+          req_id: reqId, file_name: fileName, imported: inserted,
+          invalid: invalidRows.length, total: rows.length,
+          mapping, price_pct: pricePct, duration_ms: Date.now() - started,
+        },
+      }).then(() => undefined, () => undefined);
+
+
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
       logger.info("import_success", { context: { reqId, inserted } });
       clearAll();

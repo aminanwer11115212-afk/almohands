@@ -61,7 +61,12 @@ function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, strin
   return [headers.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
-function toJSON(rows: unknown[]): string { return JSON.stringify(rows, null, 2); }
+function toJSON(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return "[]";
+  const cols = orderCols(Object.keys(rows[0]));
+  const ordered = rows.map((r) => Object.fromEntries(cols.map((c) => [c, r[c]])));
+  return JSON.stringify(ordered, null, 2);
+}
 
 function download(filename: string, content: string | Blob, mime = "text/csv;charset=utf-8") {
   const blob = content instanceof Blob ? content : new Blob(["\ufeff" + content], { type: mime });

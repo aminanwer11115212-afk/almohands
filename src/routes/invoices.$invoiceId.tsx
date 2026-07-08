@@ -1081,7 +1081,9 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
           {paymentMethod.account_holder && <div>الحساب باسم: {paymentMethod.account_holder}</div>}
           {paymentMethod.account_number && <div dir="ltr" className="text-right nums">Acc: {paymentMethod.account_number}</div>}
           {paymentMethod.iban && <div dir="ltr" className="text-right nums">IBAN: {paymentMethod.iban}</div>}
+          {inv.reference_number && <div className="font-bold">رقم العملية: <span className="nums">{inv.reference_number}</span></div>}
         </div>
+
       )}
 
       {invoiceFooter && (

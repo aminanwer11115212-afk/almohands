@@ -139,7 +139,7 @@ function ImportPage() {
       uid = data.user?.id ?? null;
       if (!uid) return;
       channel = supabase
-        .channel(`import_logs:${uid}`)
+        .channel(`import_logs:${uid}:${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "import_logs", filter: `user_id=eq.${uid}` }, (p) => {
           const row = p.new as { status: string; imported_rows: number; file_name: string | null; error_message: string | null };
           if (row.status === "success") toast.success(`استيراد ناجح: ${row.imported_rows} صف${row.file_name ? ` — ${row.file_name}` : ""}`);

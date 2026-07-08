@@ -39,9 +39,19 @@ const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
   },
 };
 
+/** Auto/technical columns pushed to the end when ordering exported rows. */
+const AUTO_COLS_LAST = ["id", "user_id", "created_at", "updated_at"];
+
+/** Reorder columns: business fields first (as declared in the row), then auto/tech columns at the end. */
+function orderCols(cols: string[]): string[] {
+  const business = cols.filter((c) => !AUTO_COLS_LAST.includes(c));
+  const tail = AUTO_COLS_LAST.filter((c) => cols.includes(c));
+  return [...business, ...tail];
+}
+
 function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, string>): string {
   if (rows.length === 0) return "";
-  const cols = headerMap ? Object.keys(headerMap) : Object.keys(rows[0]);
+  const cols = headerMap ? Object.keys(headerMap) : orderCols(Object.keys(rows[0]));
   const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";
@@ -51,7 +61,12 @@ function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, strin
   return [headers.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
-function toJSON(rows: unknown[]): string { return JSON.stringify(rows, null, 2); }
+function toJSON(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return "[]";
+  const cols = orderCols(Object.keys(rows[0]));
+  const ordered = rows.map((r) => Object.fromEntries(cols.map((c) => [c, r[c]])));
+  return JSON.stringify(ordered, null, 2);
+}
 
 function download(filename: string, content: string | Blob, mime = "text/csv;charset=utf-8") {
   const blob = content instanceof Blob ? content : new Blob(["\ufeff" + content], { type: mime });
@@ -126,7 +141,7 @@ function ExportPage() {
       const uid = data.user?.id;
       if (!uid) return;
       channel = supabase
-        .channel(`export_logs:${uid}`)
+        .channel(`export_logs:${uid}:${crypto.randomUUID()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
           const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
           if (row.status === "success") toast.success(`تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`);
@@ -165,7 +180,7 @@ function ExportPage() {
           doc.setFontSize(14);
           doc.text(key, 14, 15);
           if (rows.length > 0) {
-            const headers = Object.keys(rows[0]);
+            const headers = orderCols(Object.keys(rows[0]));
             autoTable(doc, { startY: 20, head: [headers], body: rows.map((r) => headers.map((h) => String(r[h] ?? ""))), styles: { fontSize: 7 } });
           }
         }
@@ -178,7 +193,7 @@ function ExportPage() {
             const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
             download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], headerMap));
           } else {
-            download(`${key}-${Date.now()}.json`, toJSON(rows), "application/json");
+            download(`${key}-${Date.now()}.json`, toJSON(rows as Record<string, unknown>[]), "application/json");
           }
         }
       }

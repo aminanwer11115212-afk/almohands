@@ -84,18 +84,19 @@ function ActivityLogPage() {
 
   // Realtime for all three streams
   useEffect(() => {
-    let uid: string | null = null;
+    let cancelled = false;
     const channels: ReturnType<typeof supabase.channel>[] = [];
     (async () => {
       const { data } = await supabase.auth.getUser();
-      uid = data.user?.id ?? null;
-      if (!uid) return;
+      const uid = data.user?.id ?? null;
+      if (!uid || cancelled) return;
       const configs: Array<{ table: "import_logs" | "export_logs" | "price_history"; key: string; label: string }> = [
         { table: "import_logs", key: "import", label: "استيراد" },
         { table: "export_logs", key: "export", label: "تصدير" },
         { table: "price_history", key: "price", label: "تغيير سعر" },
       ];
       for (const c of configs) {
+        if (cancelled) return;
         const ch = supabase
           .channel(`activity:${c.table}:${uid}:${crypto.randomUUID()}`)
           .on("postgres_changes", { event: "INSERT", schema: "public", table: c.table, filter: `user_id=eq.${uid}` }, (p) => {
@@ -107,10 +108,11 @@ function ActivityLogPage() {
             qc.invalidateQueries({ queryKey: ["activity", c.key] });
           })
           .subscribe();
+        if (cancelled) { supabase.removeChannel(ch); return; }
         channels.push(ch);
       }
     })();
-    return () => { channels.forEach((c) => supabase.removeChannel(c)); };
+    return () => { cancelled = true; channels.forEach((c) => supabase.removeChannel(c)); };
   }, [qc]);
 
   const importRows = useMemo(() => (imports.data?.pages ?? []).flatMap((p) => p.rows), [imports.data]);

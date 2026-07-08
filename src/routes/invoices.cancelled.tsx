@@ -92,6 +92,10 @@ function CancelledInvoicesPage() {
       }
       if (rs && !(r.cancellation_reason ?? "").toLowerCase().includes(rs)) return false;
       if (cashierFilter && (r.cancelled_by || r.user_id) !== cashierFilter) return false;
+      if (onlyCashier) {
+        const who = r.cancelled_by || r.user_id;
+        if (!who || adminIds.has(who)) return false;
+      }
       return true;
     });
     out = [...out].sort((a, b) => {

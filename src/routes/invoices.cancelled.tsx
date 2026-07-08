@@ -235,13 +235,16 @@ function CancelledInvoicesPage() {
           <div className="space-y-2">
             {filtered.map((r) => {
               const actor = r.cancelled_by ? users.get(r.cancelled_by) ?? "غير معروف" : "—";
+              const who = r.cancelled_by || r.user_id;
+              const byCashier = who ? !adminIds.has(who) : false;
               return (
                 <div key={r.id} className="rounded-xl bg-card border border-border p-3 shadow-card">
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold">فاتورة #{r.invoice_number}</span>
                         <span className="text-xs rounded-full bg-red-100 text-red-700 px-2 py-0.5">ملغاة</span>
+                        {byCashier && <span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">بواسطة كاشير</span>}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {r.customer_name || "بدون عميل"} · {new Date(r.created_at).toLocaleString("ar-EG")}

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useState } from "react";
-import { ShieldCheck, ScrollText, Users, Plus, Trash2, UserPlus } from "lucide-react";
+import { ShieldCheck, ScrollText, Users, Plus, Trash2, UserPlus, Check, X, Eye, EyeOff } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMyRoles, useAuditLogs, ROLE_LABELS } from "@/hooks/use-permissions";
+import { useMyRoles, useAuditLogs, ROLE_LABELS, can, type Permission, type AppRole as AppRoleType } from "@/hooks/use-permissions";
 import { useRequireAdmin } from "@/hooks/use-require-admin";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -76,8 +76,9 @@ function PermissionsPage() {
               <li><strong>مدير:</strong> صلاحية كاملة على النظام — منتجات، فواتير، حسابات، تقارير، إدارة الموظفين.</li>
               <li><strong>كاشير:</strong> بيع من نقطة البيع فقط — يستطيع إنشاء فواتير جديدة وعرض قائمة الفواتير، لكن <span className="text-destructive font-bold">لا يستطيع تعديل أو حذف فواتير</span>، ولا الوصول للتقارير/الحسابات/المنتجات كتابياً. يصلك تنبيه فوري عند أي فاتورة كاشير خاصة عند عدم تحديد عميل.</li>
             </ul>
-
           </div>
+
+          <RoleImpactMatrix />
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
@@ -253,3 +254,81 @@ function AdminUsersPanel() {
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------
+ * Role impact matrix: shows exactly which UI actions/pages each role
+ * unlocks so the admin can see the effect of assigning a role at a glance.
+ * ---------------------------------------------------------------------- */
+
+const IMPACT_ROWS: { perm: Permission; label: string; where: string }[] = [
+  { perm: "cashier.use",        label: "الوصول إلى نقطة البيع",           where: "صفحة الكاشير · زر «بيع جديد»" },
+  { perm: "products.view",      label: "عرض المنتجات والأسعار",           where: "صفحة المنتجات · قوائم الأسعار" },
+  { perm: "products.write",     label: "إضافة/تعديل/حذف منتج",            where: "أزرار «منتج جديد» · تعديل السعر بالجملة" },
+  { perm: "invoices.view",      label: "عرض قائمة الفواتير",              where: "صفحة الفواتير" },
+  { perm: "invoices.write",     label: "تعديل أو حذف فاتورة موجودة",      where: "أزرار «تعديل» و«حذف» داخل الفاتورة" },
+  { perm: "customers.view",     label: "عرض العملاء",                     where: "صفحة العملاء" },
+  { perm: "customers.write",    label: "إضافة/تعديل عميل",                where: "زر «عميل جديد» · تعديل بيانات" },
+  { perm: "suppliers.view",     label: "عرض الموردين",                    where: "صفحة الموردين" },
+  { perm: "suppliers.write",    label: "إدارة الموردين",                  where: "أزرار الإضافة/التعديل/الحذف" },
+  { perm: "expenses.view",      label: "عرض المصروفات",                   where: "صفحة المصروفات" },
+  { perm: "expenses.write",     label: "إضافة/حذف مصروف",                 where: "زر «مصروف جديد»" },
+  { perm: "payment_methods.view",  label: "عرض طرق الدفع",                where: "صفحة طرق الدفع" },
+  { perm: "payment_methods.write", label: "إدارة طرق الدفع/الحسابات",     where: "أزرار الإضافة والتعديل" },
+  { perm: "returns.view",       label: "عرض المرتجعات",                   where: "صفحة المرتجعات" },
+  { perm: "returns.write",      label: "قبول/رفض مرتجع",                  where: "أزرار الإجراءات على المرتجع" },
+  { perm: "reports.view",       label: "عرض التقارير وسجل النشاط",        where: "صفحة التقارير · سجل النشاط" },
+  { perm: "accounts.view",      label: "عرض ملخص الحسابات",               where: "صفحة الحسابات" },
+  { perm: "settings.write",     label: "تعديل إعدادات المتجر",            where: "صفحة الإعدادات" },
+  { perm: "permissions.manage", label: "إدارة الأدوار والموظفين",         where: "هذه الصفحة" },
+  { perm: "import_export",      label: "استيراد/تصدير البيانات",          where: "صفحتا الاستيراد والتصدير" },
+];
+
+const IMPACT_ROLES: AppRoleType[] = ["admin", "seller"];
+
+function RoleImpactMatrix() {
+  return (
+    <div className="rounded-xl border bg-card p-4 mt-4 space-y-3">
+      <div>
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <Eye className="size-4 text-brand" /> أثر الأدوار على الأزرار والصفحات
+        </h3>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          يوضح ما يظهر ويُخفى في الواجهة لكل دور. عند تعيين الدور للموظف يُطبَّق هذا الأثر فوراً بعد تحديث الصفحة.
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-xs min-w-[560px]">
+          <thead className="bg-muted/60 text-muted-foreground">
+            <tr>
+              <th className="p-2 text-right">الصلاحية</th>
+              <th className="p-2 text-right hidden sm:table-cell">المكان في الواجهة</th>
+              {IMPACT_ROLES.map((r) => <th key={r} className="p-2 w-20 text-center">{ROLE_LABELS[r]}</th>)}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {IMPACT_ROWS.map((row) => (
+              <tr key={row.perm}>
+                <td className="p-2 font-semibold">{row.label}</td>
+                <td className="p-2 text-muted-foreground hidden sm:table-cell">{row.where}</td>
+                {IMPACT_ROLES.map((r) => {
+                  const ok = can(r, row.perm);
+                  return (
+                    <td key={r} className="p-2 text-center">
+                      {ok
+                        ? <span className="inline-flex items-center gap-0.5 text-emerald-600 font-bold"><Check className="size-3.5" /> يظهر</span>
+                        : <span className="inline-flex items-center gap-0.5 text-rose-600 font-bold"><EyeOff className="size-3" /> مخفي</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <X className="size-3 text-rose-600" /> مخفي = لن يظهر الزر أو الصفحة إطلاقاً لهذا الدور (فرض إضافي على مستوى RLS في قاعدة البيانات).
+      </p>
+    </div>
+  );
+}
+

@@ -30,15 +30,25 @@ const TABLES = [
 
 type TableKey = typeof TABLES[number]["key"];
 
-function toCSV(rows: Record<string, unknown>[]): string {
+/** Standard Arabic column headers — match the ones the import page detects. */
+const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
+  products: {
+    name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
+    location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+    cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
+  },
+};
+
+function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, string>): string {
   if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]);
+  const cols = headerMap ? Object.keys(headerMap) : Object.keys(rows[0]);
+  const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";
     const s = typeof v === "object" ? JSON.stringify(v) : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
+  return [headers.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
 function toJSON(rows: unknown[]): string { return JSON.stringify(rows, null, 2); }
@@ -76,6 +86,7 @@ function ExportPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [logStatus, setLogStatus] = useState<"all" | "success" | "failed">("all");
+  const [standardHeaders, setStandardHeaders] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const { data: logs = [] } = useQuery({
@@ -164,7 +175,8 @@ function ExportPage() {
           const rows = await fetchTable(key, from, to);
           total += rows.length;
           if (format === "csv") {
-            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[]));
+            const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
+            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], headerMap));
           } else {
             download(`${key}-${Date.now()}.json`, toJSON(rows), "application/json");
           }
@@ -288,6 +300,19 @@ function ExportPage() {
             ))}
           </div>
         </div>
+
+        {format === "csv" && selected.has("products") && (
+          <label className="mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs cursor-pointer bg-brand/5 border-brand/20">
+            <input type="checkbox" checked={standardHeaders} onChange={(e) => setStandardHeaders(e.target.checked)} className="size-4 mt-0.5" />
+            <span>
+              <span className="font-bold block">استخدم أسماء الأعمدة المعيارية (متوافق مع الاستيراد)</span>
+              <span className="text-muted-foreground">
+                يستبدل أسماء الأعمدة الإنجليزية بالعربية (الاسم، الباركود، سعر الشراء، سعر البيع…) لتتمكّن من إعادة استيراد نفس الملف مباشرةً.
+              </span>
+            </span>
+          </label>
+        )}
+
 
         <button onClick={runExport} disabled={busy}
           className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-brand text-brand-foreground px-3 py-2.5 text-sm font-bold disabled:opacity-60">

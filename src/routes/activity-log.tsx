@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, Upload, Download, TrendingUp, TrendingDown, CheckCircle2, XCircle, Filter, Radio } from "lucide-react";
+import { Activity, Upload, Download, TrendingUp, TrendingDown, CheckCircle2, XCircle, Filter, Radio, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -30,43 +30,57 @@ interface UnifiedEntry {
   meta?: string;
 }
 
+const PAGE_SIZE = 25;
+
+/**
+ * Range-based paginated fetcher. Returns a page + a nextOffset when the page
+ * was full so `useInfiniteQuery` can request more on demand.
+ */
+function buildInfiniteQuery<T>(
+  key: readonly unknown[],
+  loader: (from: number, to: number) => Promise<T[]>,
+) {
+  return {
+    queryKey: key,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }: { pageParam: number }) => {
+      const from = pageParam;
+      const to = pageParam + PAGE_SIZE - 1;
+      const rows = await loader(from, to);
+      return { rows, nextOffset: rows.length === PAGE_SIZE ? from + PAGE_SIZE : null };
+    },
+    getNextPageParam: (last: { nextOffset: number | null }) => last.nextOffset,
+  };
+}
+
 function ActivityLogPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
 
-  const imports = useQuery({
-    queryKey: ["activity", "import"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("import_logs")
-        .select("id, file_name, status, imported_rows, total_rows, invalid_rows, error_message, created_at, notes")
-        .order("created_at", { ascending: false }).limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const imports = useInfiniteQuery(buildInfiniteQuery(["activity", "import"], async (from, to) => {
+    const { data, error } = await supabase.from("import_logs")
+      .select("id, file_name, status, imported_rows, total_rows, invalid_rows, error_message, created_at, notes")
+      .order("created_at", { ascending: false }).range(from, to);
+    if (error) throw error;
+    return data ?? [];
+  }));
 
-  const exports = useQuery({
-    queryKey: ["activity", "export"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("export_logs")
-        .select("id, export_type, format, tables, row_count, status, error_message, created_at, notes")
-        .order("created_at", { ascending: false }).limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const exports = useInfiniteQuery(buildInfiniteQuery(["activity", "export"], async (from, to) => {
+    const { data, error } = await supabase.from("export_logs")
+      .select("id, export_type, format, tables, row_count, status, error_message, created_at, notes")
+      .order("created_at", { ascending: false }).range(from, to);
+    if (error) throw error;
+    return data ?? [];
+  }));
 
-  const prices = useQuery({
-    queryKey: ["activity", "price"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("price_history")
-        .select("id, old_price, new_price, source, created_at, products(name)")
-        .order("created_at", { ascending: false }).limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const prices = useInfiniteQuery(buildInfiniteQuery(["activity", "price"], async (from, to) => {
+    const { data, error } = await supabase.from("price_history")
+      .select("id, old_price, new_price, source, created_at, products(name)")
+      .order("created_at", { ascending: false }).range(from, to);
+    if (error) throw error;
+    return data ?? [];
+  }));
 
   // Realtime for all three streams
   useEffect(() => {
@@ -99,9 +113,13 @@ function ActivityLogPage() {
     return () => { channels.forEach((c) => supabase.removeChannel(c)); };
   }, [qc]);
 
+  const importRows = useMemo(() => (imports.data?.pages ?? []).flatMap((p) => p.rows), [imports.data]);
+  const exportRows = useMemo(() => (exports.data?.pages ?? []).flatMap((p) => p.rows), [exports.data]);
+  const priceRows = useMemo(() => (prices.data?.pages ?? []).flatMap((p) => p.rows), [prices.data]);
+
   const entries = useMemo<UnifiedEntry[]>(() => {
     const out: UnifiedEntry[] = [];
-    for (const l of imports.data ?? []) {
+    for (const l of importRows) {
       out.push({
         id: `imp-${l.id}`, kind: "import",
         status: (l.status === "success" ? "success" : "failed"),
@@ -111,7 +129,7 @@ function ActivityLogPage() {
         created_at: l.created_at,
       });
     }
-    for (const l of exports.data ?? []) {
+    for (const l of exportRows) {
       out.push({
         id: `exp-${l.id}`, kind: "export",
         status: (l.status === "success" ? "success" : "failed"),
@@ -121,7 +139,7 @@ function ActivityLogPage() {
         created_at: l.created_at,
       });
     }
-    for (const p of prices.data ?? []) {
+    for (const p of priceRows) {
       const up = Number(p.new_price) >= Number(p.old_price);
       out.push({
         id: `pr-${p.id}`, kind: "price",
@@ -136,13 +154,23 @@ function ActivityLogPage() {
       .filter((e) => tab === "all" || e.kind === tab)
       .filter((e) => status === "all" || e.status === status || (status === "success" && e.status === "info"))
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [imports.data, exports.data, prices.data, tab, status]);
+  }, [importRows, exportRows, priceRows, tab, status]);
 
-  const counts = useMemo(() => ({
-    import: imports.data?.length ?? 0,
-    export: exports.data?.length ?? 0,
-    price: prices.data?.length ?? 0,
-  }), [imports.data, exports.data, prices.data]);
+  const counts = { import: importRows.length, export: exportRows.length, price: priceRows.length };
+
+  // Which streams should the "load more" affect? Load only the ones visible.
+  const activeStreams = useMemo(() => {
+    if (tab === "all") return [imports, exports, prices];
+    if (tab === "import") return [imports];
+    if (tab === "export") return [exports];
+    return [prices];
+  }, [tab, imports, exports, prices]);
+
+  const canLoadMore = activeStreams.some((s) => s.hasNextPage);
+  const isFetchingMore = activeStreams.some((s) => s.isFetchingNextPage);
+  const loadMore = () => activeStreams.forEach((s) => { if (s.hasNextPage && !s.isFetchingNextPage) s.fetchNextPage(); });
+
+  const anyLoading = imports.isLoading || exports.isLoading || prices.isLoading;
 
   return (
     <AppShell title="سجل النشاط الموحّد" subtitle="استيراد · تصدير · تغييرات الأسعار — تحديث لحظي" showBack>
@@ -179,7 +207,7 @@ function ActivityLogPage() {
           ))}
         </div>
 
-        {imports.isLoading || exports.isLoading || prices.isLoading ? (
+        {anyLoading ? (
           <p className="text-center text-muted-foreground py-8 text-sm">جاري التحميل...</p>
         ) : entries.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
@@ -193,28 +221,42 @@ function ActivityLogPage() {
             </div>
           </div>
         ) : (
-          <ul className="space-y-2">
-            {entries.map((e) => {
-              const Icon = e.kind === "import" ? Upload : e.kind === "export" ? Download : (e.detail.includes("↑") ? TrendingUp : TrendingDown);
-              const statusIcon = e.status === "success" ? <CheckCircle2 className="size-3.5 text-emerald-600" />
-                : e.status === "failed" ? <XCircle className="size-3.5 text-rose-600" />
-                : <Activity className="size-3.5 text-brand" />;
-              return (
-                <li key={e.id} className="rounded-lg border p-2.5 text-xs">
-                  <div className="flex items-center gap-2 font-bold">
-                    <Icon className="size-4 text-brand shrink-0" />
-                    {statusIcon}
-                    <span className="truncate flex-1">{e.title}</span>
-                    <span className="text-[10px] text-muted-foreground font-normal nums shrink-0">
-                      {new Date(e.created_at).toLocaleString("ar")}
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground mt-1 nums">{e.detail}</div>
-                  {e.meta && <div className={`mt-0.5 text-[10px] ${e.status === "failed" ? "text-rose-600" : "text-muted-foreground"}`}>{e.meta}</div>}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <ul className="space-y-2">
+              {entries.map((e) => {
+                const Icon = e.kind === "import" ? Upload : e.kind === "export" ? Download : (e.detail.includes("↑") ? TrendingUp : TrendingDown);
+                const statusIcon = e.status === "success" ? <CheckCircle2 className="size-3.5 text-emerald-600" />
+                  : e.status === "failed" ? <XCircle className="size-3.5 text-rose-600" />
+                  : <Activity className="size-3.5 text-brand" />;
+                return (
+                  <li key={e.id} className="rounded-lg border p-2.5 text-xs">
+                    <div className="flex items-center gap-2 font-bold">
+                      <Icon className="size-4 text-brand shrink-0" />
+                      {statusIcon}
+                      <span className="truncate flex-1">{e.title}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal nums shrink-0">
+                        {new Date(e.created_at).toLocaleString("ar")}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground mt-1 nums">{e.detail}</div>
+                    {e.meta && <div className={`mt-0.5 text-[10px] ${e.status === "failed" ? "text-rose-600" : "text-muted-foreground"}`}>{e.meta}</div>}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="text-[11px] text-muted-foreground nums">
+                عرض {formatNumber(entries.length)} سجل
+              </div>
+              {canLoadMore && (
+                <button onClick={loadMore} disabled={isFetchingMore}
+                  className="inline-flex items-center gap-2 px-4 h-9 rounded-md border border-brand/30 text-brand text-xs font-bold hover:bg-brand/5 disabled:opacity-60">
+                  {isFetchingMore ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  تحميل المزيد ({PAGE_SIZE})
+                </button>
+              )}
+            </div>
+          </>
         )}
       </section>
     </AppShell>

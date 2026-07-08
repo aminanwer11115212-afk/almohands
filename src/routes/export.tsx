@@ -30,15 +30,25 @@ const TABLES = [
 
 type TableKey = typeof TABLES[number]["key"];
 
-function toCSV(rows: Record<string, unknown>[]): string {
+/** Standard Arabic column headers — match the ones the import page detects. */
+const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
+  products: {
+    name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
+    location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+    cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
+  },
+};
+
+function toCSV(rows: Record<string, unknown>[], headerMap?: Record<string, string>): string {
   if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]);
+  const cols = headerMap ? Object.keys(headerMap) : Object.keys(rows[0]);
+  const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";
     const s = typeof v === "object" ? JSON.stringify(v) : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
+  return [headers.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
 }
 
 function toJSON(rows: unknown[]): string { return JSON.stringify(rows, null, 2); }

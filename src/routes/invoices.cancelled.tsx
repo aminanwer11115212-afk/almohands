@@ -55,14 +55,18 @@ function CancelledInvoicesPage() {
   const [search, setSearch] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
   const [cashierFilter, setCashierFilter] = useState<string>("");
+  const [userType, setUserType] = useState<"" | "cashier" | "admin">("");
   const [onlyCashier, setOnlyCashier] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("cancelled_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [quick, setQuick] = useState<QuickRange>("");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
   const [page, setPage] = useState(1);
+  const [showReturns, setShowReturns] = useState(true);
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["invoices-cancelled", quick],
+    queryKey: ["invoices-cancelled", quick, dFrom, dTo],
     queryFn: async () => {
       let q = supabase
         .from("invoices")
@@ -71,10 +75,33 @@ function CancelledInvoicesPage() {
         .order("cancelled_at", { ascending: false, nullsFirst: false })
         .limit(2000);
       const range = computeRange(quick);
-      if (range) q = q.gte("cancelled_at", range.from).lte("cancelled_at", range.to);
+      const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+      const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      if (fromIso) q = q.gte("cancelled_at", fromIso);
+      if (toIso) q = q.lte("cancelled_at", toIso);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Row[];
+    },
+  });
+
+  const { data: returns = [] } = useQuery({
+    queryKey: ["invoices-cancelled-returns", quick, dFrom, dTo],
+    queryFn: async () => {
+      let q = supabase
+        .from("returns")
+        .select("id, invoice_id, product_name, quantity, reason, status, created_at, user_id")
+        .eq("status", "accepted")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      const range = computeRange(quick);
+      const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+      const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      if (fromIso) q = q.gte("created_at", fromIso);
+      if (toIso) q = q.lte("created_at", toIso);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; invoice_id: string | null; product_name: string; quantity: number; reason: string | null; status: string; created_at: string; user_id: string }>;
     },
   });
 
@@ -91,12 +118,31 @@ function CancelledInvoicesPage() {
     })();
   }, []);
 
-  useEffect(() => { setPage(1); }, [search, reasonFilter, cashierFilter, onlyCashier, quick]);
+  useEffect(() => { setPage(1); }, [search, reasonFilter, cashierFilter, userType, onlyCashier, quick, dFrom, dTo]);
 
   const cashiers = useMemo(() => {
     const set = new Set(rows.map((r) => r.cancelled_by || r.user_id).filter(Boolean) as string[]);
     return Array.from(set);
   }, [rows]);
+
+  // Map invoice_id → returns aggregate (qty sum)
+  const returnsByInvoice = useMemo(() => {
+    const m = new Map<string, { qty: number; items: typeof returns }>();
+    for (const r of returns) {
+      if (!r.invoice_id) continue;
+      const cur = m.get(r.invoice_id) ?? { qty: 0, items: [] as typeof returns };
+      cur.qty += Number(r.quantity) || 0;
+      cur.items.push(r);
+      m.set(r.invoice_id, cur);
+    }
+    return m;
+  }, [returns]);
+
+  // Returns on invoices that are NOT cancelled (standalone partial returns section)
+  const standaloneReturns = useMemo(() => {
+    const cancelledIds = new Set(rows.map((r) => r.id));
+    return returns.filter((r) => !r.invoice_id || !cancelledIds.has(r.invoice_id));
+  }, [returns, rows]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -108,8 +154,10 @@ function CancelledInvoicesPage() {
       }
       if (rs && !(r.cancellation_reason ?? "").toLowerCase().includes(rs)) return false;
       if (cashierFilter && (r.cancelled_by || r.user_id) !== cashierFilter) return false;
+      const who = r.cancelled_by || r.user_id;
+      if (userType === "cashier" && (!who || adminIds.has(who))) return false;
+      if (userType === "admin" && (!who || !adminIds.has(who))) return false;
       if (onlyCashier) {
-        const who = r.cancelled_by || r.user_id;
         if (!who || adminIds.has(who)) return false;
       }
       return true;
@@ -122,7 +170,8 @@ function CancelledInvoicesPage() {
       return String(va).localeCompare(String(vb), "ar") * dir;
     });
     return out;
-  }, [rows, search, reasonFilter, cashierFilter, onlyCashier, adminIds, sortKey, sortDir]);
+  }, [rows, search, reasonFilter, cashierFilter, userType, onlyCashier, adminIds, sortKey, sortDir]);
+
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);

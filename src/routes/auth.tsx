@@ -70,8 +70,19 @@ function AuthPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-background grid place-items-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-dvh bg-background grid place-items-center px-4 overflow-hidden">
+      <video
+        src={(authBg as { url: string }).url}
+        autoPlay
+        muted
+        loop
+        playsInline
+        aria-hidden
+        className="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none animate-[fadeIn_1.2s_ease-out]"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80 pointer-events-none" />
+      <div className="relative w-full max-w-sm">
+
         <div className="flex flex-col items-center text-center mb-6">
           <img src={logo} alt="شعار المهندس" width={80} height={80} className="size-20 object-contain" />
           <h1 className="mt-2 text-2xl font-extrabold text-brand">المهندس</h1>

@@ -46,6 +46,7 @@ const SECONDARY: NavItem[] = [
   { to: "/returns", label: "المرتجعات", icon: RotateCcw, perm: "returns.view" },
   { to: "/reports", label: "التقارير", icon: PieChart, perm: "reports.view" },
   { to: "/invoices/cancelled", label: "فواتير ملغاة", icon: XCircle, perm: "invoices.write" },
+  { to: "/audit/cancellations", label: "سجل الإلغاءات", icon: ShieldCheck, perm: "invoices.write" },
 ];
 
 const UTILITY: NavItem[] = [

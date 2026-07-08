@@ -933,7 +933,9 @@ export type Database = {
           account_id: string | null
           balance: number | null
           bank_name: string | null
+          customer_payments: number | null
           incoming: number | null
+          invoice_paid: number | null
           is_active: boolean | null
           is_default: boolean | null
           name: string | null

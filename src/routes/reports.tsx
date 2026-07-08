@@ -113,6 +113,9 @@ function buildInvoiceRows(
     "المدفوع": Number(inv.paid ?? 0),
     "المتبقي": Number(inv.remaining ?? 0),
     "الخصم": Number(inv.discount ?? 0),
+    "سبب الإلغاء": inv.status === "cancelled" ? (inv.cancellation_reason ?? "— (لم يُذكر)") : "",
+    "تاريخ الإلغاء": inv.cancelled_at ? new Date(inv.cancelled_at).toLocaleString("ar-EG") : "",
+    "ألغيت بواسطة": inv.cancelled_by ? (dir.get(inv.cancelled_by) ?? inv.cancelled_by.slice(0, 8)) : "",
   }));
 }
 

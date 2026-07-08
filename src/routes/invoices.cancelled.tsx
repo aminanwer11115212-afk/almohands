@@ -61,12 +61,17 @@ function CancelledInvoicesPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc("admin_list_users");
+      const [{ data: usersList }, { data: roles }] = await Promise.all([
+        supabase.rpc("admin_list_users"),
+        supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
+      ]);
       const map = new Map<string, string>();
-      (data ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
+      (usersList ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
       setUsers(map);
+      setAdminIds(new Set((roles ?? []).map((r: { user_id: string }) => r.user_id)));
     })();
   }, []);
+
 
   const cashiers = useMemo(() => {
     const set = new Set(rows.map((r) => r.cancelled_by || r.user_id).filter(Boolean) as string[]);

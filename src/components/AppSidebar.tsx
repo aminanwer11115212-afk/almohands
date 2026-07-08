@@ -49,6 +49,8 @@ const UTILITY: NavItem[] = [
   { to: "/payment-methods", label: "طرق الدفع", icon: CreditCard, perm: "payment_methods.view" },
   { to: "/import", label: "استيراد", icon: FileSpreadsheet, perm: "import_export" },
   { to: "/export", label: "تصدير", icon: Download, perm: "import_export" },
+  { to: "/activity-log", label: "سجل النشاط", icon: Activity, perm: "reports.view" },
+
   { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
   { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },
   { to: "/settings", label: "الإعدادات", icon: Settings, perm: "settings.write" },

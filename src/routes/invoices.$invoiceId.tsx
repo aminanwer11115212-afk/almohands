@@ -137,7 +137,10 @@ function InvoiceDetailPage() {
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
   type EditRow = { id: string; product_id: string | null; product_name: string; quantity: number; unit_price: number; _origQty: number };
   const [editRows, setEditRows] = useState<EditRow[]>([]);
+  const draftKey = `invoice-edit-draft:${invoiceId}`;
+  const [draftRestored, setDraftRestored] = useState(false);
 
+  // Hydrate rows from server whenever data changes and we're NOT editing.
   useEffect(() => {
     if (data?.items && !editMode) {
       setEditRows(
@@ -153,10 +156,77 @@ function InvoiceDetailPage() {
     }
   }, [data?.items, editMode]);
 
+  // Restore local draft on entering edit mode (survives PDF failures / refreshes).
+  useEffect(() => {
+    if (!editMode || draftRestored || !data?.items) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { rows: EditRow[]; savedAt: number };
+        if (Array.isArray(parsed?.rows) && parsed.rows.length === data.items.length) {
+          setEditRows(parsed.rows);
+          toast.info("تم استعادة مسودة محلية للتعديلات غير المحفوظة", {
+            description: new Date(parsed.savedAt).toLocaleString("ar-EG"),
+            action: {
+              label: "تجاهل المسودة",
+              onClick: () => {
+                localStorage.removeItem(draftKey);
+                setEditRows(
+                  data.items.map((it: any) => ({
+                    id: it.id, product_id: it.product_id, product_name: it.product_name,
+                    quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0,
+                    _origQty: Number(it.quantity) || 0,
+                  })),
+                );
+              },
+            },
+          });
+        }
+      }
+    } catch { /* ignore corrupted draft */ }
+    setDraftRestored(true);
+  }, [editMode, draftRestored, data?.items, draftKey]);
+
+  // Auto-save draft on every change while editing.
+  useEffect(() => {
+    if (!editMode || editRows.length === 0) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ rows: editRows, savedAt: Date.now() }));
+    } catch { /* quota / private mode — ignore */ }
+  }, [editMode, editRows, draftKey]);
+
+  // Stock availability lookup for edit mode: for each product used, fetch current stock.
+  // Effective max we can enter for a row = currentStock + row._origQty
+  // (because the row's original qty is currently reflected in stock as "already sold").
+  const editProductIds = useMemo(
+    () => Array.from(new Set(editRows.map((r) => r.product_id).filter(Boolean) as string[])),
+    [editRows],
+  );
+  const { data: stockMap } = useQuery({
+    queryKey: ["invoice-edit-stock", invoiceId, editProductIds.sort().join(",")],
+    enabled: editMode && editProductIds.length > 0,
+    queryFn: async () => {
+      const { data: prods, error } = await supabase
+        .from("products").select("id, name, quantity").in("id", editProductIds);
+      if (error) throw error;
+      const map = new Map<string, { id: string; name: string; quantity: number }>();
+      for (const p of prods ?? []) map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
+      return map;
+    },
+    staleTime: 5_000,
+  });
+
   const editTotal = useMemo(
     () => editRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
     [editRows],
   );
+
+  const maxAllowedFor = (row: EditRow): number | null => {
+    if (!row.product_id || !stockMap) return null;
+    const p = stockMap.get(row.product_id);
+    if (!p) return null;
+    return p.quantity + row._origQty;
+  };
 
   // Per-row inline validation errors — {rowId: {quantity?, unit_price?}}
   const [rowErrors, setRowErrors] = useState<Record<string, { quantity?: string; unit_price?: string }>>({});
@@ -164,6 +234,19 @@ function InvoiceDetailPage() {
     () => Object.values(rowErrors).some((e) => e.quantity || e.unit_price),
     [rowErrors],
   );
+
+  // Overstock rows (quantity exceeds available). Blocks save with clear message.
+  const overstockRows = useMemo(() => {
+    return editRows
+      .map((r) => {
+        const max = maxAllowedFor(r);
+        if (max === null) return null;
+        if (r.quantity > max) return { row: r, max };
+        return null;
+      })
+      .filter((x): x is { row: EditRow; max: number } => !!x);
+  }, [editRows, stockMap]);
+  const hasOverstock = overstockRows.length > 0;
 
   const saveMutation = useMutation({
     mutationFn: async () => {

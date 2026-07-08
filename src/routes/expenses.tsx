@@ -3,9 +3,11 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useExpenses, useAddExpense, useDeleteExpense } from "@/hooks/use-expenses";
+import { useAccountBalances } from "@/hooks/use-account-balances";
 import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "المصروفات — المهندس" }] }),
@@ -25,8 +27,10 @@ function ExpensesPage() {
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
+  const [accountId, setAccountId] = useState<string>("");
 
   const { data: expenses = [], isLoading } = useExpenses();
+  const { data: accounts = [] } = useAccountBalances();
   const addExpense = useAddExpense();
   const deleteExpense = useDeleteExpense();
 
@@ -39,7 +43,7 @@ function ExpensesPage() {
       return;
     }
     addExpense.mutate(
-      { target: target.trim(), amount: num, date },
+      { target: target.trim(), amount: num, date, account_id: accountId || null },
       {
         onSuccess: () => {
           toast.success("تم حفظ المصروف");
@@ -51,6 +55,7 @@ function ExpensesPage() {
       }
     );
   };
+
 
   return (
     <AppShell title="المصروفات" showBack>
@@ -86,6 +91,22 @@ function ExpensesPage() {
             className="w-full h-12 rounded-xl border-2 border-brand/30 bg-card px-4 text-sm text-center outline-none focus:border-brand nums"
           />
         </Field>
+
+        <Field label="خصم من الحساب (اختياري)">
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="w-full h-12 rounded-xl border-2 border-brand/30 bg-card px-4 text-sm text-end outline-none focus:border-brand"
+          >
+            <option value="">— بدون حساب —</option>
+            {accounts.map((a) => (
+              <option key={a.account_id} value={a.account_id}>
+                {a.name} — رصيد {formatSDG(Number(a.balance) || 0)}
+              </option>
+            ))}
+          </select>
+        </Field>
+
 
         <button
           type="submit"

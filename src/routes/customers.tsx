@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Search, Plus, Phone, Wrench, CreditCard, Loader2, X, ChevronLeft } from "lucide-react";
+import { Search, Plus, Phone, Wrench, CreditCard, Loader2, X, ChevronLeft, Receipt, TrendingDown } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useCustomers, useAddCustomer } from "@/hooks/use-customers";
@@ -15,6 +15,18 @@ function CustomersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const { data: customers = [], isLoading, isError } = useCustomers(q);
 
+  const totals = customers.reduce(
+    (a, c) => {
+      a.invoices += c.invoicesCount;
+      a.total += c.totalInvoiced;
+      a.paid += c.totalPaid;
+      a.remaining += c.totalRemaining;
+      return a;
+    },
+    { invoices: 0, total: 0, paid: 0, remaining: 0 },
+  );
+
+
   return (
     <AppShell title="العملاء" showBack>
       <div className="relative mb-4">
@@ -27,6 +39,16 @@ function CustomersPage() {
         />
       </div>
 
+      {/* Summary strip — overall AR position */}
+      {customers.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          <MiniStat label="عملاء" value={String(customers.length)} tone="brand" />
+          <MiniStat label="فواتير" value={String(totals.invoices)} tone="brand" />
+          <MiniStat label="مدفوع" value={formatSDG(totals.paid)} tone="ok" />
+          <MiniStat label="مديونية" value={formatSDG(totals.remaining)} tone={totals.remaining > 0 ? "warn" : "ok"} />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="py-16 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
       ) : isError ? (
@@ -37,48 +59,77 @@ function CustomersPage() {
         </p>
       ) : (
         <ul className="space-y-3">
-          {customers.map((c) => (
-            <li key={c.id}>
-              <Link
-                to="/customers/$customerId"
-                params={{ customerId: c.id }}
-                className="block rounded-2xl border border-border bg-card p-4 shadow-card hover:border-brand hover:shadow-md transition"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-foreground truncate flex items-center gap-1.5">
-                      {c.name}
-                      <ChevronLeft className="size-3.5 text-muted-foreground" />
-                    </h3>
-                    {c.phone && (
-                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                        <Phone className="size-3" /> <span dir="ltr">{c.phone}</span>
-                      </div>
-                    )}
-                    {c.workshop && (
-                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                        <Wrench className="size-3" /> {c.workshop}
-                      </div>
-                    )}
+          {customers.map((c) => {
+            const debt = c.totalRemaining > 0 ? c.totalRemaining : c.balance;
+            const overLimit = c.creditLimit > 0 && debt > c.creditLimit;
+            return (
+              <li key={c.id}>
+                <Link
+                  to="/customers/$customerId"
+                  params={{ customerId: c.id }}
+                  className={
+                    "block rounded-2xl border bg-card p-4 shadow-card hover:shadow-md transition " +
+                    (overLimit ? "border-rose-300" : "border-border hover:border-brand")
+                  }
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-foreground truncate flex items-center gap-1.5">
+                        {c.name}
+                        <ChevronLeft className="size-3.5 text-muted-foreground" />
+                      </h3>
+                      {c.phone && (
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                          <Phone className="size-3" /> <span dir="ltr">{c.phone}</span>
+                        </div>
+                      )}
+                      {c.workshop && (
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                          <Wrench className="size-3" /> {c.workshop}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-left shrink-0 space-y-0.5">
+                      {debt > 0 ? (
+                        <div className={`text-xs font-bold nums ${overLimit ? "text-rose-700" : "text-destructive"}`}>
+                          دين: {formatSDG(debt)}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-emerald-700 font-bold">مسدّد</div>
+                      )}
+                      {c.creditLimit > 0 && (
+                        <div className={`flex items-center gap-1 text-[11px] nums ${overLimit ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
+                          <CreditCard className="size-3" />
+                          <span>حد {formatSDG(c.creditLimit)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-left shrink-0">
-                    {c.balance > 0 && (
-                      <div className="text-xs text-destructive font-bold nums">دين: {formatSDG(c.balance)}</div>
-                    )}
-                    {c.creditLimit > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                        <CreditCard className="size-3" />
-                        <span className="nums">{formatSDG(c.creditLimit)}</span>
-                      </div>
-                    )}
+
+                  {/* Financial mini-strip */}
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center border-t border-border pt-2">
+                    <MiniInline icon={Receipt} label="فواتير" value={String(c.invoicesCount)} />
+                    <MiniInline label="مبيعات" value={formatSDG(c.totalInvoiced)} />
+                    <MiniInline
+                      icon={TrendingDown}
+                      label="مدفوع"
+                      value={formatSDG(c.totalPaid)}
+                      tone="ok"
+                    />
                   </div>
-                </div>
-                {c.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{c.notes}</p>}
-              </Link>
-            </li>
-          ))}
+                  {overLimit && (
+                    <p className="mt-2 text-[11px] text-rose-700 font-bold text-center">
+                      ⚠️ تجاوز الحد الائتماني
+                    </p>
+                  )}
+                  {c.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{c.notes}</p>}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
+
 
       <button
         onClick={() => setShowAdd(true)}
@@ -144,3 +195,37 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+function MiniStat({ label, value, tone = "brand" }: { label: string; value: string; tone?: "brand" | "ok" | "warn" }) {
+  const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-brand";
+  return (
+    <div className="rounded-xl border border-border bg-card p-2 text-center shadow-sm">
+      <div className="text-[10px] font-bold text-muted-foreground">{label}</div>
+      <div className={`text-sm font-extrabold nums mt-0.5 truncate ${cls}`}>{value}</div>
+    </div>
+  );
+}
+
+function MiniInline({
+  label,
+  value,
+  icon: Icon,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  tone?: "muted" | "ok" | "warn";
+}) {
+  const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-foreground";
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+        {Icon && <Icon className="size-3" />}
+        {label}
+      </div>
+      <div className={`text-[11px] font-bold nums mt-0.5 truncate ${cls}`}>{value}</div>
+    </div>
+  );
+}
+

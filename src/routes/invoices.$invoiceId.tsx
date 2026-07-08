@@ -267,6 +267,14 @@ function InvoiceDetailPage() {
           </div>
 
           <button
+            onClick={() => setPreviewOpen(true)}
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
+            title="معاينة قبل الإرسال"
+          >
+            <Eye className="size-4" /> معاينة
+          </button>
+
+          <button
             onClick={handleDownloadPdf}
             disabled={pdfBusy}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
@@ -278,10 +286,12 @@ function InvoiceDetailPage() {
 
           <button
             onClick={handleWhatsAppShare}
-            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-3 py-1.5"
-            title="مشاركة عبر واتساب"
+            disabled={shareBusy}
+            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            title="مشاركة عبر واتساب مع ملف PDF"
           >
-            <Share2 className="size-4" /> واتساب
+            {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            واتساب
           </button>
 
           <button
@@ -290,8 +300,98 @@ function InvoiceDetailPage() {
           >
             <Printer className="size-4" /> طباعة
           </button>
+
+          <button
+            onClick={() => setEditMode((v) => !v)}
+            className={`flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
+            title={editMode ? "إلغاء التعديل" : "تعديل بنود الفاتورة"}
+          >
+            {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
+            {editMode ? "إلغاء" : "تعديل"}
+          </button>
         </div>
       </header>
+
+      {/* Inline edit panel */}
+      {editMode && (
+        <section className="bg-amber-50 border-b border-amber-200 print:hidden">
+          <div className="mx-auto max-w-4xl px-4 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-amber-900">تعديل بنود الفاتورة</h2>
+              <div className="text-sm text-amber-900">
+                الإجمالي الجديد: <span className="font-bold nums">{formatSDG(editTotal)}</span>
+              </div>
+            </div>
+            <div className="rounded-lg bg-white border border-amber-200 overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead className="bg-amber-100/60 text-amber-900">
+                  <tr>
+                    <th className="p-2 text-right">الصنف</th>
+                    <th className="p-2 w-24">الكمية</th>
+                    <th className="p-2 w-32">سعر الوحدة</th>
+                    <th className="p-2 w-32">الإجمالي</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {editRows.map((row, i) => (
+                    <tr key={row.id}>
+                      <td className="p-2">{row.product_name}</td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={row.quantity}
+                          onChange={(e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
+                          }}
+                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={row.unit_price}
+                          onChange={(e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, unit_price: v } : r)));
+                          }}
+                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                        />
+                      </td>
+                      <td className="p-2 text-center font-semibold nums">
+                        {formatSDG(row.quantity * row.unit_price)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setEditMode(false)}
+                className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              >
+                {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                حفظ التعديلات
+              </button>
+            </div>
+            <p className="text-xs text-amber-800 mt-2">
+              ملاحظة: تعديل الكمية سيُعدّل المخزون تلقائياً (زيادة الكمية تخصم من المخزون، وتقليصها يُعيد للمخزون).
+            </p>
+          </div>
+        </section>
+      )}
 
       <main className="py-6 px-4 print:p-0">
         <div ref={printRef}>
@@ -323,6 +423,69 @@ function InvoiceDetailPage() {
         )}
         </div>
       </main>
+
+      {/* Preview dialog — shows exact PDF render before download/send */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>معاينة الفاتورة قبل الإرسال</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-muted/40 p-4 -mx-6">
+            <div ref={previewRef} className="mx-auto" style={{ maxWidth: format === "thermal" ? "80mm" : "210mm" }}>
+              {format === "a4" ? (
+                <A4Invoice
+                  inv={inv}
+                  items={items}
+                  paymentMethod={paymentMethod}
+                  storeName={storeName}
+                  storeSubtitle={storeSubtitle}
+                  storePhone={storePhone}
+                  invoiceFooter={invoiceFooter}
+                  showLogo={showLogo}
+                  paymentLabel={paymentLabel}
+                />
+              ) : (
+                <ThermalInvoice
+                  inv={inv}
+                  items={items}
+                  paymentMethod={paymentMethod}
+                  storeName={storeName}
+                  storeSubtitle={storeSubtitle}
+                  storePhone={storePhone}
+                  storeAddress={storeAddress}
+                  invoiceFooter={invoiceFooter}
+                  showLogo={showLogo}
+                  paymentLabel={paymentLabel}
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button
+              onClick={() => setPreviewOpen(false)}
+              className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >
+              إغلاق
+            </button>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={pdfBusy}
+              className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              تنزيل PDF
+            </button>
+            <button
+              onClick={handleWhatsAppShare}
+              disabled={shareBusy}
+              className="px-4 h-9 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+              إرسال واتساب + PDF
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <style>{`
         @media print {

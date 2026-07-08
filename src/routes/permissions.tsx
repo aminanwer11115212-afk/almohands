@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useState } from "react";
 import { ShieldCheck, ScrollText, Users, Plus, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -19,7 +20,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/permissions")({
   head: () => ({ meta: [{ title: "الصلاحيات — المهندس" }] }),
-  component: PermissionsPage,
+  component: () => (<PermissionGate perm="permissions.manage"><PermissionsPage /></PermissionGate>),
 });
 
 type AppRole = "admin" | "seller" | "accountant" | "warehouse";

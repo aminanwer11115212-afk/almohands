@@ -137,32 +137,89 @@ export type Database = {
       export_logs: {
         Row: {
           created_at: string
+          duration_ms: number | null
+          error_message: string | null
           export_type: string
           format: string
           id: string
           notes: string | null
           row_count: number
+          status: string
           tables: string[]
           user_id: string
         }
         Insert: {
           created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
           export_type: string
           format: string
           id?: string
           notes?: string | null
           row_count?: number
+          status?: string
           tables?: string[]
           user_id: string
         }
         Update: {
           created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
           export_type?: string
           format?: string
           id?: string
           notes?: string | null
           row_count?: number
+          status?: string
           tables?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      import_logs: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          file_name: string | null
+          format: string
+          id: string
+          imported_rows: number
+          invalid_rows: number
+          notes: string | null
+          source: string
+          status: string
+          total_rows: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          file_name?: string | null
+          format?: string
+          id?: string
+          imported_rows?: number
+          invalid_rows?: number
+          notes?: string | null
+          source?: string
+          status?: string
+          total_rows?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          file_name?: string | null
+          format?: string
+          id?: string
+          imported_rows?: number
+          invalid_rows?: number
+          notes?: string | null
+          source?: string
+          status?: string
+          total_rows?: number
           user_id?: string
         }
         Relationships: []

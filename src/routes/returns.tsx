@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useState } from "react";
 import { Plus, Search, CheckCircle, XCircle, Clock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -13,7 +14,7 @@ import { getErrorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/returns")({
   head: () => ({ meta: [{ title: "المرتجعات — المهندس" }] }),
-  component: ReturnsPage,
+  component: () => (<PermissionGate perm="returns.view"><ReturnsPage /></PermissionGate>),
 });
 
 function ReturnsPage() {

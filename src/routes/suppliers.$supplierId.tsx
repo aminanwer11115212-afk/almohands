@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Phone, MapPin, Truck, Loader2, AlertCircle, Printer } from "lucide-react";
@@ -8,7 +9,7 @@ import { formatSDG } from "@/lib/format";
 
 export const Route = createFileRoute("/suppliers/$supplierId")({
   head: () => ({ meta: [{ title: "كشف حساب المورد — المهندس" }] }),
-  component: SupplierStatementPage,
+  component: () => (<PermissionGate perm="suppliers.view"><SupplierStatementPage /></PermissionGate>),
 });
 
 const statusLabels: Record<string, string> = { paid: "مدفوعة", partial: "جزئية", pending: "معلّقة" };

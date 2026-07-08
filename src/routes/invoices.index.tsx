@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect, useMemo, useState } from "react";
@@ -56,7 +57,7 @@ function sanitizeOrTerm(raw: string): string {
 export const Route = createFileRoute("/invoices/")({
   head: () => ({ meta: [{ title: "الفواتير — المهندس" }] }),
   validateSearch: zodValidator(searchSchema),
-  component: InvoicesPage,
+  component: () => (<PermissionGate perm="invoices.view"><InvoicesPage /></PermissionGate>),
 });
 
 function InvoicesPage() {

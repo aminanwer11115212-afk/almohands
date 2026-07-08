@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { PermissionGate } from "@/components/PermissionGate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
   validateSearch: (s: Record<string, unknown>) => ({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
   }),
-  component: InvoiceDetailPage,
+  component: () => (<PermissionGate perm="invoices.view"><InvoiceDetailPage /></PermissionGate>),
   errorComponent: InvoiceDetailError,
   notFoundComponent: InvoiceNotFound,
 });

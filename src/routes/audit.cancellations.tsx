@@ -188,6 +188,9 @@ function AuditCancellationsPage() {
             <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
             <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
           </div>
+          <div>
+            <input value={party} onChange={(e) => setParty(e.target.value)} placeholder="فلترة باسم العميل/المورد على الفاتورة..." className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm" />
+          </div>
           <div className="flex items-center gap-1 text-xs flex-wrap">
             <span className="font-bold text-muted-foreground">نطاق:</span>
             {([["", "مخصص"], ["7d", "آخر 7 أيام"], ["30d", "آخر 30 يوم"], ["month", "هذا الشهر"]] as [QuickRange, string][]).map(([v, label]) => (

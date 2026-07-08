@@ -1,16 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
-import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp } from "@/lib/invoice-share";
+import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp, openWhatsAppShare } from "@/lib/invoice-share";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
+import { logger, newRequestId } from "@/lib/logger";
+import { invoiceEditRowsSchema, validateItemField } from "@/lib/schemas";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
@@ -18,7 +20,59 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
   }),
   component: InvoiceDetailPage,
+  errorComponent: InvoiceDetailError,
+  notFoundComponent: InvoiceNotFound,
 });
+
+function InvoiceDetailError({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  useEffect(() => {
+    logger.error("invoice_detail_render_error", {
+      message: error?.message,
+      context: { stack: error?.stack?.slice(0, 500) },
+    });
+  }, [error]);
+  return (
+    <AppShell title="خطأ في الفاتورة" showBack>
+      <div className="mx-auto max-w-lg rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
+        <AlertTriangle className="mx-auto size-10 text-destructive" />
+        <h2 className="text-lg font-bold">تعذّر عرض هذه الفاتورة</h2>
+        <p className="text-sm text-muted-foreground">
+          حدث خطأ أثناء تحميل بيانات الفاتورة. قد يكون الاتصال ضعيفاً أو أن الفاتورة تم تعديلها من جهاز آخر.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => { reset(); router.invalidate(); }}
+            className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-bold inline-flex items-center gap-1"
+          >
+            <RotateCw className="size-4" /> إعادة المحاولة
+          </button>
+          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
+            className="px-4 h-9 rounded-md border border-input bg-background text-sm inline-flex items-center">
+            رجوع للفواتير
+          </Link>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function InvoiceNotFound() {
+  return (
+    <AppShell title="فاتورة غير موجودة" showBack>
+      <div className="mx-auto max-w-lg rounded-xl border border-border bg-card p-6 text-center space-y-3">
+        <Receipt className="mx-auto size-10 text-muted-foreground" />
+        <h2 className="text-lg font-bold">الفاتورة غير موجودة</h2>
+        <p className="text-sm text-muted-foreground">قد تكون قد حُذفت أو أن الرابط غير صحيح.</p>
+        <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
+          className="inline-block px-4 h-9 leading-9 rounded-md bg-primary text-primary-foreground text-sm font-bold">
+          رجوع للفواتير
+        </Link>
+      </div>
+    </AppShell>
+  );
+}
+
 
 type PrintFormat = "a4" | "thermal";
 
@@ -104,82 +158,163 @@ function InvoiceDetailPage() {
     [editRows],
   );
 
+  // Per-row inline validation errors — {rowId: {quantity?, unit_price?}}
+  const [rowErrors, setRowErrors] = useState<Record<string, { quantity?: string; unit_price?: string }>>({});
+  const hasFieldErrors = useMemo(
+    () => Object.values(rowErrors).some((e) => e.quantity || e.unit_price),
+    [rowErrors],
+  );
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!data?.inv) return;
+      if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
       const inv = data.inv;
-      // 1) update each invoice_item row
-      for (const row of editRows) {
+      const reqId = newRequestId("inv");
+      logger.info("invoice_edit_save_start", {
+        context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: editRows.length, reqId },
+      });
+
+      // ---------- 1) Zod validation of ALL rows ----------
+      const parsed = invoiceEditRowsSchema.safeParse(editRows);
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
+        const field = firstIssue?.path?.[1];
+        const label = field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
+        const msg = rowIdx
+          ? `الصف ${rowIdx} — ${label}: ${firstIssue?.message ?? "قيمة غير صالحة"}`
+          : firstIssue?.message ?? "بيانات غير صالحة";
+        logger.warn("invoice_edit_validation_failed", { message: msg, context: { reqId, invoiceId: inv.id } });
+        throw new Error(msg);
+      }
+
+      // ---------- 2) Pre-flight stock check for INCREASED quantities ----------
+      // For each row where qty went up and there's a linked product, ensure
+      // the delta doesn't push stock below zero. Fail fast BEFORE any write.
+      const increases = parsed.data.filter((r) => r.product_id && r.quantity > r._origQty);
+      if (increases.length > 0) {
+        const productIds = Array.from(new Set(increases.map((r) => r.product_id!) as string[]));
+        const { data: prods, error: prodsErr } = await supabase
+          .from("products")
+          .select("id, name, quantity")
+          .in("id", productIds);
+        if (prodsErr) throw prodsErr;
+        const stockMap = new Map((prods ?? []).map((p) => [p.id, p]));
+        for (const r of increases) {
+          const p = stockMap.get(r.product_id!);
+          if (!p) continue; // product deleted — skip stock adjustment silently
+          const delta = r.quantity - r._origQty;
+          const available = Number(p.quantity) || 0;
+          if (available < delta) {
+            const shortage = delta - available;
+            const msg = `الكمية المطلوبة للصنف "${p.name}" تتجاوز المخزون المتاح (متبقٍ ${available}، النقص ${shortage}).`;
+            logger.warn("invoice_edit_insufficient_stock", {
+              message: msg,
+              context: { reqId, productId: p.id, available, requestedDelta: delta },
+            });
+            throw new Error(msg);
+          }
+        }
+      }
+
+      // ---------- 3) Persist item rows (updated_at added) ----------
+      for (const row of parsed.data) {
         const lineTotal = row.quantity * row.unit_price;
         const { error: upErr } = await supabase
           .from("invoice_items")
           .update({ quantity: row.quantity, unit_price: row.unit_price, line_total: lineTotal })
           .eq("id", row.id);
         if (upErr) throw upErr;
-
-        // 2) adjust stock delta if quantity changed and product_id exists
-        const delta = row.quantity - row._origQty;
-        if (delta !== 0 && row.product_id) {
-          const { data: prod, error: prodErr } = await supabase
-            .from("products")
-            .select("quantity")
-            .eq("id", row.product_id)
-            .maybeSingle();
-          if (prodErr) throw prodErr;
-          const currentQty = Number(prod?.quantity) || 0;
-          const newQty = currentQty - delta; // increased qty on invoice → decrement stock more
-          const { error: stockErr } = await supabase
-            .from("products")
-            .update({ quantity: Math.max(0, newQty) })
-            .eq("id", row.product_id);
-          if (stockErr) throw stockErr;
-        }
       }
-      // 3) update invoice totals
-      const newTotal = editTotal;
-      const paid = Number(inv.paid) || 0;
+
+      // ---------- 4) Apply stock deltas (bounded to >=0 as safety net) ----------
+      for (const row of parsed.data) {
+        const delta = row.quantity - row._origQty;
+        if (delta === 0 || !row.product_id) continue;
+        const { data: prod, error: prodErr } = await supabase
+          .from("products").select("quantity").eq("id", row.product_id).maybeSingle();
+        if (prodErr) throw prodErr;
+        if (!prod) continue;
+        const currentQty = Number(prod.quantity) || 0;
+        const newQty = currentQty - delta;
+        if (newQty < 0) {
+          // Race between pre-flight and now: stock changed under us.
+          const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
+          logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: row.product_id, currentQty, delta } });
+          throw new Error(msg);
+        }
+        const { error: stockErr } = await supabase
+          .from("products").update({ quantity: newQty }).eq("id", row.product_id);
+        if (stockErr) throw stockErr;
+      }
+
+      // ---------- 5) Recompute invoice totals from validated data ----------
+      const newTotal = parsed.data.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+      const paid = Math.min(Number(inv.paid) || 0, newTotal); // never exceed total
       const remaining = Math.max(0, newTotal - paid);
-      const status = remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
+      const status: "paid" | "partial" | "pending" =
+        newTotal === 0 ? "paid" : remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
       const { error: invErr } = await supabase
         .from("invoices")
-        .update({ total: newTotal, remaining, status })
+        .update({ total: newTotal, paid, remaining, status })
         .eq("id", inv.id);
       if (invErr) throw invErr;
+
+      logger.info("invoice_edit_save_success", {
+        context: { reqId, invoiceId: inv.id, newTotal, paid, remaining, status },
+      });
+      return { reqId, newTotal, paid, remaining, status };
     },
-    onSuccess: () => {
-      toast.success("تم حفظ التعديلات");
+    onSuccess: (res) => {
+      toast.success("تم حفظ التعديلات بنجاح", {
+        description: res ? `الإجمالي الجديد: ${formatSDG(res.newTotal)}` : undefined,
+      });
       setEditMode(false);
+      setRowErrors({});
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
-    onError: (e) => handleError(e, "تعذّر حفظ التعديلات"),
+    onError: (e) => handleError(e, "تعذّر حفظ التعديلات", {
+      event: "invoice_edit_save_failed",
+      context: { invoiceId, rows: editRows.length },
+      action: { label: "إعادة المحاولة", onClick: () => saveMutation.mutate() },
+    }),
   });
 
+
   // Auto-open print dialog only ONCE per page visit; background refetches
-  // must not retrigger window.print().
+  // must not retrigger window.print(). Wrapped in try/catch since some
+  // embedded browsers throw on window.print().
   const printedRef = useRef(false);
   const hasInv = Boolean(data?.inv);
   useEffect(() => {
     if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
     printedRef.current = true;
-    const t = setTimeout(() => window.print(), 350);
+    const t = setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        handleError(e, "تعذّر فتح نافذة الطباعة", {
+          event: "auto_print_failed",
+          context: { invoiceId },
+        });
+      }
+    }, 350);
     return () => clearTimeout(t);
-  }, [autoprint, formatReady, hasInv]);
+  }, [autoprint, formatReady, hasInv, invoiceId]);
 
   if (isLoading) {
     return (
       <AppShell title="فاتورة" showBack>
-        <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>
+        <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="size-4 animate-spin" /> جارٍ التحميل…
+        </div>
       </AppShell>
     );
   }
   if (!data?.inv) {
-    return (
-      <AppShell title="فاتورة" showBack>
-        <div className="p-6 text-center text-sm text-destructive">الفاتورة غير موجودة</div>
-      </AppShell>
-    );
+    return <InvoiceNotFound />;
   }
 
   const { inv, items, paymentMethod } = data;
@@ -193,25 +328,63 @@ function InvoiceDetailPage() {
   const baseLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
   const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
-  async function handleDownloadPdf() {
+  /** Try to safely trigger the browser print dialog. */
+  function tryPrint() {
+    try {
+      window.print();
+    } catch (e) {
+      handleError(e, "تعذّر فتح نافذة الطباعة — استخدم اختصار Ctrl+P", {
+        event: "manual_print_failed",
+        context: { invoiceId: inv.id },
+      });
+    }
+  }
+
+  async function handleDownloadPdf(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
-    if (!el || pdfBusy) return;
+    if (!el) {
+      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
+      return;
+    }
+    if (pdfBusy) return;
     setPdfBusy(true);
+    const reqId = newRequestId("pdf");
+    logger.info("pdf_download_start", { context: { reqId, invoiceId: inv.id, format, attempt } });
     try {
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       await downloadElementAsPdf(el, filename, format);
       toast.success("تم تنزيل الـ PDF");
+      logger.info("pdf_download_success", { context: { reqId, invoiceId: inv.id } });
     } catch (e) {
-      handleError(e, "تعذّر إنشاء الـ PDF");
+      // First failure: offer a one-click retry. Second: offer print fallback.
+      if (attempt < 2) {
+        handleError(e, "تعذّر إنشاء الـ PDF — قد يكون بسبب حجم الصفحة أو الذاكرة", {
+          event: "pdf_download_failed",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "إعادة المحاولة", onClick: () => handleDownloadPdf(2) },
+        });
+      } else {
+        handleError(e, "تعذّر إنشاء الـ PDF مرتين — يمكنك الطباعة مباشرة كبديل", {
+          event: "pdf_download_failed_final",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
+        });
+      }
     } finally {
       setPdfBusy(false);
     }
   }
 
-  async function handleWhatsAppShare() {
+  async function handleWhatsAppShare(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
-    if (!el || shareBusy) return;
+    if (!el) {
+      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
+      return;
+    }
+    if (shareBusy) return;
     setShareBusy(true);
+    const reqId = newRequestId("wa");
+    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, attempt } });
     const toastId = toast.loading("جارٍ تجهيز ملف الفاتورة…");
     try {
       const text = buildInvoiceText(inv, items, storeName, {
@@ -221,24 +394,50 @@ function InvoiceDetailPage() {
       });
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       const result = await shareInvoicePdfViaWhatsApp(
-        el,
-        filename,
-        format,
-        text,
-        inv.customer_phone,
+        el, filename, format, text, inv.customer_phone,
       );
       if (result === "shared") {
         toast.success("تم فتح نافذة المشاركة", { id: toastId });
       } else {
         toast.success("تم تنزيل الـ PDF — أرفقه بالرسالة في واتساب", { id: toastId, duration: 6000 });
       }
+      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, result } });
     } catch (e) {
       toast.dismiss(toastId);
-      handleError(e, "تعذّر مشاركة الفاتورة");
+      if (attempt < 2) {
+        handleError(e, "تعذّر تجهيز ملف واتساب — أعد المحاولة", {
+          event: "whatsapp_share_failed",
+          context: { reqId, invoiceId: inv.id, attempt },
+          action: { label: "إعادة المحاولة", onClick: () => handleWhatsAppShare(2) },
+        });
+      } else {
+        // Final fallback: send text-only via wa.me
+        handleError(e, "تعذّر إرفاق PDF — سيتم إرسال الرسالة النصية فقط", {
+          event: "whatsapp_share_failed_final",
+          context: { reqId, invoiceId: inv.id },
+          action: {
+            label: "إرسال نص فقط",
+            onClick: () => {
+              try {
+                const text = buildInvoiceText(inv, items, storeName, {
+                  includeItems: true,
+                  footer: invoiceFooter || undefined,
+                  storePhone,
+                });
+                openWhatsAppShare(inv.customer_phone, text);
+              } catch (err) {
+                handleError(err, "تعذّر فتح واتساب", { event: "whatsapp_text_fallback_failed" });
+              }
+            },
+          },
+        });
+      }
     } finally {
       setShareBusy(false);
     }
   }
+
+
 
 
   return (
@@ -275,7 +474,7 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={handleDownloadPdf}
+            onClick={() => handleDownloadPdf()}
             disabled={pdfBusy}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
             title="تنزيل PDF"
@@ -285,7 +484,7 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={handleWhatsAppShare}
+            onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
             className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
             title="مشاركة عبر واتساب مع ملف PDF"
@@ -295,11 +494,12 @@ function InvoiceDetailPage() {
           </button>
 
           <button
-            onClick={() => window.print()}
+            onClick={tryPrint}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
           >
             <Printer className="size-4" /> طباعة
           </button>
+
 
           <button
             onClick={() => setEditMode((v) => !v)}
@@ -333,65 +533,87 @@ function InvoiceDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-100">
-                  {editRows.map((row, i) => (
+                  {editRows.map((row, i) => {
+                    const err = rowErrors[row.id] ?? {};
+                    return (
                     <tr key={row.id}>
-                      <td className="p-2">{row.product_name}</td>
-                      <td className="p-2">
+                      <td className="p-2 align-top">{row.product_name}</td>
+                      <td className="p-2 align-top">
                         <input
                           type="number"
-                          min={0}
+                          min={1}
                           step="1"
+                          inputMode="numeric"
                           value={row.quantity}
                           onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                            const raw = e.target.value;
+                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
                             setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
+                            const msg = validateItemField("quantity", v);
+                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: msg ?? undefined } }));
                           }}
-                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                          aria-invalid={!!err.quantity}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity ? "border-destructive" : "border-input"}`}
                         />
+                        {err.quantity && <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>}
                       </td>
-                      <td className="p-2">
+                      <td className="p-2 align-top">
                         <input
                           type="number"
                           min={0}
                           step="0.01"
+                          inputMode="decimal"
                           value={row.unit_price}
                           onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                            const raw = e.target.value;
+                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
                             setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, unit_price: v } : r)));
+                            const msg = validateItemField("unit_price", v);
+                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], unit_price: msg ?? undefined } }));
                           }}
-                          className="w-full text-center h-9 rounded-md border border-input bg-background px-2 nums"
+                          aria-invalid={!!err.unit_price}
+                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.unit_price ? "border-destructive" : "border-input"}`}
                         />
+                        {err.unit_price && <div className="text-[11px] text-destructive mt-1">{err.unit_price}</div>}
                       </td>
-                      <td className="p-2 text-center font-semibold nums">
+                      <td className="p-2 text-center font-semibold nums align-top">
                         {formatSDG(row.quantity * row.unit_price)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            {hasFieldErrors && (
+              <div className="mt-2 text-sm text-destructive flex items-center gap-1">
+                <AlertTriangle className="size-4" /> يوجد قيم غير صالحة — صحّحها قبل الحفظ.
+              </div>
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => setEditMode(false)}
+                onClick={() => { setEditMode(false); setRowErrors({}); }}
                 className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
               >
                 إلغاء
               </button>
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending}
-                className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+                disabled={saveMutation.isPending || hasFieldErrors}
+                className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
               >
                 {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 حفظ التعديلات
               </button>
             </div>
             <p className="text-xs text-amber-800 mt-2">
-              ملاحظة: تعديل الكمية سيُعدّل المخزون تلقائياً (زيادة الكمية تخصم من المخزون، وتقليصها يُعيد للمخزون).
+              ملاحظة: زيادة الكمية تخصم من المخزون تلقائياً — إذا كان المخزون غير كافٍ سيتم رفض الحفظ ورسالة الخطأ ستوضّح الصنف والكمية المتاحة.
             </p>
           </div>
         </section>
       )}
+
 
       <main className="py-6 px-4 print:p-0">
         <div ref={printRef}>
@@ -468,7 +690,7 @@ function InvoiceDetailPage() {
               إغلاق
             </button>
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf()}
               disabled={pdfBusy}
               className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
@@ -476,7 +698,7 @@ function InvoiceDetailPage() {
               تنزيل PDF
             </button>
             <button
-              onClick={handleWhatsAppShare}
+              onClick={() => handleWhatsAppShare()}
               disabled={shareBusy}
               className="px-4 h-9 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >

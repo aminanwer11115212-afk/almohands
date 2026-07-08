@@ -1,16 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
-import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp } from "@/lib/invoice-share";
+import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp, openWhatsAppShare } from "@/lib/invoice-share";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
+import { logger, newRequestId } from "@/lib/logger";
+import { invoiceEditRowsSchema, validateItemField } from "@/lib/schemas";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
@@ -18,7 +20,59 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
   }),
   component: InvoiceDetailPage,
+  errorComponent: InvoiceDetailError,
+  notFoundComponent: InvoiceNotFound,
 });
+
+function InvoiceDetailError({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  useEffect(() => {
+    logger.error("invoice_detail_render_error", {
+      message: error?.message,
+      context: { stack: error?.stack?.slice(0, 500) },
+    });
+  }, [error]);
+  return (
+    <AppShell title="خطأ في الفاتورة" showBack>
+      <div className="mx-auto max-w-lg rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
+        <AlertTriangle className="mx-auto size-10 text-destructive" />
+        <h2 className="text-lg font-bold">تعذّر عرض هذه الفاتورة</h2>
+        <p className="text-sm text-muted-foreground">
+          حدث خطأ أثناء تحميل بيانات الفاتورة. قد يكون الاتصال ضعيفاً أو أن الفاتورة تم تعديلها من جهاز آخر.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => { reset(); router.invalidate(); }}
+            className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-bold inline-flex items-center gap-1"
+          >
+            <RotateCw className="size-4" /> إعادة المحاولة
+          </button>
+          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
+            className="px-4 h-9 rounded-md border border-input bg-background text-sm inline-flex items-center">
+            رجوع للفواتير
+          </Link>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function InvoiceNotFound() {
+  return (
+    <AppShell title="فاتورة غير موجودة" showBack>
+      <div className="mx-auto max-w-lg rounded-xl border border-border bg-card p-6 text-center space-y-3">
+        <Receipt className="mx-auto size-10 text-muted-foreground" />
+        <h2 className="text-lg font-bold">الفاتورة غير موجودة</h2>
+        <p className="text-sm text-muted-foreground">قد تكون قد حُذفت أو أن الرابط غير صحيح.</p>
+        <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
+          className="inline-block px-4 h-9 leading-9 rounded-md bg-primary text-primary-foreground text-sm font-bold">
+          رجوع للفواتير
+        </Link>
+      </div>
+    </AppShell>
+  );
+}
+
 
 type PrintFormat = "a4" | "thermal";
 

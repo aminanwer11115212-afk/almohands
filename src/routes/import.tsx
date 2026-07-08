@@ -99,6 +99,20 @@ function ImportPage() {
     return rawRows.map((r, i) => parseRow(r, i + 2, mapping));
   }, [rawRows, mapping]);
 
+  /** Headers in the file that were NOT matched to any standard column. */
+  const unmatchedHeaders = useMemo(() => {
+    if (headers.length === 0) return [];
+    const mapped = new Set(Object.values(mapping).filter(Boolean) as string[]);
+    return headers.filter((h) => !mapped.has(h));
+  }, [headers, mapping]);
+
+  /** Standard columns that could NOT be resolved from the file. */
+  const missingStandard = useMemo(() => {
+    if (headers.length === 0) return [] as ColKey[];
+    return (Object.keys(COL_LABEL) as ColKey[]).filter((k) => !mapping[k]);
+  }, [headers, mapping]);
+
+
   const validRows = useMemo(() => rows.filter((r) => r._errors.length === 0), [rows]);
   const invalidRows = useMemo(() => rows.filter((r) => r._errors.length > 0), [rows]);
 

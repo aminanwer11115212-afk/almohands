@@ -180,7 +180,7 @@ function ExportPage() {
           doc.setFontSize(14);
           doc.text(key, 14, 15);
           if (rows.length > 0) {
-            const headers = Object.keys(rows[0]);
+            const headers = orderCols(Object.keys(rows[0]));
             autoTable(doc, { startY: 20, head: [headers], body: rows.map((r) => headers.map((h) => String(r[h] ?? ""))), styles: { fontSize: 7 } });
           }
         }

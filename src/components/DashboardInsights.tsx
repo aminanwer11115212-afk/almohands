@@ -82,7 +82,8 @@ export function DashboardInsights() {
         <PanelHeader
           icon={AlertTriangle}
           title="مخزون منخفض"
-          hint={data.lowStock.length ? `${formatNumber(data.lowStock.length)} صنف` : undefined}
+          hint={data.lowStockCount ? `${formatNumber(data.lowStockCount)} صنف` : undefined}
+
           tone="rose"
           to="/products"
         />
@@ -173,7 +174,7 @@ function InvoiceRow({ inv, showRemaining }: { inv: DashInvoice; showRemaining?: 
           <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
             <span>{formatDate(inv.created_at)}</span>
             <span>·</span>
-            <span>{PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}</span>
+            <span>{PM_LABELS[String(inv.payment_method ?? "")] ?? inv.payment_method ?? "—"}</span>
           </div>
         </div>
         <div className="text-end shrink-0">
@@ -276,9 +277,10 @@ function formatDate(iso: string) {
   const dayStart = new Date(d);
   dayStart.setHours(0, 0, 0, 0);
   const diffDays = Math.round((today.getTime() - dayStart.getTime()) / 86400000);
-  if (diffDays === 0)
+  if (diffDays <= 0)
     return `اليوم ${d.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}`;
   if (diffDays === 1) return "أمس";
   if (diffDays < 7) return `قبل ${diffDays} أيام`;
   return d.toLocaleDateString("ar-EG", { day: "2-digit", month: "2-digit" });
+
 }

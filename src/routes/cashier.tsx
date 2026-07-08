@@ -58,6 +58,8 @@ function CashierPage() {
   const [actionsModalId, setActionsModalId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
+  const [referenceNumber, setReferenceNumber] = useState<string>("");
+
 
   const searchRef = useRef<HTMLInputElement>(null);
 

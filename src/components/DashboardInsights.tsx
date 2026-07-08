@@ -192,31 +192,58 @@ function InvoiceRow({ inv, showRemaining }: { inv: DashInvoice; showRemaining?: 
 }
 
 function SalesChart({ data }: { data: DailyPoint[] }) {
-  const max = Math.max(...data.map((d) => d.amount), 1);
-  // On mobile show every other label to prevent overflow/truncation
+  const max = Math.max(...data.map((d) => d.amount), 0);
+  const hasData = max > 0;
   const n = data.length;
-  return (
-    <div className="mt-2 w-full overflow-hidden" role="img" aria-label="مخطط المبيعات اليومي">
-      <div className="flex items-end gap-[3px] sm:gap-1 h-32">
-        {data.map((d) => {
-          const h = (d.amount / max) * 100;
-          return (
-            <div
-              key={d.date}
-              className="flex-1 min-w-0 flex flex-col justify-end"
-              title={`${d.label}: ${formatSDG(d.amount)}`}
-            >
-              <div
-                className="w-full rounded-t bg-gradient-to-t from-brand to-brand/60 min-h-[3px]"
-                style={{ height: `${Math.max(h, 2)}%` }}
-              />
-            </div>
-          );
-        })}
+
+  if (!hasData) {
+    return (
+      <div className="mt-2 h-32 rounded-lg border border-dashed border-border/60 grid place-items-center text-center px-4">
+        <div>
+          <p className="text-xs font-bold text-muted-foreground">لا توجد مبيعات خلال آخر 14 يوماً</p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1">ستظهر هنا فور تسجيل أول فاتورة</p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 w-full overflow-hidden" role="img" aria-label="مخطط المبيعات اليومي" dir="ltr">
+      <div className="relative h-32">
+        {/* grid baseline */}
+        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+          <div className="border-t border-dashed border-border/40" />
+          <div className="border-t border-dashed border-border/40" />
+          <div className="border-t border-border/60" />
+        </div>
+
+        {/* bars */}
+        <div className="relative flex items-end gap-[3px] sm:gap-1 h-full">
+          {data.map((d) => {
+            const pct = (d.amount / max) * 100;
+            const isZero = d.amount === 0;
+            return (
+              <div
+                key={d.date}
+                className="flex-1 min-w-0 flex flex-col justify-end h-full"
+                title={`${d.label}: ${formatSDG(d.amount)}`}
+              >
+                <div
+                  className={`w-full rounded-t transition-all ${
+                    isZero
+                      ? "bg-muted/40"
+                      : "bg-gradient-to-t from-brand to-brand/60 hover:to-brand/80"
+                  }`}
+                  style={{ height: isZero ? "2px" : `${Math.max(pct, 6)}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mt-1 flex items-start gap-[3px] sm:gap-1">
         {data.map((d, i) => {
-          // Mobile: show label every 3rd bar + last. Desktop (sm+): every 2nd.
           const showMobile = i % 3 === 0 || i === n - 1;
           const showDesktop = i % 2 === 0 || i === n - 1;
           return (

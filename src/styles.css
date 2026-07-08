@@ -144,10 +144,12 @@
     letter-spacing: -0.01em;
   }
 
-  /* Latin numerals for money, tabular */
+  /* Latin numerals for money, tabular. Keep the currency label on one line so
+     the words "جنيه سوداني" never get clipped or wrapped inside narrow cells. */
   .nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
+    white-space: nowrap;
   }
 
   /* Global keyboard focus ring — accessible on any bg */

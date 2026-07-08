@@ -58,6 +58,8 @@ function CashierPage() {
   const [actionsModalId, setActionsModalId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
+  const [referenceNumber, setReferenceNumber] = useState<string>("");
+
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -275,7 +277,9 @@ function CashierPage() {
             remaining,
             payment_method: paymentType,
             payment_method_id: paymentMethodId || null,
+            reference_number: paymentType === "bank" ? (referenceNumber.trim() || null) : null,
           })
+
           .select("id, invoice_number")
           .single();
         if (e1) throw e1;
@@ -319,7 +323,9 @@ function CashierPage() {
       setSelectedCustomerId(null);
       setDiscount("0");
       setPaid("");
+      setReferenceNumber("");
       setQuery("");
+
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       if (savedInvoice) {
@@ -728,6 +734,20 @@ function CashierPage() {
                 </select>
               )
             )}
+            {paymentType === "bank" && (
+              <div>
+                <label className="block text-[11px] text-muted-foreground mb-1">
+                  رقم العملية / التحويل البنكي <span className="text-[10px]">(اختياري — يُعرض في التقارير للحساب البنكي)</span>
+                </label>
+                <input
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  placeholder="مثال: TRX-123456789"
+                  className="w-full h-8 rounded border border-border bg-background px-2 text-xs nums"
+                />
+              </div>
+            )}
+
           </div>
 
           {/* Totals */}

@@ -30,17 +30,18 @@ function ImportPageGuarded() {
 type ColKey = "name" | "barcode" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
 
 const COL_ALIASES: Record<ColKey, string[]> = {
-  name: ["الاسم", "اسم المنتج", "name", "product", "product_name"],
-  barcode: ["الباركود", "باركود", "barcode", "sku"],
-  category: ["الفئة", "التصنيف", "category"],
+  name: ["الاسم", "اسم المنتج", "اسم الصنف", "الصنف", "المنتج", "name", "product", "product_name", "item", "item_name"],
+  barcode: ["الباركود", "باركود", "الكود", "كود", "رمز", "barcode", "sku", "code"],
+  category: ["الفئة", "التصنيف", "القسم", "category", "type"],
   unit: ["الوحدة", "unit"],
-  location: ["الموقع", "location"],
-  quantity: ["الكمية", "المخزون", "quantity", "stock", "qty"],
-  min_quantity: ["الحد الأدنى", "min", "min_quantity"],
-  cost_price: ["سعر الشراء", "التكلفة", "cost", "cost_price"],
-  sale_price: ["سعر البيع", "السعر", "price", "sale_price"],
-  notes: ["ملاحظات", "notes"],
+  location: ["الموقع", "المخزن", "الرف", "location", "shelf"],
+  quantity: ["الكمية", "المخزون", "الرصيد", "quantity", "stock", "qty"],
+  min_quantity: ["الحد الأدنى", "الحد الادنى", "أدنى كمية", "ادنى كمية", "min", "min_quantity", "reorder"],
+  cost_price: ["سعر الشراء", "سعر الجملة", "التكلفة", "تكلفة", "سعر التكلفة", "شراء", "الشراء", "cost", "cost_price", "purchase", "purchase_price", "buy", "buy_price"],
+  sale_price: ["سعر البيع", "السعر", "سعر", "بيع", "البيع", "سعر التجزئة", "price", "sale_price", "selling_price", "sell", "sell_price", "retail", "retail_price"],
+  notes: ["ملاحظات", "ملاحظة", "notes", "note", "remark"],
 };
+
 
 type ParsedRow = {
   name: string;
@@ -181,18 +182,34 @@ function ImportPage() {
   }
 
   function parseRow(raw: Record<string, unknown>, rowIndex: number): ParsedRow {
+    // Normalize arabic diacritics / tatweel / extra spaces so header matching is forgiving.
+    const norm = (s: string) =>
+      s.toString()
+        .replace(/[\u064B-\u0652\u0670\u0640]/g, "") // tashkeel + tatweel
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
     const pick = (key: keyof typeof COL_ALIASES): unknown => {
-      for (const alias of COL_ALIASES[key]) {
-        for (const k of Object.keys(raw)) {
-          if (String(k).trim().toLowerCase() === alias.toLowerCase()) return raw[k];
-        }
+      const aliases = COL_ALIASES[key].map(norm);
+      const keys = Object.keys(raw);
+      // 1) exact normalized match
+      for (const k of keys) {
+        const nk = norm(k);
+        if (aliases.includes(nk)) return raw[k];
+      }
+      // 2) substring fallback — helps with headers like "سعر البيع (SDG)" or "cost price ($)"
+      for (const k of keys) {
+        const nk = norm(k);
+        if (aliases.some((a) => a && (nk.includes(a) || a.includes(nk)))) return raw[k];
       }
       return "";
     };
     const num = (v: unknown, def = 0) => {
-      const n = Number(String(v ?? "").toString().replace(/,/g, "").trim());
+      const raw = String(v ?? "").replace(/[،,\s]/g, "").replace(/[^\d.\-]/g, "").trim();
+      const n = Number(raw);
       return Number.isFinite(n) ? n : def;
     };
+
     const str = (v: unknown, def = "") => {
       const s = String(v ?? "").trim();
       return s || def;

@@ -277,11 +277,24 @@ function CancelledInvoicesPage() {
               <button onClick={exportPDF} title="PDF" className="h-10 px-2 rounded-lg bg-rose-600 text-white text-xs font-bold flex items-center gap-1"><FileText className="size-4" />PDF</button>
             </div>
           </div>
+          <div className="grid sm:grid-cols-3 gap-2">
+            <select value={userType} onChange={(e) => setUserType(e.target.value as any)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm">
+              <option value="">كل أنواع المستخدمين</option>
+              <option value="cashier">كاشير فقط</option>
+              <option value="admin">مدير فقط</option>
+            </select>
+            <input type="date" value={dFrom} disabled={!!quick} onChange={(e) => setDFrom(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+            <input type="date" value={dTo} disabled={!!quick} onChange={(e) => setDTo(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+          </div>
           <div className="flex items-center gap-1 text-xs flex-wrap">
-            <span className="font-bold text-muted-foreground">نطاق:</span>
+            <span className="font-bold text-muted-foreground">نطاق سريع:</span>
             {([["", "الكل"], ["7d", "آخر 7 أيام"], ["30d", "آخر 30 يوم"], ["month", "هذا الشهر"]] as [QuickRange, string][]).map(([v, label]) => (
               <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{label}</button>
             ))}
+            <label className="ms-auto flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={showReturns} onChange={(e) => setShowReturns(e.target.checked)} className="size-3.5" />
+              <span>عرض الإرجاعات الجزئية</span>
+            </label>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1 flex-wrap">
             <span className="font-bold">ترتيب:</span>
@@ -297,6 +310,7 @@ function CancelledInvoicesPage() {
               <span>من الكاشير فقط</span>
             </label>
           </div>
+
         </div>
 
         {isLoading ? (

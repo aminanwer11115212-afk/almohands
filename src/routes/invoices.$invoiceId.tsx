@@ -343,6 +343,40 @@ function InvoiceDetailPage() {
         .eq("id", inv.id);
       if (invErr) throw invErr;
 
+      // ---------- 6) Best-effort audit log (never fails the save) ----------
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        if (uid) {
+          const changes = parsed.data.map((r) => ({
+            item_id: r.id,
+            product_id: r.product_id,
+            product_name: r.product_name,
+            qty_from: r._origQty,
+            qty_to: r.quantity,
+            unit_price: r.unit_price,
+            stock_delta: r._origQty - r.quantity, // + = stock returned, − = stock deducted
+          }));
+          await supabase.from("audit_logs").insert({
+            user_id: uid,
+            action: "invoice.items.updated",
+            table_name: "invoices",
+            record_id: inv.id,
+            details: {
+              req_id: reqId,
+              invoice_number: inv.invoice_number,
+              changes,
+              new_total: newTotal,
+              paid,
+              remaining,
+              status,
+            },
+          });
+        }
+      } catch (auditErr) {
+        logger.warn("audit_log_write_failed", { message: (auditErr as Error)?.message, context: { reqId } });
+      }
+
       logger.info("invoice_edit_save_success", {
         context: { reqId, invoiceId: inv.id, newTotal, paid, remaining, status },
       });
@@ -354,6 +388,8 @@ function InvoiceDetailPage() {
       });
       setEditMode(false);
       setRowErrors({});
+      setDraftRestored(false);
+      try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });

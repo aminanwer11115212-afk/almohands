@@ -52,7 +52,6 @@ const SCHEMA_ORDER: Partial<Record<TableKey, string[]>> = {
   expenses: ["expense_date", "category", "description", "amount", "payment_method_id", "notes"],
   returns: ["invoice_id", "product_id", "quantity", "reason", "refund_amount", "notes"],
   purchases: ["supplier_id", "purchase_number", "subtotal", "discount", "tax", "total", "paid", "notes"],
-  purchase_items: ["purchase_id", "product_id", "quantity", "unit_cost", "total"],
   payments: ["invoice_id", "amount", "payment_method_id", "transaction_ref", "notes"],
 };
 

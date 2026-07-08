@@ -158,57 +158,130 @@ function InvoiceDetailPage() {
     [editRows],
   );
 
+  // Per-row inline validation errors — {rowId: {quantity?, unit_price?}}
+  const [rowErrors, setRowErrors] = useState<Record<string, { quantity?: string; unit_price?: string }>>({});
+  const hasFieldErrors = useMemo(
+    () => Object.values(rowErrors).some((e) => e.quantity || e.unit_price),
+    [rowErrors],
+  );
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!data?.inv) return;
+      if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
       const inv = data.inv;
-      // 1) update each invoice_item row
-      for (const row of editRows) {
+      const reqId = newRequestId("inv");
+      logger.info("invoice_edit_save_start", {
+        context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: editRows.length, reqId },
+      });
+
+      // ---------- 1) Zod validation of ALL rows ----------
+      const parsed = invoiceEditRowsSchema.safeParse(editRows);
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
+        const field = firstIssue?.path?.[1];
+        const label = field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
+        const msg = rowIdx
+          ? `الصف ${rowIdx} — ${label}: ${firstIssue?.message ?? "قيمة غير صالحة"}`
+          : firstIssue?.message ?? "بيانات غير صالحة";
+        logger.warn("invoice_edit_validation_failed", { message: msg, context: { reqId, invoiceId: inv.id } });
+        throw new Error(msg);
+      }
+
+      // ---------- 2) Pre-flight stock check for INCREASED quantities ----------
+      // For each row where qty went up and there's a linked product, ensure
+      // the delta doesn't push stock below zero. Fail fast BEFORE any write.
+      const increases = parsed.data.filter((r) => r.product_id && r.quantity > r._origQty);
+      if (increases.length > 0) {
+        const productIds = Array.from(new Set(increases.map((r) => r.product_id!) as string[]));
+        const { data: prods, error: prodsErr } = await supabase
+          .from("products")
+          .select("id, name, quantity")
+          .in("id", productIds);
+        if (prodsErr) throw prodsErr;
+        const stockMap = new Map((prods ?? []).map((p) => [p.id, p]));
+        for (const r of increases) {
+          const p = stockMap.get(r.product_id!);
+          if (!p) continue; // product deleted — skip stock adjustment silently
+          const delta = r.quantity - r._origQty;
+          const available = Number(p.quantity) || 0;
+          if (available < delta) {
+            const shortage = delta - available;
+            const msg = `الكمية المطلوبة للصنف "${p.name}" تتجاوز المخزون المتاح (متبقٍ ${available}، النقص ${shortage}).`;
+            logger.warn("invoice_edit_insufficient_stock", {
+              message: msg,
+              context: { reqId, productId: p.id, available, requestedDelta: delta },
+            });
+            throw new Error(msg);
+          }
+        }
+      }
+
+      // ---------- 3) Persist item rows (updated_at added) ----------
+      for (const row of parsed.data) {
         const lineTotal = row.quantity * row.unit_price;
         const { error: upErr } = await supabase
           .from("invoice_items")
           .update({ quantity: row.quantity, unit_price: row.unit_price, line_total: lineTotal })
           .eq("id", row.id);
         if (upErr) throw upErr;
-
-        // 2) adjust stock delta if quantity changed and product_id exists
-        const delta = row.quantity - row._origQty;
-        if (delta !== 0 && row.product_id) {
-          const { data: prod, error: prodErr } = await supabase
-            .from("products")
-            .select("quantity")
-            .eq("id", row.product_id)
-            .maybeSingle();
-          if (prodErr) throw prodErr;
-          const currentQty = Number(prod?.quantity) || 0;
-          const newQty = currentQty - delta; // increased qty on invoice → decrement stock more
-          const { error: stockErr } = await supabase
-            .from("products")
-            .update({ quantity: Math.max(0, newQty) })
-            .eq("id", row.product_id);
-          if (stockErr) throw stockErr;
-        }
       }
-      // 3) update invoice totals
-      const newTotal = editTotal;
-      const paid = Number(inv.paid) || 0;
+
+      // ---------- 4) Apply stock deltas (bounded to >=0 as safety net) ----------
+      for (const row of parsed.data) {
+        const delta = row.quantity - row._origQty;
+        if (delta === 0 || !row.product_id) continue;
+        const { data: prod, error: prodErr } = await supabase
+          .from("products").select("quantity").eq("id", row.product_id).maybeSingle();
+        if (prodErr) throw prodErr;
+        if (!prod) continue;
+        const currentQty = Number(prod.quantity) || 0;
+        const newQty = currentQty - delta;
+        if (newQty < 0) {
+          // Race between pre-flight and now: stock changed under us.
+          const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
+          logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: row.product_id, currentQty, delta } });
+          throw new Error(msg);
+        }
+        const { error: stockErr } = await supabase
+          .from("products").update({ quantity: newQty }).eq("id", row.product_id);
+        if (stockErr) throw stockErr;
+      }
+
+      // ---------- 5) Recompute invoice totals from validated data ----------
+      const newTotal = parsed.data.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+      const paid = Math.min(Number(inv.paid) || 0, newTotal); // never exceed total
       const remaining = Math.max(0, newTotal - paid);
-      const status = remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
+      const status: "paid" | "partial" | "pending" =
+        newTotal === 0 ? "paid" : remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
       const { error: invErr } = await supabase
         .from("invoices")
-        .update({ total: newTotal, remaining, status })
+        .update({ total: newTotal, paid, remaining, status })
         .eq("id", inv.id);
       if (invErr) throw invErr;
+
+      logger.info("invoice_edit_save_success", {
+        context: { reqId, invoiceId: inv.id, newTotal, paid, remaining, status },
+      });
+      return { reqId, newTotal, paid, remaining, status };
     },
-    onSuccess: () => {
-      toast.success("تم حفظ التعديلات");
+    onSuccess: (res) => {
+      toast.success("تم حفظ التعديلات بنجاح", {
+        description: res ? `الإجمالي الجديد: ${formatSDG(res.newTotal)}` : undefined,
+      });
       setEditMode(false);
+      setRowErrors({});
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
-    onError: (e) => handleError(e, "تعذّر حفظ التعديلات"),
+    onError: (e) => handleError(e, "تعذّر حفظ التعديلات", {
+      event: "invoice_edit_save_failed",
+      context: { invoiceId, rows: editRows.length },
+      action: { label: "إعادة المحاولة", onClick: () => saveMutation.mutate() },
+    }),
   });
+
 
   // Auto-open print dialog only ONCE per page visit; background refetches
   // must not retrigger window.print().

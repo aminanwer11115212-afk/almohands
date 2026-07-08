@@ -99,6 +99,20 @@ function ImportPage() {
     return rawRows.map((r, i) => parseRow(r, i + 2, mapping));
   }, [rawRows, mapping]);
 
+  /** Headers in the file that were NOT matched to any standard column. */
+  const unmatchedHeaders = useMemo(() => {
+    if (headers.length === 0) return [];
+    const mapped = new Set(Object.values(mapping).filter(Boolean) as string[]);
+    return headers.filter((h) => !mapped.has(h));
+  }, [headers, mapping]);
+
+  /** Standard columns that could NOT be resolved from the file. */
+  const missingStandard = useMemo(() => {
+    if (headers.length === 0) return [] as ColKey[];
+    return (Object.keys(COL_LABEL) as ColKey[]).filter((k) => !mapping[k]);
+  }, [headers, mapping]);
+
+
   const validRows = useMemo(() => rows.filter((r) => r._errors.length === 0), [rows]);
   const invalidRows = useMemo(() => rows.filter((r) => r._errors.length > 0), [rows]);
 
@@ -251,6 +265,19 @@ function ImportPage() {
         payload: retryPayload,
       }).catch(() => {});
 
+      // Audit log for later review
+      await supabase.from("audit_logs").insert({
+        user_id: uid,
+        action: "data.import",
+        table_name: "products",
+        details: {
+          req_id: reqId, file_name: fileName, imported: inserted,
+          invalid: invalidRows.length, total: rows.length,
+          mapping, price_pct: pricePct, duration_ms: Date.now() - started,
+        },
+      }).then(() => undefined, () => undefined);
+
+
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
       logger.info("import_success", { context: { reqId, inserted } });
       clearAll();
@@ -265,6 +292,14 @@ function ImportPage() {
         duration_ms: Date.now() - started,
         payload: { rawRows, mapping, pricePct, fileName },
       }).catch(() => {});
+
+      // Audit failure too
+      const { data: au } = await supabase.auth.getUser();
+      if (au?.user) await supabase.from("audit_logs").insert({
+        user_id: au.user.id, action: "data.import.failed", table_name: "products",
+        details: { req_id: reqId, file_name: fileName, error: e?.message ?? "unknown", mapping, duration_ms: Date.now() - started },
+      }).then(() => undefined, () => undefined);
+
 
       handleError(e, "تعذّر إتمام الاستيراد", {
         event: "import_failed",
@@ -325,12 +360,39 @@ function ImportPage() {
         )}
       </section>
 
+      {rows.length > 0 && (missingStandard.length > 0 || unmatchedHeaders.length > 0) && (
+        <>
+          <hr className="my-6 border-border" />
+          <section className={`rounded-2xl border-2 p-4 ${missingStandard.some((k) => k === "name" || k === "cost_price" || k === "sale_price") ? "border-destructive/60 bg-destructive/10" : "border-amber-400/60 bg-amber-50 dark:bg-amber-950/30"}`}>
+            <h3 className="text-sm font-extrabold flex items-center gap-2">
+              ⚠️ رؤوس الأعمدة لا تطابق المعيار
+            </h3>
+            <div className="mt-2 text-xs space-y-1.5">
+              {missingStandard.length > 0 && (
+                <div>
+                  <span className="font-bold">أعمدة معيارية لم تُكتشف: </span>
+                  <span>{missingStandard.map((k) => COL_LABEL[k]).join("، ")}</span>
+                  <div className="text-muted-foreground mt-0.5">استخدم قائمة الربط أدناه لاختيار عمود يدوياً، أو أعد تسمية الرؤوس في الملف لتطابق النموذج.</div>
+                </div>
+              )}
+              {unmatchedHeaders.length > 0 && (
+                <div>
+                  <span className="font-bold">أعمدة في الملف لم يتم استخدامها: </span>
+                  <span>{unmatchedHeaders.join("، ")}</span>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
       {rows.length > 0 && (
         <>
           <hr className="my-6 border-border" />
           {/* Column mapping preview */}
           <section className="rounded-2xl bg-card shadow-card border border-border p-5">
             <h2 className="text-base font-extrabold mb-3">معاينة ربط الأعمدة</h2>
+
             <p className="text-xs text-muted-foreground mb-3">
               تحقّق من الأعمدة المكتشفة تلقائياً. عدّل الربط يدوياً إذا لم يتم التعرف على عمود.
             </p>

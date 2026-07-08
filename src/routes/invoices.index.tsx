@@ -53,7 +53,7 @@ function sanitizeOrTerm(raw: string): string {
   return raw.replace(/[,()*:%\\]/g, " ").trim().slice(0, 80);
 }
 
-export const Route = createFileRoute("/invoices")({
+export const Route = createFileRoute("/invoices/")({
   head: () => ({ meta: [{ title: "الفواتير — المهندس" }] }),
   validateSearch: zodValidator(searchSchema),
   component: InvoicesPage,

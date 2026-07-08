@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect, useMemo, useState } from "react";
@@ -217,72 +217,88 @@ function InvoicesPage() {
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {(query.data ?? []).map((inv) => (
-                <li key={inv.id} className="group">
-                  <div className="flex items-stretch hover:bg-muted/50 transition">
-                    <Link
-                      to="/invoices/$invoiceId"
-                      params={{ invoiceId: inv.id }}
-                      search={{ autoprint: 0 }}
-                      className="flex-1 min-w-0 text-right p-3 flex items-center gap-3"
+              {(query.data ?? []).map((inv) => {
+                const goDetail = (autoprint: 0 | 1) =>
+                  navigate({
+                    to: "/invoices/$invoiceId",
+                    params: { invoiceId: inv.id },
+                    search: { autoprint },
+                  });
+                return (
+                  <li key={inv.id} className="group">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => goDetail(0)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          goDetail(0);
+                        }
+                      }}
+                      className="flex items-stretch hover:bg-muted/50 transition cursor-pointer"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-primary nums">#{inv.invoice_number}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
-                            {statusLabels[inv.status] ?? inv.status}
-                          </span>
+                      <div className="flex-1 min-w-0 text-right p-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-primary nums">#{inv.invoice_number}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
+                              {statusLabels[inv.status] ?? inv.status}
+                            </span>
+                          </div>
+                          <div className="text-sm text-foreground truncate">
+                            {inv.customer_name || "عميل نقدي"}
+                            {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground nums">
+                            {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                          </div>
                         </div>
-                        <div className="text-sm text-foreground truncate">
-                          {inv.customer_name || "عميل نقدي"}
-                          {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground nums">
-                          {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                        <div className="text-left shrink-0">
+                          <div className="text-sm font-semibold nums">{formatSDG(Number(inv.total))}</div>
+                          {Number(inv.remaining) > 0 && (
+                            <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-left shrink-0">
-                        <div className="text-sm font-semibold nums">{formatSDG(Number(inv.total))}</div>
-                        {Number(inv.remaining) > 0 && (
-                          <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
-                        )}
+                      <div
+                        className="flex items-center gap-0.5 pl-2 pr-1 border-r border-border/60"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); goDetail(1); }}
+                          title="طباعة"
+                          aria-label="طباعة"
+                          className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
+                        >
+                          <Printer className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); goDetail(0); }}
+                          title="عرض التفاصيل"
+                          aria-label="عرض التفاصيل"
+                          className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground hidden sm:inline-flex"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setOpenInvoiceId(inv.id); }}
+                          title="إجراءات"
+                          aria-label="إجراءات"
+                          className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
                       </div>
-                    </Link>
-                    <div className="flex items-center gap-0.5 pl-2 pr-1 border-r border-border/60">
-                      <Link
-                        to="/invoices/$invoiceId"
-                        params={{ invoiceId: inv.id }}
-                        search={{ autoprint: 1 }}
-                        title="طباعة"
-                        aria-label="طباعة"
-                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
-                      >
-                        <Printer className="size-4" />
-                      </Link>
-                      <Link
-                        to="/invoices/$invoiceId"
-                        params={{ invoiceId: inv.id }}
-                        search={{ autoprint: 0 }}
-                        title="عرض التفاصيل"
-                        aria-label="عرض التفاصيل"
-                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                      >
-                        <Eye className="size-4" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => setOpenInvoiceId(inv.id)}
-                        title="إجراءات"
-                        aria-label="إجراءات"
-                        className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
-                      >
-                        <MoreVertical className="size-4" />
-                      </button>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
+
           )}
         </div>
       </div>

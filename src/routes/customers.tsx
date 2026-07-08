@@ -15,6 +15,18 @@ function CustomersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const { data: customers = [], isLoading, isError } = useCustomers(q);
 
+  const totals = customers.reduce(
+    (a, c) => {
+      a.invoices += c.invoicesCount;
+      a.total += c.totalInvoiced;
+      a.paid += c.totalPaid;
+      a.remaining += c.totalRemaining;
+      return a;
+    },
+    { invoices: 0, total: 0, paid: 0, remaining: 0 },
+  );
+
+
   return (
     <AppShell title="العملاء" showBack>
       <div className="relative mb-4">

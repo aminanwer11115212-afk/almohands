@@ -182,18 +182,34 @@ function ImportPage() {
   }
 
   function parseRow(raw: Record<string, unknown>, rowIndex: number): ParsedRow {
+    // Normalize arabic diacritics / tatweel / extra spaces so header matching is forgiving.
+    const norm = (s: string) =>
+      s.toString()
+        .replace(/[\u064B-\u0652\u0670\u0640]/g, "") // tashkeel + tatweel
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
     const pick = (key: keyof typeof COL_ALIASES): unknown => {
-      for (const alias of COL_ALIASES[key]) {
-        for (const k of Object.keys(raw)) {
-          if (String(k).trim().toLowerCase() === alias.toLowerCase()) return raw[k];
-        }
+      const aliases = COL_ALIASES[key].map(norm);
+      const keys = Object.keys(raw);
+      // 1) exact normalized match
+      for (const k of keys) {
+        const nk = norm(k);
+        if (aliases.includes(nk)) return raw[k];
+      }
+      // 2) substring fallback — helps with headers like "سعر البيع (SDG)" or "cost price ($)"
+      for (const k of keys) {
+        const nk = norm(k);
+        if (aliases.some((a) => a && (nk.includes(a) || a.includes(nk)))) return raw[k];
       }
       return "";
     };
     const num = (v: unknown, def = 0) => {
-      const n = Number(String(v ?? "").toString().replace(/,/g, "").trim());
+      const raw = String(v ?? "").replace(/[،,\s]/g, "").replace(/[^\d.\-]/g, "").trim();
+      const n = Number(raw);
       return Number.isFinite(n) ? n : def;
     };
+
     const str = (v: unknown, def = "") => {
       const s = String(v ?? "").trim();
       return s || def;

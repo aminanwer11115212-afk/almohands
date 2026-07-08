@@ -779,9 +779,9 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           <tr className="bg-white">
             <th className="border border-black py-1.5 w-10">م</th>
             <th className="border border-black py-1.5">الصنف</th>
-            <th className="border border-black py-1.5 w-24">السعر (وحدة)</th>
+            <th className="border border-black py-1.5 w-40">السعر (وحدة)</th>
             <th className="border border-black py-1.5 w-16">الكمية</th>
-            <th className="border border-black py-1.5 w-24">الإجمالي</th>
+            <th className="border border-black py-1.5 w-40">الإجمالي</th>
           </tr>
         </thead>
         <tbody>
@@ -789,14 +789,14 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
             <tr key={i} className="h-7">
               <td className="border border-black text-center nums">{i + 1}</td>
               <td className="border border-black px-2">{it?.product_name ?? ""}</td>
-              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
+              <td className="border border-black text-center nums px-1">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
               <td className="border border-black text-center nums">{it?.quantity ?? ""}</td>
-              <td className="border border-black text-center nums">{it ? formatSDG(Number(it.line_total)) : ""}</td>
+              <td className="border border-black text-center nums px-1">{it ? formatSDG(Number(it.line_total)) : ""}</td>
             </tr>
           ))}
           <tr className="h-9 font-bold">
             <td colSpan={4} className="border border-black text-left px-3">المجموع الكلي:</td>
-            <td className="border border-black text-center nums text-base">{formatSDG(Number(inv.total))}</td>
+            <td className="border border-black text-center nums text-base px-1">{formatSDG(Number(inv.total))}</td>
           </tr>
         </tbody>
       </table>

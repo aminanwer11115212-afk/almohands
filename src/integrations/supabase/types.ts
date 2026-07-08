@@ -300,6 +300,7 @@ export type Database = {
           paid: number
           payment_method: string
           payment_method_id: string | null
+          reference_number: string | null
           remaining: number
           source: string
           status: string
@@ -320,6 +321,7 @@ export type Database = {
           paid?: number
           payment_method?: string
           payment_method_id?: string | null
+          reference_number?: string | null
           remaining?: number
           source?: string
           status?: string
@@ -340,6 +342,7 @@ export type Database = {
           paid?: number
           payment_method?: string
           payment_method_id?: string | null
+          reference_number?: string | null
           remaining?: number
           source?: string
           status?: string
@@ -376,6 +379,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          invoice_id: string | null
           message: string | null
           product_id: string | null
           read: boolean
@@ -386,6 +390,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          invoice_id?: string | null
           message?: string | null
           product_id?: string | null
           read?: boolean
@@ -396,6 +401,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          invoice_id?: string | null
           message?: string | null
           product_id?: string | null
           read?: boolean

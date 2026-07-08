@@ -1,26 +1,21 @@
 /**
  * Currency formatters for Sudanese Pound (SDG).
- * Uses non-breaking spaces so the label "جنيه سوداني" never wraps
- * onto a new line and doesn't get clipped inside narrow table cells.
+ * Per user preference: the label "جنيه سوداني" is hidden across invoices
+ * and dashboard to leave more room for the numeric value. The number is
+ * shown on its own; currency context is implied by the app (SDG only).
  */
-const NBSP = "\u00A0";
-
 export function formatSDG(value: number): string {
-  const n = new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
-  return `${n}${NBSP}جنيه${NBSP}سوداني`;
 }
 
-/** Short form for very narrow places (thermal receipt, cashier rows). */
+/** Short form kept for backwards compatibility — also label-free. */
 export function formatSDGShort(value: number): string {
-  const n = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
-  return `${n}${NBSP}ج.س`;
+  return formatSDG(value);
 }
+
 
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);

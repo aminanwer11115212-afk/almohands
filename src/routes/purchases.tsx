@@ -35,7 +35,9 @@ const statusClasses: Record<string, string> = {
 function PurchasesPage() {
   const [q, setQ] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const { data: purchases = [], isLoading } = usePurchases(q);
+
 
   const totals = useMemo(() => {
     return purchases.reduce(

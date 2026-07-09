@@ -745,3 +745,17 @@ function parseRow(raw: Record<string, unknown>, rowIndex: number, mapping: Mappi
     _errors: errors,
   };
 }
+
+function Stat({ label, value, tone }: { label: string; value: number; tone: "ok" | "bad" | "warn" | "muted" }) {
+  const cls =
+    tone === "ok" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"
+    : tone === "bad" ? "bg-destructive/10 text-destructive"
+    : tone === "warn" ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400"
+    : "bg-muted text-foreground";
+  return (
+    <div className={`rounded-md p-2 text-center ${cls}`}>
+      <div className="text-[10px] opacity-80">{label}</div>
+      <div className="font-extrabold nums">{value.toLocaleString("ar-EG")}</div>
+    </div>
+  );
+}

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw } from "lucide-react";
+import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw, StopCircle, Loader2 } from "lucide-react";
 import { exportPdfFromRows } from "@/lib/pdf-html-export";
 import { formatNumber } from "@/lib/format";
 
@@ -108,11 +108,24 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
 }
 
 async function fetchTable(name: TableKey, from?: string, to?: string) {
-  const meta = TABLES.find((t) => t.key === name)!;
-  // Paginate through PostgREST's 1000-row cap to support large datasets (10k+).
-  const PAGE = 1000;
-  const MAX_ROWS = 100000;
   const all: any[] = [];
+  await streamTablePages(name, from, to, async (batch) => { all.push(...batch); });
+  return all;
+}
+
+/**
+ * تدفّق (streaming) الصفحات من قاعدة البيانات: يستدعي onPage لكل دفعة بدون
+ * تجميع كل السجلات في الذاكرة — لتصدير 10k+ صف بسلاسة.
+ */
+async function streamTablePages(
+  name: TableKey,
+  from: string | undefined,
+  to: string | undefined,
+  onPage: (batch: any[], offset: number) => Promise<boolean | void>,
+) {
+  const meta = TABLES.find((t) => t.key === name)!;
+  const PAGE = 1000;
+  const MAX_ROWS = 200000;
   for (let off = 0; off < MAX_ROWS; off += PAGE) {
     let q: any = supabase.from(name).select("*");
     if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
@@ -120,10 +133,23 @@ async function fetchTable(name: TableKey, from?: string, to?: string) {
     const { data, error } = await q.range(off, off + PAGE - 1);
     if (error) throw error;
     const batch = data ?? [];
-    all.push(...batch);
-    if (batch.length < PAGE) break;
+    const cont = await onPage(batch, off);
+    if (cont === false) return;
+    if (batch.length < PAGE) return;
   }
-  return all;
+}
+
+/** يبني رأس CSV مرة واحدة ثم يُرجع دالة تحوّل كل دفعة إلى نص CSV بدون رأس. */
+function makeCsvWriter(headerCols: string[], headerLabels: string[]) {
+  const esc = (v: unknown) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = headerLabels.join(",") + "\n";
+  const rowsToCsv = (rows: Record<string, unknown>[]) =>
+    rows.map((r) => headerCols.map((c) => esc(r[c])).join(",")).join("\n") + "\n";
+  return { header, rowsToCsv };
 }
 
 function ExportPageGuarded() {
@@ -143,6 +169,14 @@ function ExportPage() {
   const [logStatus, setLogStatus] = useState<"all" | "success" | "failed">("all");
   const [standardHeaders, setStandardHeaders] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ table: string; done: number } | null>(null);
+  const abortRef = useRef<{ cancelled: boolean } | null>(null);
+  const cancelExport = () => {
+    if (abortRef.current) {
+      abortRef.current.cancelled = true;
+      toast.message("جارٍ الإلغاء…", { id: "export-progress" });
+    }
+  };
 
   const { data: logs = [] } = useQuery({
     queryKey: ["export_logs", logStatus],
@@ -209,12 +243,23 @@ function ExportPage() {
   const runExport = async () => {
     if (selected.size === 0) return toast.error("اختر جدولاً واحداً على الأقل");
     setBusy(true);
+    abortRef.current = { cancelled: false };
     const started = Date.now();
     try {
       let total = 0;
-      if (format === "pdf") {
-        for (const key of selected) {
-          const rows = (await fetchTable(key, from, to)) as Record<string, unknown>[];
+      for (const key of selected) {
+        if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
+        setProgress({ table: key, done: 0 });
+
+        if (format === "pdf") {
+          // PDF لا يدعم streaming حقيقي — نجمّع مع تحديث تقدم لكل صفحة
+          const rows: Record<string, unknown>[] = [];
+          await streamTablePages(key, from, to, async (batch) => {
+            if (abortRef.current?.cancelled) return false;
+            rows.push(...(batch as Record<string, unknown>[]));
+            setProgress({ table: key, done: rows.length });
+            toast.message(`${key}: ${formatNumber(rows.length)} سجل`, { id: "export-progress" });
+          });
           total += rows.length;
           if (rows.length === 0) continue;
           const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
@@ -225,19 +270,60 @@ function ExportPage() {
             headers,
             rows: rows.map((r) => headers.map((h) => String(r[h] ?? ""))),
           });
+          continue;
         }
-      } else {
-        for (const key of selected) {
-          const rows = await fetchTable(key, from, to);
-          total += rows.length;
+
+        // CSV / JSON: نبني الملف كأجزاء (chunks) في Blob بدون تجميع كل شيء في سلسلة نصية واحدة.
+        const parts: BlobPart[] = ["\ufeff"]; // BOM لدعم العربية
+        let rowCount = 0;
+        let csvWriter: ReturnType<typeof makeCsvWriter> | null = null;
+        let schemaCols: string[] | null = null;
+
+        await streamTablePages(key, from, to, async (batch) => {
+          if (abortRef.current?.cancelled) return false;
+          if (batch.length === 0) return;
+
           if (format === "csv") {
-            const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
-            download(`${key}-${Date.now()}.csv`, toCSV(rows as Record<string, unknown>[], key, headerMap));
+            if (!csvWriter) {
+              const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
+              const allKeys = Array.from(new Set(batch.flatMap((r: any) => Object.keys(r))));
+              const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, key);
+              const labels = headerMap ? cols.map((c) => headerMap[c]) : cols;
+              csvWriter = makeCsvWriter(cols, labels);
+              parts.push(csvWriter.header);
+            }
+            parts.push(csvWriter.rowsToCsv(batch as Record<string, unknown>[]));
           } else {
-            download(`${key}-${Date.now()}.json`, toJSON(rows as Record<string, unknown>[], key), "application/json");
+            // JSON streaming: بناء المصفوفة قطعة قطعة
+            if (!schemaCols) {
+              const allKeys = Array.from(new Set(batch.flatMap((r: any) => Object.keys(r))));
+              schemaCols = orderCols(allKeys, key);
+              parts.push("[\n");
+            }
+            const ordered = (batch as Record<string, unknown>[]).map((r) =>
+              Object.fromEntries(schemaCols!.map((c) => [c, r[c]])),
+            );
+            const text = ordered.map((o) => "  " + JSON.stringify(o)).join(",\n");
+            parts.push(rowCount === 0 ? text : ",\n" + text);
           }
-        }
+
+          rowCount += batch.length;
+          setProgress({ table: key, done: rowCount });
+          toast.message(`${key}: ${formatNumber(rowCount)} سجل`, { id: "export-progress" });
+          // إفساح المجال للـ UI + زر الإلغاء
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+        if (format === "json") parts.push(schemaCols ? "\n]\n" : "[]");
+        if (rowCount === 0 && format === "csv") continue;
+
+        const mime = format === "csv" ? "text/csv;charset=utf-8" : "application/json;charset=utf-8";
+        const ext = format;
+        const blob = new Blob(parts, { type: mime });
+        download(`${key}-${Date.now()}.${ext}`, blob, mime);
+        total += rowCount;
       }
+
       const partialPayload = { export_type: "partial", format, tables: [...selected], from, to };
       await logMut.mutateAsync({
         export_type: "partial",
@@ -269,26 +355,45 @@ function ExportPage() {
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
       setBusy(false);
+      setProgress(null);
+      abortRef.current = null;
     }
   };
 
   const fullBackup = async () => {
     setBusy(true);
+    abortRef.current = { cancelled: false };
     const started = Date.now();
     try {
-      const backup: Record<string, unknown> = { exported_at: new Date().toISOString() };
+      // نسخة احتياطية streaming: نكتب JSON قطعة قطعة بدل تحميل كل شيء في الذاكرة.
+      const parts: BlobPart[] = [`{\n  "exported_at": ${JSON.stringify(new Date().toISOString())}`];
       let total = 0;
       for (const t of TABLES) {
-        const rows = await fetchTable(t.key);
-        backup[t.key] = rows;
-        total += rows.length;
+        if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
+        setProgress({ table: t.key, done: 0 });
+        parts.push(`,\n  ${JSON.stringify(t.key)}: [\n`);
+        let count = 0;
+        await streamTablePages(t.key, undefined, undefined, async (batch) => {
+          if (abortRef.current?.cancelled) return false;
+          if (batch.length === 0) return;
+          const text = batch.map((r: any) => "    " + JSON.stringify(r)).join(",\n");
+          parts.push(count === 0 ? text : ",\n" + text);
+          count += batch.length;
+          setProgress({ table: t.key, done: count });
+          toast.message(`${t.key}: ${formatNumber(count)} سجل`, { id: "export-progress" });
+          await new Promise((r) => setTimeout(r, 0));
+        });
+        parts.push("\n  ]");
+        total += count;
       }
-      download(`backup-${Date.now()}.json`, JSON.stringify(backup, null, 2), "application/json");
+      parts.push("\n}\n");
+      const blob = new Blob(parts, { type: "application/json;charset=utf-8" });
+      download(`backup-${Date.now()}.json`, blob, "application/json");
       await logMut.mutateAsync({
         export_type: "full_backup", format: "json",
         tables: TABLES.map((t) => t.key), row_count: total,
         status: "success", duration_ms: Date.now() - started,
-        notes: "نسخة احتياطية كاملة",
+        notes: "نسخة احتياطية كاملة (streaming)",
         payload: { export_type: "full_backup", format: "json" },
       });
       const { data: au } = await supabase.auth.getUser();
@@ -303,11 +408,14 @@ function ExportPage() {
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
         payload: { export_type: "full_backup", format: "json" },
       }).catch(() => {});
-      toast.error("فشل النسخ الاحتياطي");
+      toast.error("فشل النسخ الاحتياطي: " + (e?.message || ""));
     } finally {
       setBusy(false);
+      setProgress(null);
+      abortRef.current = null;
     }
   };
+
 
   function retryFromLog(l: any) {
     const p = l?.payload;
@@ -385,10 +493,19 @@ function ExportPage() {
         )}
 
 
-        <button onClick={runExport} disabled={busy}
-          className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-brand text-brand-foreground px-3 py-2.5 text-sm font-bold disabled:opacity-60">
-          {format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />}
-          تصدير الآن
+        {progress && (
+          <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1 font-bold">
+              <Loader2 className="size-3.5 animate-spin" /> {progress.table} · {formatNumber(progress.done)} سجل
+            </span>
+            <button onClick={cancelExport} className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-destructive text-white font-bold">
+              <StopCircle className="size-3.5" /> إلغاء
+            </button>
+          </div>
+        )}
+        <button onClick={busy ? cancelExport : runExport} disabled={!busy && selected.size === 0}
+          className={`mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-60 ${busy ? "bg-destructive text-white" : "bg-brand text-brand-foreground"}`}>
+          {busy ? <><StopCircle className="size-4" /> إلغاء العملية</> : <>{format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />} تصدير الآن</>}
         </button>
       </section>
 

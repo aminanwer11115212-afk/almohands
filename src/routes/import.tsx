@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History, RefreshCw, Link2, Link2Off } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History, RefreshCw, Link2, Link2Off, Eye, StopCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
@@ -93,6 +93,20 @@ function ImportPage() {
   const [fileName, setFileName] = useState<string>("");
   const [pricePct, setPricePct] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const abortRef = useRef<{ cancelled: boolean } | null>(null);
+  type DryReport = {
+    validCount: number;
+    invalidCount: number;
+    duplicatesInFile: number;
+    existingInDb: number;
+    newInDb: number;
+    missingBarcodes: number;
+    existingSamples: string[];
+    newSamples: string[];
+  };
+  const [dryReport, setDryReport] = useState<DryReport | null>(null);
+  const [dryBusy, setDryBusy] = useState(false);
 
   const rows = useMemo<ParsedRow[]>(() => {
     if (rawRows.length === 0) return [];
@@ -220,12 +234,73 @@ function ImportPage() {
 
   const clearAll = useCallback(() => {
     setRawRows([]); setHeaders([]); setMapping({}); setFileName("");
+    setDryReport(null); setProgress(null);
   }, []);
+
+  function cancelImport() {
+    if (abortRef.current) {
+      abortRef.current.cancelled = true;
+      toast.message("جارٍ إلغاء العملية…", { id: "import-progress" });
+    }
+  }
+
+  /** Dry-run: يفحص الأخطاء ويطابق الباركود مع المنتجات الموجودة قبل التنفيذ. */
+  async function previewDryRun() {
+    if (dryBusy || busy) return;
+    if (rows.length === 0) { toast.error("لا توجد بيانات للمعاينة"); return; }
+    setDryBusy(true);
+    try {
+      const barcodes = Array.from(new Set(
+        validRows.map((r) => (r.barcode || "").trim()).filter(Boolean),
+      ));
+
+      // كشف تكرار الباركود داخل نفس الملف
+      const inFileCounts = new Map<string, number>();
+      for (const r of validRows) {
+        const b = (r.barcode || "").trim();
+        if (!b) continue;
+        inFileCounts.set(b, (inFileCounts.get(b) ?? 0) + 1);
+      }
+      const duplicatesInFile = Array.from(inFileCounts.values()).filter((n) => n > 1).length;
+
+      // مطابقة مع قاعدة البيانات (على دفعات لتجاوز حد PostgREST)
+      const existing = new Set<string>();
+      const CHUNK = 500;
+      for (let i = 0; i < barcodes.length; i += CHUNK) {
+        const slice = barcodes.slice(i, i + CHUNK);
+        const { data, error } = await supabase.from("products").select("barcode").in("barcode", slice);
+        if (error) throw error;
+        (data ?? []).forEach((r: any) => r.barcode && existing.add(String(r.barcode)));
+      }
+
+      const existingRows = validRows.filter((r) => r.barcode && existing.has(r.barcode));
+      const newRows = validRows.filter((r) => !r.barcode || !existing.has(r.barcode));
+      const missingBarcodes = validRows.filter((r) => !r.barcode).length;
+
+      setDryReport({
+        validCount: validRows.length,
+        invalidCount: invalidRows.length,
+        duplicatesInFile,
+        existingInDb: existingRows.length,
+        newInDb: newRows.length,
+        missingBarcodes,
+        existingSamples: existingRows.slice(0, 8).map((r) => r.name),
+        newSamples: newRows.slice(0, 8).map((r) => r.name),
+      });
+      toast.success(`المعاينة جاهزة: ${validRows.length} صالح · ${existingRows.length} موجود · ${newRows.length} جديد`);
+    } catch (e: any) {
+      handleError(e, "تعذّر إتمام المعاينة", { event: "import_dryrun_failed" });
+    } finally {
+      setDryBusy(false);
+    }
+  }
 
   async function commitImport() {
     if (busy) return;
     if (validRows.length === 0) { toast.error("لا توجد صفوف صالحة للاستيراد"); return; }
     setBusy(true);
+    abortRef.current = { cancelled: false };
+    setProgress({ done: 0, total: validRows.length });
     const started = Date.now();
     const reqId = newRequestId("imp");
     logger.info("import_start", { context: { reqId, rows: validRows.length, pricePct } });
@@ -241,18 +316,21 @@ function ImportPage() {
         sale_price: bumpedPrice(r.sale_price), notes: r.notes, is_active: true,
       }));
 
-      // Larger chunks + progress toast keep 10k-row imports snappy without hitting request limits.
+      // مهمة خلفية مع تقدم قابل للإلغاء بين الدفعات.
       const CHUNK = 500;
       let inserted = 0;
       for (let i = 0; i < payload.length; i += CHUNK) {
+        if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
         const chunk = payload.slice(i, i + CHUNK);
         const { error } = await supabase.from("products").insert(chunk);
         if (error) throw error;
         inserted += chunk.length;
-        if (payload.length > 1000) {
-          toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
-        }
+        setProgress({ done: inserted, total: payload.length });
+        toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
+        // إفساح المجال للـ UI للاستجابة وزر الإلغاء
+        await new Promise((r) => setTimeout(r, 0));
       }
+
 
       const mappingNote = (Object.keys(mapping) as ColKey[])
         .map((k) => `${COL_LABEL[k]}=«${mapping[k]}»`).join(" · ");
@@ -312,6 +390,8 @@ function ImportPage() {
       });
     } finally {
       setBusy(false);
+      setProgress(null);
+      abortRef.current = null;
     }
   }
 
@@ -519,15 +599,61 @@ function ImportPage() {
               </table>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={clearAll} className="inline-flex items-center gap-1 px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted">
-                <Trash2 className="size-4" /> إلغاء
+            {/* شريط التقدم أثناء التنفيذ كمهمة خلفية */}
+            {progress && (
+              <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs">
+                <div className="flex items-center justify-between mb-1.5 font-bold">
+                  <span className="flex items-center gap-1"><Loader2 className="size-3.5 animate-spin" /> جارٍ التنفيذ في الخلفية</span>
+                  <span className="nums">{formatNumber(progress.done)} / {formatNumber(progress.total)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-brand transition-all" style={{ width: `${Math.min(100, (progress.done / Math.max(1, progress.total)) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+
+            {/* تقرير المعاينة قبل التنفيذ */}
+            {dryReport && !busy && (
+              <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs space-y-2">
+                <div className="font-extrabold flex items-center gap-1"><Eye className="size-4" /> نتيجة المعاينة</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Stat label="صالح" value={dryReport.validCount} tone="ok" />
+                  <Stat label="أخطاء" value={dryReport.invalidCount} tone={dryReport.invalidCount ? "bad" : "muted"} />
+                  <Stat label="موجود مسبقاً" value={dryReport.existingInDb} tone="warn" />
+                  <Stat label="جديد" value={dryReport.newInDb} tone="ok" />
+                  <Stat label="مكرر داخل الملف" value={dryReport.duplicatesInFile} tone={dryReport.duplicatesInFile ? "bad" : "muted"} />
+                  <Stat label="بدون باركود" value={dryReport.missingBarcodes} tone={dryReport.missingBarcodes ? "warn" : "muted"} />
+                </div>
+                {dryReport.existingSamples.length > 0 && (
+                  <div className="text-muted-foreground"><b>عيّنة موجودة:</b> {dryReport.existingSamples.join("، ")}</div>
+                )}
+                {dryReport.newSamples.length > 0 && (
+                  <div className="text-muted-foreground"><b>عيّنة جديدة:</b> {dryReport.newSamples.join("، ")}</div>
+                )}
+                <div className="text-[10px] text-muted-foreground">* لن يتم إدراج أي شيء حتى تضغط زر «استيراد».</div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button onClick={clearAll} disabled={busy} className="inline-flex items-center gap-1 px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted disabled:opacity-60">
+                <Trash2 className="size-4" /> مسح
               </button>
-              <button onClick={commitImport} disabled={busy || validRows.length === 0}
-                className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-brand text-white text-sm font-bold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                استيراد {validRows.length} منتج
+              <button onClick={previewDryRun} disabled={busy || dryBusy || validRows.length === 0}
+                className="inline-flex items-center gap-1 px-4 h-9 rounded-md border-2 border-brand/40 text-brand text-sm font-bold hover:bg-brand/5 disabled:opacity-60">
+                {dryBusy ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
+                معاينة (Dry Run)
               </button>
+              {busy ? (
+                <button onClick={cancelImport} className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-destructive text-white text-sm font-bold hover:opacity-95">
+                  <StopCircle className="size-4" /> إلغاء العملية
+                </button>
+              ) : (
+                <button onClick={commitImport} disabled={validRows.length === 0}
+                  className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-brand text-white text-sm font-bold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <Upload className="size-4" />
+                  استيراد {formatNumber(validRows.length)} منتج
+                </button>
+              )}
             </div>
           </section>
         </>
@@ -618,4 +744,18 @@ function parseRow(raw: Record<string, unknown>, rowIndex: number, mapping: Mappi
     _rowIndex: rowIndex,
     _errors: errors,
   };
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone: "ok" | "bad" | "warn" | "muted" }) {
+  const cls =
+    tone === "ok" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"
+    : tone === "bad" ? "bg-destructive/10 text-destructive"
+    : tone === "warn" ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400"
+    : "bg-muted text-foreground";
+  return (
+    <div className={`rounded-md p-2 text-center ${cls}`}>
+      <div className="text-[10px] opacity-80">{label}</div>
+      <div className="font-extrabold nums">{value.toLocaleString("ar-EG")}</div>
+    </div>
+  );
 }

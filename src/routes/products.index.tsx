@@ -53,6 +53,7 @@ function ProductsPage() {
   const [editMode, setEditMode] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<Product | null>(null);
   const savingRef = useRef(false);
 
   // Realtime
@@ -243,10 +244,22 @@ function ProductsPage() {
                 return (
                   <tr key={p.id} className={isLow ? "bg-destructive/5" : "hover:bg-muted/40"}>
                     <td className="px-3 py-2 text-right font-semibold">
-                      <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand">
-                        {p.name}
-                      </Link>
-                      {isLow && <span className="mr-2 text-[10px] text-destructive">● منخفض</span>}
+                      <div className="flex items-center gap-2">
+                        <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand flex-1 min-w-0 truncate">
+                          {p.name}
+                        </Link>
+                        {isLow && <span className="text-[10px] text-destructive shrink-0">● منخفض</span>}
+                        {canWrite && !editMode && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(p)}
+                            className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                            aria-label="حذف المنتج" title="حذف المنتج"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-center text-muted-foreground nums text-xs">{p.barcode || "—"}</td>
                     <td className="px-2 py-2 text-center nums">

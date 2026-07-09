@@ -305,7 +305,50 @@ function ProductsPage() {
           <Plus className="size-7" />
         </Link>
       )}
+      {deleting && <DeleteProductModal product={deleting} onClose={() => setDeleting(null)} />}
     </AppShell>
+  );
+}
+
+function DeleteProductModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const del = useDeleteProduct();
+  async function handleDelete() {
+    try {
+      await del.mutateAsync(product);
+      toast.success("تم حذف المنتج");
+      onClose();
+    } catch (err) {
+      handleError(err, "تعذّر حذف المنتج");
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-destructive">حذف منتج</h2>
+          <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
+        </div>
+        <p className="text-sm">
+          هل أنت متأكد من حذف <span className="font-bold">{product.name}</span>؟
+        </p>
+        {product.quantity > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
+            ⚠️ يوجد رصيد بالمخزون: {formatNumber(product.quantity)} — لن يمكن استرجاعه.
+          </div>
+        )}
+        <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">
+          سيُسجَّل الحذف في سجل التدقيق (audit_logs).
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold">إلغاء</button>
+          <button onClick={handleDelete} disabled={del.isPending}
+            className="flex-1 h-11 rounded-xl bg-destructive text-destructive-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+            {del.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            حذف نهائي
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

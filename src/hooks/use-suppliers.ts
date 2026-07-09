@@ -58,3 +58,40 @@ export function useAddSupplier() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
   });
 }
+
+export function useUpdateSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; name: string; phone?: string; address?: string; notes?: string }) => {
+      const { error } = await supabase.from("suppliers").update({
+        name: input.name,
+        phone: input.phone || null,
+        address: input.address || null,
+        notes: input.notes || null,
+      } as never).eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+}
+
+export function useDeleteSupplier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (s: Supplier) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await supabase.from("suppliers").delete().eq("id", s.id);
+      if (error) throw error;
+      if (u.user) {
+        await supabase.from("audit_logs").insert({
+          user_id: u.user.id,
+          action: "supplier.deleted",
+          table_name: "suppliers",
+          record_id: s.id,
+          details: { name: s.name, phone: s.phone, address: s.address, balance: s.balance },
+        } as never);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),
+  });
+}

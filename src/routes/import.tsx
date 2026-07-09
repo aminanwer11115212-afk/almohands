@@ -390,6 +390,8 @@ function ImportPage() {
       });
     } finally {
       setBusy(false);
+      setProgress(null);
+      abortRef.current = null;
     }
   }
 

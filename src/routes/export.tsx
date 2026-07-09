@@ -108,11 +108,24 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
 }
 
 async function fetchTable(name: TableKey, from?: string, to?: string) {
-  const meta = TABLES.find((t) => t.key === name)!;
-  // Paginate through PostgREST's 1000-row cap to support large datasets (10k+).
-  const PAGE = 1000;
-  const MAX_ROWS = 100000;
   const all: any[] = [];
+  await streamTablePages(name, from, to, async (batch) => { all.push(...batch); });
+  return all;
+}
+
+/**
+ * تدفّق (streaming) الصفحات من قاعدة البيانات: يستدعي onPage لكل دفعة بدون
+ * تجميع كل السجلات في الذاكرة — لتصدير 10k+ صف بسلاسة.
+ */
+async function streamTablePages(
+  name: TableKey,
+  from: string | undefined,
+  to: string | undefined,
+  onPage: (batch: any[], offset: number) => Promise<boolean | void>,
+) {
+  const meta = TABLES.find((t) => t.key === name)!;
+  const PAGE = 1000;
+  const MAX_ROWS = 200000;
   for (let off = 0; off < MAX_ROWS; off += PAGE) {
     let q: any = supabase.from(name).select("*");
     if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
@@ -120,10 +133,23 @@ async function fetchTable(name: TableKey, from?: string, to?: string) {
     const { data, error } = await q.range(off, off + PAGE - 1);
     if (error) throw error;
     const batch = data ?? [];
-    all.push(...batch);
-    if (batch.length < PAGE) break;
+    const cont = await onPage(batch, off);
+    if (cont === false) return;
+    if (batch.length < PAGE) return;
   }
-  return all;
+}
+
+/** يبني رأس CSV مرة واحدة ثم يُرجع دالة تحوّل كل دفعة إلى نص CSV بدون رأس. */
+function makeCsvWriter(headerCols: string[], headerLabels: string[]) {
+  const esc = (v: unknown) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = headerLabels.join(",") + "\n";
+  const rowsToCsv = (rows: Record<string, unknown>[]) =>
+    rows.map((r) => headerCols.map((c) => esc(r[c])).join(",")).join("\n") + "\n";
+  return { header, rowsToCsv };
 }
 
 function ExportPageGuarded() {

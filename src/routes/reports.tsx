@@ -18,8 +18,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { exportPdfFromRows } from "@/lib/pdf-html-export";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { formatSDG, formatNumber } from "@/lib/format";
@@ -133,18 +132,13 @@ function exportInvoicesXLSX(invoices: any[], directory: { id: string; email: str
 function exportInvoicesPDF(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
   if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
   const rows = buildInvoiceRows(invoices, directory);
-  const doc = new jsPDF({ orientation: "landscape" });
-  doc.setFontSize(12);
-  doc.text(`Reports - ${periodLabel}`, 14, 12);
   const headers = Object.keys(rows[0]);
-  autoTable(doc, {
-    startY: 18,
-    head: [headers],
-    body: rows.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
-    styles: { fontSize: 7, halign: "right" },
-    headStyles: { fillColor: [30, 41, 59] },
+  exportPdfFromRows({
+    title: `تقرير الفواتير — ${periodLabel}`,
+    subtitle: new Date().toLocaleString("ar-EG"),
+    headers,
+    rows: rows.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
   });
-  doc.save(`reports-${periodLabel}-${Date.now()}.pdf`);
   toast.success(`تم تصدير ${rows.length} فاتورة`);
 }
 

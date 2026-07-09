@@ -23,7 +23,6 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as ExpensesRouteImport } from './routes/expenses'
-import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CashierRouteImport } from './routes/cashier'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ActivityLogRouteImport } from './routes/activity-log'
@@ -32,6 +31,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as InvoicesIndexRouteImport } from './routes/invoices.index'
+import { Route as CustomersIndexRouteImport } from './routes/customers.index'
 import { Route as SuppliersSupplierIdRouteImport } from './routes/suppliers.$supplierId'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
@@ -114,11 +114,6 @@ const ExpensesRoute = ExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomersRoute = CustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CashierRoute = CashierRouteImport.update({
   id: '/cashier',
   path: '/cashier',
@@ -159,6 +154,11 @@ const InvoicesIndexRoute = InvoicesIndexRouteImport.update({
   path: '/invoices/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersIndexRoute = CustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SuppliersSupplierIdRoute = SuppliersSupplierIdRouteImport.update({
   id: '/$supplierId',
   path: '/$supplierId',
@@ -185,9 +185,9 @@ const InvoicesInvoiceIdRoute = InvoicesInvoiceIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
-  id: '/$customerId',
-  path: '/$customerId',
-  getParentRoute: () => CustomersRoute,
+  id: '/customers/$customerId',
+  path: '/customers/$customerId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuditCancellationsRoute = AuditCancellationsRouteImport.update({
   id: '/audit/cancellations',
@@ -225,7 +225,6 @@ export interface FileRoutesByFullPath {
   '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -249,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
+  '/customers/': typeof CustomersIndexRoute
   '/invoices/': typeof InvoicesIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -261,7 +261,6 @@ export interface FileRoutesByTo {
   '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -285,6 +284,7 @@ export interface FileRoutesByTo {
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
+  '/customers': typeof CustomersIndexRoute
   '/invoices': typeof InvoicesIndexRoute
   '/products': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -298,7 +298,6 @@ export interface FileRoutesById {
   '/activity-log': typeof ActivityLogRoute
   '/auth': typeof AuthRoute
   '/cashier': typeof CashierRoute
-  '/customers': typeof CustomersRouteWithChildren
   '/expenses': typeof ExpensesRoute
   '/export': typeof ExportRoute
   '/import': typeof ImportRoute
@@ -322,6 +321,7 @@ export interface FileRoutesById {
   '/products/$productId': typeof ProductsProductIdRoute
   '/products/new': typeof ProductsNewRoute
   '/suppliers/$supplierId': typeof SuppliersSupplierIdRoute
+  '/customers/': typeof CustomersIndexRoute
   '/invoices/': typeof InvoicesIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -336,7 +336,6 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth'
     | '/cashier'
-    | '/customers'
     | '/expenses'
     | '/export'
     | '/import'
@@ -360,6 +359,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/products/new'
     | '/suppliers/$supplierId'
+    | '/customers/'
     | '/invoices/'
     | '/products/'
     | '/.lovable/oauth/consent'
@@ -372,7 +372,6 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth'
     | '/cashier'
-    | '/customers'
     | '/expenses'
     | '/export'
     | '/import'
@@ -396,6 +395,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/products/new'
     | '/suppliers/$supplierId'
+    | '/customers'
     | '/invoices'
     | '/products'
     | '/.lovable/oauth/consent'
@@ -408,7 +408,6 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth'
     | '/cashier'
-    | '/customers'
     | '/expenses'
     | '/export'
     | '/import'
@@ -432,6 +431,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/products/new'
     | '/suppliers/$supplierId'
+    | '/customers/'
     | '/invoices/'
     | '/products/'
     | '/.lovable/oauth/consent'
@@ -445,7 +445,6 @@ export interface RootRouteChildren {
   ActivityLogRoute: typeof ActivityLogRoute
   AuthRoute: typeof AuthRoute
   CashierRoute: typeof CashierRoute
-  CustomersRoute: typeof CustomersRouteWithChildren
   ExpensesRoute: typeof ExpensesRoute
   ExportRoute: typeof ExportRoute
   ImportRoute: typeof ImportRoute
@@ -463,10 +462,12 @@ export interface RootRouteChildren {
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   AuditCancellationsRoute: typeof AuditCancellationsRoute
+  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
   InvoicesCancelledRoute: typeof InvoicesCancelledRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   ProductsNewRoute: typeof ProductsNewRoute
+  CustomersIndexRoute: typeof CustomersIndexRoute
   InvoicesIndexRoute: typeof InvoicesIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -573,13 +574,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExpensesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customers': {
-      id: '/customers'
-      path: '/customers'
-      fullPath: '/customers'
-      preLoaderRoute: typeof CustomersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cashier': {
       id: '/cashier'
       path: '/cashier'
@@ -636,6 +630,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvoicesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers/': {
+      id: '/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof CustomersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/suppliers/$supplierId': {
       id: '/suppliers/$supplierId'
       path: '/$supplierId'
@@ -673,10 +674,10 @@ declare module '@tanstack/react-router' {
     }
     '/customers/$customerId': {
       id: '/customers/$customerId'
-      path: '/$customerId'
+      path: '/customers/$customerId'
       fullPath: '/customers/$customerId'
       preLoaderRoute: typeof CustomersCustomerIdRouteImport
-      parentRoute: typeof CustomersRoute
+      parentRoute: typeof rootRouteImport
     }
     '/audit/cancellations': {
       id: '/audit/cancellations'
@@ -716,18 +717,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface CustomersRouteChildren {
-  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
-}
-
-const CustomersRouteChildren: CustomersRouteChildren = {
-  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
-}
-
-const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
-  CustomersRouteChildren,
-)
-
 interface SuppliersRouteChildren {
   SuppliersSupplierIdRoute: typeof SuppliersSupplierIdRoute
 }
@@ -747,7 +736,6 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityLogRoute: ActivityLogRoute,
   AuthRoute: AuthRoute,
   CashierRoute: CashierRoute,
-  CustomersRoute: CustomersRouteWithChildren,
   ExpensesRoute: ExpensesRoute,
   ExportRoute: ExportRoute,
   ImportRoute: ImportRoute,
@@ -766,10 +754,12 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   AuditCancellationsRoute: AuditCancellationsRoute,
+  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   InvoicesInvoiceIdRoute: InvoicesInvoiceIdRoute,
   InvoicesCancelledRoute: InvoicesCancelledRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   ProductsNewRoute: ProductsNewRoute,
+  CustomersIndexRoute: CustomersIndexRoute,
   InvoicesIndexRoute: InvoicesIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,

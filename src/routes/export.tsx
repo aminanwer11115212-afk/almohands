@@ -493,10 +493,19 @@ function ExportPage() {
         )}
 
 
-        <button onClick={runExport} disabled={busy}
-          className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-brand text-brand-foreground px-3 py-2.5 text-sm font-bold disabled:opacity-60">
-          {format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />}
-          تصدير الآن
+        {progress && (
+          <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1 font-bold">
+              <Loader2 className="size-3.5 animate-spin" /> {progress.table} · {formatNumber(progress.done)} سجل
+            </span>
+            <button onClick={cancelExport} className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-destructive text-white font-bold">
+              <StopCircle className="size-3.5" /> إلغاء
+            </button>
+          </div>
+        )}
+        <button onClick={busy ? cancelExport : runExport} disabled={!busy && selected.size === 0}
+          className={`mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-60 ${busy ? "bg-destructive text-white" : "bg-brand text-brand-foreground"}`}>
+          {busy ? <><StopCircle className="size-4" /> إلغاء العملية</> : <>{format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />} تصدير الآن</>}
         </button>
       </section>
 

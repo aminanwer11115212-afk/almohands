@@ -169,6 +169,14 @@ function ExportPage() {
   const [logStatus, setLogStatus] = useState<"all" | "success" | "failed">("all");
   const [standardHeaders, setStandardHeaders] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ table: string; done: number } | null>(null);
+  const abortRef = useRef<{ cancelled: boolean } | null>(null);
+  const cancelExport = () => {
+    if (abortRef.current) {
+      abortRef.current.cancelled = true;
+      toast.message("جارٍ الإلغاء…", { id: "export-progress" });
+    }
+  };
 
   const { data: logs = [] } = useQuery({
     queryKey: ["export_logs", logStatus],

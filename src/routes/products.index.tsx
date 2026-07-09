@@ -5,12 +5,12 @@ import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Plus, ArrowUpDown, Loader2, Printer, Pencil, Save, X,
-  AlertTriangle, Package, DollarSign, Boxes,
+  AlertTriangle, Package, DollarSign, Boxes, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { formatNumber, formatSDG } from "@/lib/format";
-import { useProducts, type SortKey } from "@/hooks/use-products";
+import { useProducts, useDeleteProduct, type SortKey } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useCan } from "@/hooks/use-permissions";
@@ -53,6 +53,7 @@ function ProductsPage() {
   const [editMode, setEditMode] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<Product | null>(null);
   const savingRef = useRef(false);
 
   // Realtime
@@ -243,10 +244,22 @@ function ProductsPage() {
                 return (
                   <tr key={p.id} className={isLow ? "bg-destructive/5" : "hover:bg-muted/40"}>
                     <td className="px-3 py-2 text-right font-semibold">
-                      <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand">
-                        {p.name}
-                      </Link>
-                      {isLow && <span className="mr-2 text-[10px] text-destructive">● منخفض</span>}
+                      <div className="flex items-center gap-2">
+                        <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand flex-1 min-w-0 truncate">
+                          {p.name}
+                        </Link>
+                        {isLow && <span className="text-[10px] text-destructive shrink-0">● منخفض</span>}
+                        {canWrite && !editMode && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(p)}
+                            className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                            aria-label="حذف المنتج" title="حذف المنتج"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-center text-muted-foreground nums text-xs">{p.barcode || "—"}</td>
                     <td className="px-2 py-2 text-center nums">
@@ -292,7 +305,50 @@ function ProductsPage() {
           <Plus className="size-7" />
         </Link>
       )}
+      {deleting && <DeleteProductModal product={deleting} onClose={() => setDeleting(null)} />}
     </AppShell>
+  );
+}
+
+function DeleteProductModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const del = useDeleteProduct();
+  async function handleDelete() {
+    try {
+      await del.mutateAsync(product);
+      toast.success("تم حذف المنتج");
+      onClose();
+    } catch (err) {
+      handleError(err, "تعذّر حذف المنتج");
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-destructive">حذف منتج</h2>
+          <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
+        </div>
+        <p className="text-sm">
+          هل أنت متأكد من حذف <span className="font-bold">{product.name}</span>؟
+        </p>
+        {product.quantity > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
+            ⚠️ يوجد رصيد بالمخزون: {formatNumber(product.quantity)} — لن يمكن استرجاعه.
+          </div>
+        )}
+        <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">
+          سيُسجَّل الحذف في سجل التدقيق (audit_logs).
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold">إلغاء</button>
+          <button onClick={handleDelete} disabled={del.isPending}
+            className="flex-1 h-11 rounded-xl bg-destructive text-destructive-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+            {del.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            حذف نهائي
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toProduct, type Product } from "@/types/product";
 
@@ -21,7 +21,6 @@ export async function fetchProducts(params: ProductsQueryParams): Promise<Produc
 
   const q = params.q.trim();
   if (q) {
-    // escape commas/parentheses for or() filter
     const safe = q.replace(/[,()]/g, " ");
     query = query.or(`name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%`);
   }
@@ -36,5 +35,32 @@ export function useProducts(params: ProductsQueryParams) {
     queryKey: productsQueryKey(params),
     queryFn: () => fetchProducts(params),
     staleTime: 10_000,
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: Product) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await supabase.from("products").delete().eq("id", p.id);
+      if (error) throw error;
+      if (u.user) {
+        await supabase.from("audit_logs").insert({
+          user_id: u.user.id,
+          action: "product.deleted",
+          table_name: "products",
+          record_id: p.id,
+          details: {
+            name: p.name,
+            barcode: p.barcode,
+            quantity: p.quantity,
+            cost_price: p.costPrice,
+            sale_price: p.salePrice,
+          },
+        } as never);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
   });
 }

@@ -5,12 +5,12 @@ import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Plus, ArrowUpDown, Loader2, Printer, Pencil, Save, X,
-  AlertTriangle, Package, DollarSign, Boxes,
+  AlertTriangle, Package, DollarSign, Boxes, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { formatNumber, formatSDG } from "@/lib/format";
-import { useProducts, type SortKey } from "@/hooks/use-products";
+import { useProducts, useDeleteProduct, type SortKey } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useCan } from "@/hooks/use-permissions";

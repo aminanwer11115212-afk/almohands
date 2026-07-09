@@ -599,15 +599,61 @@ function ImportPage() {
               </table>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={clearAll} className="inline-flex items-center gap-1 px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted">
-                <Trash2 className="size-4" /> إلغاء
+            {/* شريط التقدم أثناء التنفيذ كمهمة خلفية */}
+            {progress && (
+              <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs">
+                <div className="flex items-center justify-between mb-1.5 font-bold">
+                  <span className="flex items-center gap-1"><Loader2 className="size-3.5 animate-spin" /> جارٍ التنفيذ في الخلفية</span>
+                  <span className="nums">{formatNumber(progress.done)} / {formatNumber(progress.total)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-brand transition-all" style={{ width: `${Math.min(100, (progress.done / Math.max(1, progress.total)) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+
+            {/* تقرير المعاينة قبل التنفيذ */}
+            {dryReport && !busy && (
+              <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs space-y-2">
+                <div className="font-extrabold flex items-center gap-1"><Eye className="size-4" /> نتيجة المعاينة</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Stat label="صالح" value={dryReport.validCount} tone="ok" />
+                  <Stat label="أخطاء" value={dryReport.invalidCount} tone={dryReport.invalidCount ? "bad" : "muted"} />
+                  <Stat label="موجود مسبقاً" value={dryReport.existingInDb} tone="warn" />
+                  <Stat label="جديد" value={dryReport.newInDb} tone="ok" />
+                  <Stat label="مكرر داخل الملف" value={dryReport.duplicatesInFile} tone={dryReport.duplicatesInFile ? "bad" : "muted"} />
+                  <Stat label="بدون باركود" value={dryReport.missingBarcodes} tone={dryReport.missingBarcodes ? "warn" : "muted"} />
+                </div>
+                {dryReport.existingSamples.length > 0 && (
+                  <div className="text-muted-foreground"><b>عيّنة موجودة:</b> {dryReport.existingSamples.join("، ")}</div>
+                )}
+                {dryReport.newSamples.length > 0 && (
+                  <div className="text-muted-foreground"><b>عيّنة جديدة:</b> {dryReport.newSamples.join("، ")}</div>
+                )}
+                <div className="text-[10px] text-muted-foreground">* لن يتم إدراج أي شيء حتى تضغط زر «استيراد».</div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button onClick={clearAll} disabled={busy} className="inline-flex items-center gap-1 px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted disabled:opacity-60">
+                <Trash2 className="size-4" /> مسح
               </button>
-              <button onClick={commitImport} disabled={busy || validRows.length === 0}
-                className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-brand text-white text-sm font-bold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                استيراد {validRows.length} منتج
+              <button onClick={previewDryRun} disabled={busy || dryBusy || validRows.length === 0}
+                className="inline-flex items-center gap-1 px-4 h-9 rounded-md border-2 border-brand/40 text-brand text-sm font-bold hover:bg-brand/5 disabled:opacity-60">
+                {dryBusy ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
+                معاينة (Dry Run)
               </button>
+              {busy ? (
+                <button onClick={cancelImport} className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-destructive text-white text-sm font-bold hover:opacity-95">
+                  <StopCircle className="size-4" /> إلغاء العملية
+                </button>
+              ) : (
+                <button onClick={commitImport} disabled={validRows.length === 0}
+                  className="inline-flex items-center gap-1 px-5 h-9 rounded-md bg-brand text-white text-sm font-bold hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <Upload className="size-4" />
+                  استيراد {formatNumber(validRows.length)} منتج
+                </button>
+              )}
             </div>
           </section>
         </>

@@ -25,9 +25,18 @@ export async function fetchProducts(params: ProductsQueryParams): Promise<Produc
     query = query.or(`name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%`);
   }
 
-  const { data, error } = await query.limit(500);
-  if (error) throw error;
-  return (data ?? []).map(toProduct);
+  // Paginate to bypass PostgREST's 1000-row default cap; supports 10k+ products.
+  const PAGE = 1000;
+  const MAX = 20000;
+  const all: any[] = [];
+  for (let from = 0; from < MAX; from += PAGE) {
+    const { data, error } = await query.range(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    all.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return all.map(toProduct);
 }
 
 export function useProducts(params: ProductsQueryParams) {

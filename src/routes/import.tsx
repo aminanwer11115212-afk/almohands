@@ -241,13 +241,17 @@ function ImportPage() {
         sale_price: bumpedPrice(r.sale_price), notes: r.notes, is_active: true,
       }));
 
-      const CHUNK = 200;
+      // Larger chunks + progress toast keep 10k-row imports snappy without hitting request limits.
+      const CHUNK = 500;
       let inserted = 0;
       for (let i = 0; i < payload.length; i += CHUNK) {
         const chunk = payload.slice(i, i + CHUNK);
         const { error } = await supabase.from("products").insert(chunk);
         if (error) throw error;
         inserted += chunk.length;
+        if (payload.length > 1000) {
+          toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
+        }
       }
 
       const mappingNote = (Object.keys(mapping) as ColKey[])

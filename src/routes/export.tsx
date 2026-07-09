@@ -109,12 +109,21 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
 
 async function fetchTable(name: TableKey, from?: string, to?: string) {
   const meta = TABLES.find((t) => t.key === name)!;
-  let q: any = supabase.from(name).select("*");
-  if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
-  if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); q = q.lte(meta.dateCol, end.toISOString()); }
-  const { data, error } = await q;
-  if (error) throw error;
-  return data ?? [];
+  // Paginate through PostgREST's 1000-row cap to support large datasets (10k+).
+  const PAGE = 1000;
+  const MAX_ROWS = 100000;
+  const all: any[] = [];
+  for (let off = 0; off < MAX_ROWS; off += PAGE) {
+    let q: any = supabase.from(name).select("*");
+    if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
+    if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); q = q.lte(meta.dateCol, end.toISOString()); }
+    const { data, error } = await q.range(off, off + PAGE - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    all.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return all;
 }
 
 function ExportPageGuarded() {

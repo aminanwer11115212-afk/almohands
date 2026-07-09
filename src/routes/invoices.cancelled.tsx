@@ -7,8 +7,7 @@ import { formatSDG } from "@/lib/format";
 import { XCircle, Receipt, Eye, Search, FileSpreadsheet, FileText, ArrowUpDown, FileJson, FileDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { exportPdfFromRows } from "@/lib/pdf-html-export";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/invoices/cancelled")({
@@ -247,18 +246,13 @@ function CancelledInvoicesPage() {
   function exportPDF() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
     const rowsX = buildExportRows();
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(12);
-    doc.text(`Cancelled Invoices - ${new Date().toLocaleDateString()}`, 14, 12);
     const headers = Object.keys(rowsX[0]);
-    autoTable(doc, {
-      startY: 18,
-      head: [headers],
-      body: rowsX.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
-      styles: { fontSize: 7, halign: "right" },
-      headStyles: { fillColor: [220, 38, 38] },
+    exportPdfFromRows({
+      title: "الفواتير الملغاة",
+      subtitle: new Date().toLocaleString("ar-EG"),
+      headers,
+      rows: rowsX.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
     });
-    doc.save(`cancelled-invoices-${Date.now()}.pdf`);
     toast.success(`تم تصدير ${rowsX.length} فاتورة`);
   }
 

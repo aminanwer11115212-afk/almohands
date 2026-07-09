@@ -234,12 +234,73 @@ function ImportPage() {
 
   const clearAll = useCallback(() => {
     setRawRows([]); setHeaders([]); setMapping({}); setFileName("");
+    setDryReport(null); setProgress(null);
   }, []);
+
+  function cancelImport() {
+    if (abortRef.current) {
+      abortRef.current.cancelled = true;
+      toast.message("جارٍ إلغاء العملية…", { id: "import-progress" });
+    }
+  }
+
+  /** Dry-run: يفحص الأخطاء ويطابق الباركود مع المنتجات الموجودة قبل التنفيذ. */
+  async function previewDryRun() {
+    if (dryBusy || busy) return;
+    if (rows.length === 0) { toast.error("لا توجد بيانات للمعاينة"); return; }
+    setDryBusy(true);
+    try {
+      const barcodes = Array.from(new Set(
+        validRows.map((r) => (r.barcode || "").trim()).filter(Boolean),
+      ));
+
+      // كشف تكرار الباركود داخل نفس الملف
+      const inFileCounts = new Map<string, number>();
+      for (const r of validRows) {
+        const b = (r.barcode || "").trim();
+        if (!b) continue;
+        inFileCounts.set(b, (inFileCounts.get(b) ?? 0) + 1);
+      }
+      const duplicatesInFile = Array.from(inFileCounts.values()).filter((n) => n > 1).length;
+
+      // مطابقة مع قاعدة البيانات (على دفعات لتجاوز حد PostgREST)
+      const existing = new Set<string>();
+      const CHUNK = 500;
+      for (let i = 0; i < barcodes.length; i += CHUNK) {
+        const slice = barcodes.slice(i, i + CHUNK);
+        const { data, error } = await supabase.from("products").select("barcode").in("barcode", slice);
+        if (error) throw error;
+        (data ?? []).forEach((r: any) => r.barcode && existing.add(String(r.barcode)));
+      }
+
+      const existingRows = validRows.filter((r) => r.barcode && existing.has(r.barcode));
+      const newRows = validRows.filter((r) => !r.barcode || !existing.has(r.barcode));
+      const missingBarcodes = validRows.filter((r) => !r.barcode).length;
+
+      setDryReport({
+        validCount: validRows.length,
+        invalidCount: invalidRows.length,
+        duplicatesInFile,
+        existingInDb: existingRows.length,
+        newInDb: newRows.length,
+        missingBarcodes,
+        existingSamples: existingRows.slice(0, 8).map((r) => r.name),
+        newSamples: newRows.slice(0, 8).map((r) => r.name),
+      });
+      toast.success(`المعاينة جاهزة: ${validRows.length} صالح · ${existingRows.length} موجود · ${newRows.length} جديد`);
+    } catch (e: any) {
+      handleError(e, "تعذّر إتمام المعاينة", { event: "import_dryrun_failed" });
+    } finally {
+      setDryBusy(false);
+    }
+  }
 
   async function commitImport() {
     if (busy) return;
     if (validRows.length === 0) { toast.error("لا توجد صفوف صالحة للاستيراد"); return; }
     setBusy(true);
+    abortRef.current = { cancelled: false };
+    setProgress({ done: 0, total: validRows.length });
     const started = Date.now();
     const reqId = newRequestId("imp");
     logger.info("import_start", { context: { reqId, rows: validRows.length, pricePct } });
@@ -255,18 +316,21 @@ function ImportPage() {
         sale_price: bumpedPrice(r.sale_price), notes: r.notes, is_active: true,
       }));
 
-      // Larger chunks + progress toast keep 10k-row imports snappy without hitting request limits.
+      // مهمة خلفية مع تقدم قابل للإلغاء بين الدفعات.
       const CHUNK = 500;
       let inserted = 0;
       for (let i = 0; i < payload.length; i += CHUNK) {
+        if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
         const chunk = payload.slice(i, i + CHUNK);
         const { error } = await supabase.from("products").insert(chunk);
         if (error) throw error;
         inserted += chunk.length;
-        if (payload.length > 1000) {
-          toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
-        }
+        setProgress({ done: inserted, total: payload.length });
+        toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
+        // إفساح المجال للـ UI للاستجابة وزر الإلغاء
+        await new Promise((r) => setTimeout(r, 0));
       }
+
 
       const mappingNote = (Object.keys(mapping) as ColKey[])
         .map((k) => `${COL_LABEL[k]}=«${mapping[k]}»`).join(" · ");

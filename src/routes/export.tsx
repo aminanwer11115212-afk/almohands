@@ -6,8 +6,7 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { exportPdfFromRows } from "@/lib/pdf-html-export";
 import { formatNumber } from "@/lib/format";
 
 
@@ -205,22 +204,19 @@ function ExportPage() {
     try {
       let total = 0;
       if (format === "pdf") {
-        const doc = new jsPDF();
-        let first = true;
         for (const key of selected) {
           const rows = (await fetchTable(key, from, to)) as Record<string, unknown>[];
           total += rows.length;
-          if (!first) doc.addPage();
-          first = false;
-          doc.setFontSize(14);
-          doc.text(key, 14, 15);
-          if (rows.length > 0) {
-            const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-            const headers = orderCols(allKeys, key);
-            autoTable(doc, { startY: 20, head: [headers], body: rows.map((r) => headers.map((h) => String(r[h] ?? ""))), styles: { fontSize: 7 } });
-          }
+          if (rows.length === 0) continue;
+          const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+          const headers = orderCols(allKeys, key);
+          exportPdfFromRows({
+            title: key,
+            subtitle: new Date().toLocaleString("ar-EG"),
+            headers,
+            rows: rows.map((r) => headers.map((h) => String(r[h] ?? ""))),
+          });
         }
-        doc.save(`export-${Date.now()}.pdf`);
       } else {
         for (const key of selected) {
           const rows = await fetchTable(key, from, to);

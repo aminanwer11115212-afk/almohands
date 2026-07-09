@@ -7,7 +7,7 @@ import { formatSDG } from "@/lib/format";
 import { useCustomers, useAddCustomer, useUpdateCustomer, useDeleteCustomer, type Customer } from "@/hooks/use-customers";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/customers")({
+export const Route = createFileRoute("/customers/")({
   head: () => ({ meta: [{ title: "العملاء — المهندس" }] }),
   component: () => (<PermissionGate perm="customers.view"><CustomersPage /></PermissionGate>),
 });

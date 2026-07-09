@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History, RefreshCw, Link2, Link2Off } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, Trash2, XCircle, Clock, History, RefreshCw, Link2, Link2Off, Eye, StopCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";

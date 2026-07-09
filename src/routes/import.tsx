@@ -93,6 +93,20 @@ function ImportPage() {
   const [fileName, setFileName] = useState<string>("");
   const [pricePct, setPricePct] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const abortRef = useRef<{ cancelled: boolean } | null>(null);
+  type DryReport = {
+    validCount: number;
+    invalidCount: number;
+    duplicatesInFile: number;
+    existingInDb: number;
+    newInDb: number;
+    missingBarcodes: number;
+    existingSamples: string[];
+    newSamples: string[];
+  };
+  const [dryReport, setDryReport] = useState<DryReport | null>(null);
+  const [dryBusy, setDryBusy] = useState(false);
 
   const rows = useMemo<ParsedRow[]>(() => {
     if (rawRows.length === 0) return [];

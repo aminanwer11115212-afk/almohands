@@ -552,67 +552,32 @@ function InvoiceDetailPage() {
     }
   }
 
-  async function handleWhatsAppShare(attempt = 1) {
-    const el = previewRef.current ?? printRef.current;
-    if (!el) {
-      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
-      return;
-    }
+  async function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
     if (shareBusy) return;
     setShareBusy(true);
     const reqId = newRequestId("wa");
-    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, attempt } });
-    const toastId = toast.loading("جارٍ تجهيز ملف الفاتورة…");
+    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, pickContact: !!opts.pickContact } });
     try {
       const text = buildInvoiceText(inv, items, storeName, {
         includeItems: true,
         footer: invoiceFooter || undefined,
         storePhone,
       });
-      const filename = `فاتورة-${inv.invoice_number}.pdf`;
-      const result = await shareInvoicePdfViaWhatsApp(
-        el, filename, format, text, inv.customer_phone,
-      );
-      if (result === "shared") {
-        toast.success("تم فتح نافذة المشاركة", { id: toastId });
-      } else {
-        toast.success("تم تنزيل الـ PDF — أرفقه بالرسالة في واتساب", { id: toastId, duration: 6000 });
-      }
-      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, result } });
+      // Send text directly; if pickContact or no phone, wa.me opens the contact picker.
+      const phone = opts.pickContact ? null : inv.customer_phone;
+      openWhatsAppShare(phone, text);
+      toast.success(phone ? "تم فتح واتساب مع نص الفاتورة" : "اختر جهة الاتصال في واتساب");
+      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id } });
     } catch (e) {
-      toast.dismiss(toastId);
-      if (attempt < 2) {
-        handleError(e, "تعذّر تجهيز ملف واتساب — أعد المحاولة", {
-          event: "whatsapp_share_failed",
-          context: { reqId, invoiceId: inv.id, attempt },
-          action: { label: "إعادة المحاولة", onClick: () => handleWhatsAppShare(2) },
-        });
-      } else {
-        // Final fallback: send text-only via wa.me
-        handleError(e, "تعذّر إرفاق PDF — سيتم إرسال الرسالة النصية فقط", {
-          event: "whatsapp_share_failed_final",
-          context: { reqId, invoiceId: inv.id },
-          action: {
-            label: "إرسال نص فقط",
-            onClick: () => {
-              try {
-                const text = buildInvoiceText(inv, items, storeName, {
-                  includeItems: true,
-                  footer: invoiceFooter || undefined,
-                  storePhone,
-                });
-                openWhatsAppShare(inv.customer_phone, text);
-              } catch (err) {
-                handleError(err, "تعذّر فتح واتساب", { event: "whatsapp_text_fallback_failed" });
-              }
-            },
-          },
-        });
-      }
+      handleError(e, "تعذّر فتح واتساب", {
+        event: "whatsapp_share_failed",
+        context: { reqId, invoiceId: inv.id },
+      });
     } finally {
       setShareBusy(false);
     }
   }
+
 
 
 

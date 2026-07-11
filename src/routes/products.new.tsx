@@ -43,6 +43,7 @@ function NewProductPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [partNumber, setPartNumber] = useState("");
   const [category, setCategory] = useState("");
   const [unit, setUnit] = useState("قطعة");
   const [location, setLocation] = useState("");

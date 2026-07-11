@@ -465,6 +465,22 @@ function InvoiceDetailPage() {
     return () => clearTimeout(t);
   }, [autoprint, formatReady, hasInv, invoiceId]);
 
+  // Auto-trigger PDF/WhatsApp actions if requested via search params (once).
+  const pdfTriggeredRef = useRef(false);
+  const shareTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!formatReady || !hasInv) return;
+    if (autopdf && !pdfTriggeredRef.current) {
+      pdfTriggeredRef.current = true;
+      setTimeout(() => { handleDownloadPdf().catch(() => {}); }, 400);
+    }
+    if (autoshare && !shareTriggeredRef.current) {
+      shareTriggeredRef.current = true;
+      setTimeout(() => { handleWhatsAppShare().catch(() => {}); }, 400);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autopdf, autoshare, formatReady, hasInv]);
+
   if (isLoading) {
     return (
       <AppShell title="فاتورة" showBack>

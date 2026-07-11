@@ -3,7 +3,7 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User, Printer, Eye, Share2,
+  Wallet, Landmark, Package, X, User, Printer, Eye, Share2, Camera,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";

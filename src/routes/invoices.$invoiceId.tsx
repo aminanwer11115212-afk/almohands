@@ -19,6 +19,8 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
   validateSearch: (s: Record<string, unknown>) => ({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
+    autopdf: s.autopdf === "1" || s.autopdf === 1 || s.autopdf === true ? 1 : 0,
+    autoshare: s.autoshare === "1" || s.autoshare === 1 || s.autoshare === true ? 1 : 0,
   }),
   component: () => (<PermissionGate perm="invoices.view"><InvoiceDetailPage /></PermissionGate>),
   errorComponent: InvoiceDetailError,

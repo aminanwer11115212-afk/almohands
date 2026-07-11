@@ -142,14 +142,11 @@ function NewProductPage() {
             <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div>
           <Field label="الوحدة">
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="ip">
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
-          </Field>
-          <Field label="الموقع (الرف)">
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

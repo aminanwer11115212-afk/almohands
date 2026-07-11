@@ -14,6 +14,18 @@ type Props = {
 };
 
 export function AppShell({ title, children, showBack = false, rightAction, subtitle, wide = false }: Props) {
+  const router = useRouter();
+  const goBack = () => {
+    try {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.history.back();
+      } else {
+        router.navigate({ to: "/" });
+      }
+    } catch {
+      router.navigate({ to: "/" });
+    }
+  };
   return (
     // Full-viewport shell with independent scroll areas:
     //  - the sidebar owns its own scroll (nav is overflow-y-auto inside)

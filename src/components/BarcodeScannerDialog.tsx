@@ -128,7 +128,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
         if (v) v.srcObject = null;
       } catch { /* ignore */ }
     };
-  }, [open, deviceId]);
+  }, [open, deviceId, retryTick]);
 
   if (!open) return null;
 

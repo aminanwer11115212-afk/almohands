@@ -629,11 +629,21 @@ function InvoiceDetailPage() {
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
             className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
-            title="مشاركة عبر واتساب مع ملف PDF"
+            title={inv.customer_phone ? "إرسال نص الفاتورة إلى رقم العميل" : "إرسال نص الفاتورة — اختر جهة الاتصال"}
           >
             {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
             واتساب
           </button>
+
+          <button
+            onClick={() => handleWhatsAppShare({ pickContact: true })}
+            disabled={shareBusy}
+            className="flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            title="اختر جهة اتصال من واتساب وأرسل نص الفاتورة"
+          >
+            <Share2 className="size-4" /> اختر جهة اتصال
+          </button>
+
 
           <button
             onClick={tryPrint}

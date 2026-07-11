@@ -221,7 +221,7 @@ function ProductsPage() {
             <thead className="bg-muted text-muted-foreground text-xs">
               <tr>
                 <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
-                <Th className="text-center">الباركود</Th>
+                <Th className="text-center">الباركود / رقم القطعة / الرف</Th>
                 <Th onClick={() => toggleSort("quantity")} active={sort === "quantity"} asc={asc} className="text-center w-24">الكمية</Th>
                 <Th className="text-center w-24">حد أدنى</Th>
                 <Th className="text-center w-28">سعر الشراء</Th>

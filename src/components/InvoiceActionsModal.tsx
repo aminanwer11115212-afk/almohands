@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
+
 import { useStoreProfile } from "@/hooks/use-store-profile";
 import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {

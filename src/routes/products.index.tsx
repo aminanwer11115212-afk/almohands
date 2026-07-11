@@ -410,6 +410,8 @@ function openPrintWindow(opts: {
       <td class="c">${i + 1}</td>
       <td class="r">${escapeHtml(p.name)}</td>
       <td class="c mono">${escapeHtml(p.barcode || "—")}</td>
+      <td class="c mono">${escapeHtml(p.partNumber || "—")}</td>
+      <td class="c mono">${escapeHtml(p.location || "—")}</td>
       <td class="c">${fmt(p.quantity)}</td>
       <td class="c">${fmt(p.costPrice)}</td>
       <td class="c">${fmt(p.salePrice)}</td>

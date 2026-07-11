@@ -335,16 +335,16 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
             {/* Actions */}
             <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-2 pt-2">
               <div className="grid grid-cols-2 gap-2 w-full">
-                <ActionBtn onClick={() => goFull(1)} icon={Printer} tone="primary">
+                <ActionBtn onClick={() => goFull({ autoprint: 1 })} icon={Printer} tone="primary">
                   طباعة
                 </ActionBtn>
-                <ActionBtn onClick={share} icon={Share2} tone="whatsapp">
-                  واتساب
+                <ActionBtn onClick={() => goFull({ autoshare: 1 })} icon={Share2} tone="whatsapp">
+                  واتساب (PDF)
                 </ActionBtn>
-                <ActionBtn onClick={() => goFull(0)} icon={Eye}>
+                <ActionBtn onClick={() => goFull()} icon={Eye}>
                   معاينة كاملة
                 </ActionBtn>
-                <ActionBtn onClick={() => goFull(0)} icon={FileText}>
+                <ActionBtn onClick={() => goFull({ autopdf: 1 })} icon={FileText}>
                   PDF
                 </ActionBtn>
 

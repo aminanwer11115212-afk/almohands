@@ -90,6 +90,7 @@ function InvoiceDetailPage() {
   const [formatReady, setFormatReady] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);

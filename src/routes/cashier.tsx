@@ -550,6 +550,12 @@ function CashierPage() {
                         </span>
                       )}
                       <div className="text-sm font-bold line-clamp-2 min-h-[2.5rem]">{p.name}</div>
+                      {(p.partNumber || p.location) && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground" dir="ltr">
+                          {p.partNumber && <span className="px-1 rounded bg-muted">#{p.partNumber}</span>}
+                          {p.location && <span className="px-1 rounded bg-muted">📍{p.location}</span>}
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center justify-between text-xs">
                         <span
                           className={`nums ${outOfStock ? "text-rose-600" : low ? "text-amber-600" : "text-muted-foreground"}`}

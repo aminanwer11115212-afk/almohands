@@ -19,6 +19,7 @@ const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر
 const productSchema = z.object({
   name: z.string().trim().min(1, "اسم المنتج مطلوب").max(200, "الاسم طويل جداً"),
   barcode: z.string().trim().max(64, "الباركود طويل جداً").optional(),
+  partNumber: z.string().trim().max(64, "رقم القطعة طويل").optional(),
   category: z.string().trim().max(80, "اسم الفئة طويل").optional(),
   unit: z.enum(UNITS as [string, ...string[]]),
   location: z.string().trim().max(50, "الموقع طويل جداً").optional(),

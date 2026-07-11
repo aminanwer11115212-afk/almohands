@@ -481,15 +481,19 @@ function CashierPage() {
             open={scannerOpen}
             onClose={() => setScannerOpen(false)}
             onDetected={(code) => {
-              const found = products.find(
-                (p) => (p.barcode ?? "").trim() === code.trim(),
-              );
+              const raw = code.trim();
+              const norm = raw.toLowerCase();
+              const found = products.find((p) => {
+                const bc = (p.barcode ?? "").trim();
+                const pn = (p.partNumber ?? "").trim().toLowerCase();
+                return bc === raw || (pn && pn === norm);
+              });
               if (found) {
                 addProduct(found);
                 toast.success(`تمت إضافة: ${found.name}`);
               } else {
-                setQuery(code);
-                toast.warning("لم يُعثر على منتج بهذا الباركود — تم وضعه في البحث");
+                setQuery(raw);
+                toast.warning(`لا يوجد منتج بالكود «${raw}» — تم وضعه في مربع البحث`);
               }
             }}
           />

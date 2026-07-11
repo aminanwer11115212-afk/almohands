@@ -130,8 +130,16 @@ function NewProductPage() {
           <Field label="الباركود">
             <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left" />
           </Field>
+          <Field label="رقم القطعة (Part No.)">
+            <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="مثال: 90915-YZZE2" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="الفئة">
             <input value={category} onChange={(e) => setCategory(e.target.value)} className="ip" placeholder="فلاتر" />
+          </Field>
+          <Field label="الموقع (الرف)">
+            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

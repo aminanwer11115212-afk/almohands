@@ -95,20 +95,88 @@ async function loadHtml2pdf() {
   return (mod as any).default ?? (mod as any);
 }
 
+/**
+ * html2canvas (used by html2pdf.js) cannot parse modern CSS color functions
+ * like oklch(). Convert every oklch(...) occurrence on the cloned document's
+ * CSS custom properties to sRGB (hex/rgb) via a canvas 2D context, so the
+ * captured element resolves colors that html2canvas understands.
+ */
+function neutralizeOklchInClone(clonedDoc: Document) {
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    const toRgb = (val: string): string =>
+      val.replace(/oklch\([^()]*(?:\([^()]*\)[^()]*)*\)/gi, (m) => {
+        try {
+          ctx.fillStyle = "#000";
+          ctx.fillStyle = m;
+          return typeof ctx.fillStyle === "string" ? ctx.fillStyle : m;
+        } catch {
+          return m;
+        }
+      });
+
+    // Collect all CSS custom property names declared on :root / .dark / html.
+    const names = new Set<string>();
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList | null = null;
+      try { rules = sheet.cssRules; } catch { continue; }
+      if (!rules) continue;
+      for (const rule of Array.from(rules)) {
+        const r = rule as CSSStyleRule;
+        if (!r.selectorText) continue;
+        if (!/^(:root|html|\.dark)\b/.test(r.selectorText)) continue;
+        for (const p of Array.from(r.style)) {
+          if (p.startsWith("--")) names.add(p);
+        }
+      }
+    }
+
+    const rootCS = getComputedStyle(document.documentElement);
+    const overrides: string[] = [];
+    for (const name of names) {
+      const raw = rootCS.getPropertyValue(name).trim();
+      if (!raw || !/oklch\(/i.test(raw)) continue;
+      overrides.push(`${name}: ${toRgb(raw)};`);
+    }
+
+    const style = clonedDoc.createElement("style");
+    style.setAttribute("data-oklch-shim", "");
+    style.textContent = `:root, html, .dark { ${overrides.join(" ")} }`;
+    clonedDoc.head.appendChild(style);
+
+    // Also inline oklch found on element style attributes.
+    const walk = (node: Element) => {
+      const s = node.getAttribute("style");
+      if (s && /oklch\(/i.test(s)) node.setAttribute("style", toRgb(s));
+      for (const child of Array.from(node.children)) walk(child);
+    };
+    if (clonedDoc.body) walk(clonedDoc.body);
+  } catch {
+    /* ignore — better to attempt export than to block on shim failure */
+  }
+}
+
 function pdfOptions(filename: string, format: "a4" | "thermal") {
+  const html2canvas = {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    onclone: (doc: Document) => neutralizeOklchInClone(doc),
+  };
   return format === "thermal"
     ? {
         margin: 2,
         filename,
         image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        html2canvas,
         jsPDF: { unit: "mm", format: [80, 297], orientation: "portrait" as const },
       }
     : {
         margin: 8,
         filename,
         image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        html2canvas,
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
       };
 }

@@ -20,6 +20,7 @@ import {
   UserCircle2,
   Activity,
   XCircle,
+  ScanLine,
 
 
 } from "lucide-react";
@@ -57,6 +58,7 @@ const UTILITY: NavItem[] = [
 
   { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
   { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },
+  { to: "/admin/scan-errors", label: "أخطاء الماسح", icon: ScanLine, perm: "permissions.manage" },
   { to: "/settings", label: "الإعدادات", icon: Settings, perm: "settings.write" },
   { to: "/about", label: "حول المطوّر", icon: UserCircle2, perm: "cashier.use" },
 ];

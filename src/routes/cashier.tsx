@@ -479,6 +479,7 @@ function CashierPage() {
 
           <BarcodeScannerDialog
             open={scannerOpen}
+            cashierMode
             onClose={() => setScannerOpen(false)}
             onDetected={(code) => {
               const raw = code.trim();

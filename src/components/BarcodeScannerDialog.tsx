@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, AlertCircle } from "lucide-react";
+import { X, Camera, Loader2, AlertCircle, Keyboard, Check } from "lucide-react";
 import { toast } from "sonner";
+import { logScanError } from "@/lib/scan-error-log";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onDetected: (code: string) => void;
+  /** Cashier mode: never surface toasts, never show scary error UI —
+   *  quietly fall back to the manual-entry pane. All errors still land
+   *  in the silent scan-error log for the admin to review. */
+  cashierMode?: boolean;
 };
 
 /** Translate a browser MediaError / generic error into an Arabic message. */
@@ -31,12 +36,10 @@ function friendlyError(e: unknown): string {
 
 /** Camera-based barcode scanner using @zxing/browser. Robust to permission
  *  denials, missing cameras, insecure contexts (non-HTTPS), and rapid
- *  open/close cycles. */
-export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
+ *  open/close cycles. In cashierMode all errors are silent (logged only). */
+export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = false }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
-  // Keep latest callbacks in refs so the effect doesn't restart the camera
-  // when the parent re-renders with new inline handlers.
   const onDetectedRef = useRef(onDetected);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
@@ -47,26 +50,36 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
   const [retryTick, setRetryTick] = useState(0);
+  const [manualCode, setManualCode] = useState("");
+  const [showManual, setShowManual] = useState(false);
   const detectedOnceRef = useRef(false);
+
+  const fail = (e: unknown, contextTag: string) => {
+    const msg = friendlyError(e);
+    logScanError(e, msg, { tag: contextTag, cashierMode });
+    setError(msg);
+    setStatus("error");
+    if (!cashierMode) toast.error(msg);
+    // In cashier mode, auto-open manual entry so they never see the error UI as the primary state.
+    if (cashierMode) setShowManual(true);
+  };
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     detectedOnceRef.current = false;
+    setShowManual(false);
 
     (async () => {
       setStatus("starting");
       setError("");
 
-      // Guard: secure context + API availability
       if (typeof window !== "undefined" && window.isSecureContext === false) {
-        const msg = "الكاميرا تحتاج اتصال آمن (HTTPS) للعمل.";
-        setError(msg); setStatus("error"); toast.error(msg);
+        fail(new DOMException("insecure context", "SecurityError"), "secure-context");
         return;
       }
       if (!navigator?.mediaDevices?.getUserMedia) {
-        const msg = "المتصفح لا يدعم الوصول إلى الكاميرا.";
-        setError(msg); setStatus("error"); toast.error(msg);
+        fail(new DOMException("mediaDevices unavailable", "NotSupportedError"), "no-mediaDevices");
         return;
       }
 
@@ -75,13 +88,11 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
         if (cancelled) return;
         const reader = new BrowserMultiFormatReader();
 
-        // list cameras (prefer back camera). listVideoInputDevices may
-        // require an existing permission on some browsers — swallow errors.
         let cams: MediaDeviceInfo[] = [];
         try {
           cams = await BrowserMultiFormatReader.listVideoInputDevices();
           if (!cancelled) setDevices(cams);
-        } catch { /* ignore */ }
+        } catch (listErr) { logScanError(listErr, "list-devices", { tag: "list-devices" }); }
         const preferred =
           deviceId ??
           cams.find((c) => /back|rear|environment|خلف/i.test(c.label))?.deviceId ??
@@ -103,16 +114,12 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
             onCloseRef.current();
           },
         );
-        // If we were cancelled during the await, stop immediately.
         if (cancelled) { try { controls.stop(); } catch { /* ignore */ } return; }
         controlsRef.current = controls;
         setStatus("scanning");
       } catch (e) {
         if (cancelled) return;
-        const msg = friendlyError(e);
-        setError(msg);
-        setStatus("error");
-        toast.error(msg);
+        fail(e, "decodeFromVideoDevice");
       }
     })();
 
@@ -120,7 +127,6 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
       cancelled = true;
       try { controlsRef.current?.stop(); } catch { /* ignore */ }
       controlsRef.current = null;
-      // Also stop any lingering tracks bound to the video element.
       try {
         const v = videoRef.current;
         const stream = v?.srcObject as MediaStream | null;
@@ -128,9 +134,19 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
         if (v) v.srcObject = null;
       } catch { /* ignore */ }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, deviceId, retryTick]);
 
   if (!open) return null;
+
+  const submitManual = () => {
+    const code = manualCode.trim();
+    if (!code) return;
+    detectedOnceRef.current = true;
+    onDetectedRef.current(code);
+    setManualCode("");
+    onCloseRef.current();
+  };
 
   return (
     <div
@@ -138,6 +154,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-label="مسح الباركود"
     >
       <div
         className="w-full max-w-md rounded-2xl bg-card shadow-elevated overflow-hidden"
@@ -145,7 +162,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2 font-bold text-sm">
-            <Camera className="size-4" /> مسح الباركود بالكاميرا
+            <Camera className="size-4" /> مسح الباركود
           </div>
           <button
             onClick={onClose}
@@ -165,16 +182,31 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
                   <Loader2 className="size-4 animate-spin" /> جاري تشغيل الكاميرا…
                 </span>
               )}
-              {status === "error" && (
+              {status === "error" && !cashierMode && (
                 <div className="flex flex-col items-center gap-2 max-w-xs">
                   <AlertCircle className="size-6 text-red-400" />
                   <div className="leading-relaxed">{error || "خطأ في الكاميرا"}</div>
-                  <button
-                    onClick={() => { setError(""); setRetryTick((n) => n + 1); }}
-                    className="mt-1 h-8 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs"
-                  >
-                    إعادة المحاولة
-                  </button>
+                  <div className="flex gap-2 mt-1">
+                    <button
+                      onClick={() => { setError(""); setRetryTick((n) => n + 1); }}
+                      className="h-8 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs"
+                    >
+                      إعادة المحاولة
+                    </button>
+                    <button
+                      onClick={() => setShowManual(true)}
+                      className="h-8 px-3 rounded-lg bg-brand text-white text-xs font-bold flex items-center gap-1"
+                    >
+                      <Keyboard className="size-3.5" /> إدخال يدوي
+                    </button>
+                  </div>
+                </div>
+              )}
+              {status === "error" && cashierMode && (
+                // Cashier mode: never show error text. Show a neutral prompt to type the code.
+                <div className="flex flex-col items-center gap-2 max-w-xs">
+                  <Keyboard className="size-6 text-white/80" />
+                  <div className="leading-relaxed">أدخل رمز الباركود يدويًا</div>
                 </div>
               )}
             </div>
@@ -184,7 +216,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
           )}
         </div>
 
-        {devices.length > 1 && (
+        {devices.length > 1 && !showManual && (
           <div className="px-4 py-2 border-t border-border">
             <select
               value={deviceId ?? ""}
@@ -202,8 +234,43 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
           </div>
         )}
 
+        {/* Manual entry — always available, auto-shown on error or in cashier mode fallback */}
+        <div className="px-4 py-3 border-t border-border space-y-2">
+          {!showManual ? (
+            <button
+              type="button"
+              onClick={() => setShowManual(true)}
+              className="w-full h-9 rounded-lg border border-border hover:bg-muted text-xs font-bold flex items-center justify-center gap-1.5"
+            >
+              <Keyboard className="size-3.5" /> إدخال الباركود يدويًا
+            </button>
+          ) : (
+            <form
+              onSubmit={(e) => { e.preventDefault(); submitManual(); }}
+              className="flex gap-2"
+            >
+              <input
+                autoFocus
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                placeholder="أدخل رمز الباركود أو رقم القطعة"
+                inputMode="text"
+                className="flex-1 h-10 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand"
+                aria-label="رمز الباركود يدويًا"
+              />
+              <button
+                type="submit"
+                disabled={!manualCode.trim()}
+                className="h-10 px-4 rounded-lg bg-brand text-white text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+              >
+                <Check className="size-4" /> تأكيد
+              </button>
+            </form>
+          )}
+        </div>
+
         <div className="px-4 py-2 text-[11px] text-muted-foreground text-center border-t border-border">
-          ضع الباركود داخل الإطار — يتم قراءته تلقائياً.
+          ضع الباركود داخل الإطار — يتم قراءته تلقائياً. أو استخدم الإدخال اليدوي.
         </div>
       </div>
     </div>

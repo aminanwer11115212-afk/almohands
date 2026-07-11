@@ -179,7 +179,7 @@ function ProductsPage() {
             type="text"
             value={q}
             onChange={(e) => setSearch({ q: e.target.value })}
-            placeholder="ابحث بالاسم أو الباركود أو الصنف"
+            placeholder="ابحث بالاسم/الباركود/الصنف/رقم القطعة/الرف"
             className="w-full h-11 rounded-xl border border-border bg-card pr-9 pl-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>

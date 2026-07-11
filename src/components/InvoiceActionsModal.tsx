@@ -12,7 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 
-import { useStoreProfile } from "@/hooks/use-store-profile";
+
 import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {
   Printer,

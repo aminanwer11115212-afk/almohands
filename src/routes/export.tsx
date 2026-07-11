@@ -32,8 +32,8 @@ type TableKey = typeof TABLES[number]["key"];
 /** Standard Arabic column headers — match the ones the import page detects. */
 const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
   products: {
-    name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
-    location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+    name: "الاسم", barcode: "الباركود", part_number: "رقم القطعة", category: "الفئة", unit: "الوحدة",
+    location: "الموقع (الرف)", quantity: "الكمية", min_quantity: "الحد الأدنى",
     cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
   },
 };

@@ -261,7 +261,11 @@ function ProductsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center text-muted-foreground nums text-xs">{p.barcode || "—"}</td>
+                    <td className="px-2 py-2 text-center text-muted-foreground nums text-xs" dir="ltr">
+                      <div>{p.barcode || "—"}</div>
+                      {p.partNumber && <div className="text-[10px] opacity-80">#{p.partNumber}</div>}
+                      {p.location && <div className="text-[10px] opacity-70">📍{p.location}</div>}
+                    </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : formatNumber(p.quantity)}
                     </td>

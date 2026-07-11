@@ -8,6 +8,7 @@ export interface Product {
   id: string;
   name: string;
   barcode: string | null;
+  partNumber: string | null;
   category: string | null;
   unit: string;
   location: string | null;
@@ -25,6 +26,7 @@ export const toProduct = (r: ProductRow): Product => ({
   id: r.id,
   name: r.name,
   barcode: r.barcode,
+  partNumber: (r as unknown as { part_number: string | null }).part_number ?? null,
   category: r.category,
   unit: r.unit,
   location: r.location,

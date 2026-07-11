@@ -20,6 +20,7 @@ import {
   UserCircle2,
   Activity,
   XCircle,
+  ScanLine,
 
 
 } from "lucide-react";

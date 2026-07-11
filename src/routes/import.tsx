@@ -24,14 +24,15 @@ function ImportPageGuarded() {
   );
 }
 
-type ColKey = "name" | "barcode" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
+type ColKey = "name" | "barcode" | "part_number" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
 
 const COL_ALIASES: Record<ColKey, string[]> = {
   name: ["الاسم", "اسم المنتج", "اسم الصنف", "الصنف", "المنتج", "name", "product", "product_name", "item", "item_name"],
   barcode: ["الباركود", "باركود", "الكود", "كود", "رمز", "barcode", "sku", "code"],
+  part_number: ["رقم القطعة", "رقم قطعة", "رقم الصنف", "part", "part_no", "part_number", "partnumber", "part no", "oem"],
   category: ["الفئة", "التصنيف", "القسم", "category", "type"],
   unit: ["الوحدة", "unit"],
-  location: ["الموقع", "المخزن", "الرف", "location", "shelf"],
+  location: ["الموقع", "المخزن", "الرف", "location", "shelf", "aisle", "bin"],
   quantity: ["الكمية", "المخزون", "الرصيد", "quantity", "stock", "qty"],
   min_quantity: ["الحد الأدنى", "الحد الادنى", "أدنى كمية", "ادنى كمية", "min", "min_quantity", "reorder"],
   cost_price: ["سعر الشراء", "سعر الجملة", "التكلفة", "تكلفة", "سعر التكلفة", "شراء", "الشراء", "cost", "cost_price", "purchase", "purchase_price", "buy", "buy_price"],
@@ -40,8 +41,8 @@ const COL_ALIASES: Record<ColKey, string[]> = {
 };
 
 const COL_LABEL: Record<ColKey, string> = {
-  name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
-  location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+  name: "الاسم", barcode: "الباركود", part_number: "رقم القطعة", category: "الفئة", unit: "الوحدة",
+  location: "الموقع (الرف)", quantity: "الكمية", min_quantity: "الحد الأدنى",
   cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
 };
 
@@ -50,6 +51,7 @@ type Mapping = Partial<Record<ColKey, string>>;
 type ParsedRow = {
   name: string;
   barcode: string | null;
+  part_number: string | null;
   category: string | null;
   unit: string;
   location: string | null;

@@ -96,6 +96,7 @@ function NewProductPage() {
         user_id: userId,
         name: p.name,
         barcode: p.barcode ?? null,
+        part_number: p.partNumber ?? null,
         category: p.category ?? null,
         unit: p.unit,
         location: p.location ?? null,
@@ -104,7 +105,7 @@ function NewProductPage() {
         cost_price: p.costPrice,
         sale_price: p.salePrice,
         notes: p.notes ?? null,
-      });
+      } as never);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("تم حفظ المنتج");

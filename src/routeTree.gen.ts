@@ -39,6 +39,7 @@ import { Route as InvoicesCancelledRouteImport } from './routes/invoices.cancell
 import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoiceId'
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as AuditCancellationsRouteImport } from './routes/audit.cancellations'
+import { Route as AdminScanErrorsRouteImport } from './routes/admin.scan-errors'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -194,6 +195,11 @@ const AuditCancellationsRoute = AuditCancellationsRouteImport.update({
   path: '/audit/cancellations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminScanErrorsRoute = AdminScanErrorsRouteImport.update({
+  id: '/admin/scan-errors',
+  path: '/admin/scan-errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
@@ -277,6 +284,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
@@ -314,6 +322,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/invoices/$invoiceId': typeof InvoicesInvoiceIdRoute
@@ -352,6 +361,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
@@ -424,6 +435,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
     | '/invoices/$invoiceId'
@@ -461,6 +473,7 @@ export interface RootRouteChildren {
   SuppliersRoute: typeof SuppliersRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  AdminScanErrorsRoute: typeof AdminScanErrorsRoute
   AuditCancellationsRoute: typeof AuditCancellationsRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   InvoicesInvoiceIdRoute: typeof InvoicesInvoiceIdRoute
@@ -686,6 +699,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditCancellationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/scan-errors': {
+      id: '/admin/scan-errors'
+      path: '/admin/scan-errors'
+      fullPath: '/admin/scan-errors'
+      preLoaderRoute: typeof AdminScanErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -753,6 +773,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  AdminScanErrorsRoute: AdminScanErrorsRoute,
   AuditCancellationsRoute: AuditCancellationsRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   InvoicesInvoiceIdRoute: InvoicesInvoiceIdRoute,

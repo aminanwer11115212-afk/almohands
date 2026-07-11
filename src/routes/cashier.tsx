@@ -444,26 +444,56 @@ function CashierPage() {
         {/* Left: search + categories + product grid */}
         <div className="min-w-0 space-y-3">
           {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && visibleProducts.length > 0) {
-                  addProduct(visibleProducts[0]);
-                  setQuery("");
-                }
-              }}
-              placeholder="ابحث بالاسم أو الباركود… (اضغط / للتركيز)"
-              className="w-full h-12 rounded-xl border border-border bg-card pr-9 pl-24 text-sm outline-none focus:border-brand shadow-sm"
-            />
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-muted-foreground">
-              <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted">F2</kbd>
-              <span>دفع</span>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && visibleProducts.length > 0) {
+                    addProduct(visibleProducts[0]);
+                    setQuery("");
+                  }
+                }}
+                placeholder="ابحث بالاسم/الباركود/رقم القطعة/الرف…"
+                className="w-full h-12 rounded-xl border border-border bg-card pr-9 pl-24 text-sm outline-none focus:border-brand shadow-sm"
+              />
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted">F2</kbd>
+                <span>دفع</span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              aria-label="مسح باركود بالكاميرا"
+              title="مسح الباركود بالكاميرا"
+              className="h-12 px-3 rounded-xl border border-border bg-card hover:bg-muted flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <Camera className="size-4" />
+              <span className="hidden sm:inline">مسح</span>
+            </button>
           </div>
+
+          <BarcodeScannerDialog
+            open={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onDetected={(code) => {
+              const found = products.find(
+                (p) => (p.barcode ?? "").trim() === code.trim(),
+              );
+              if (found) {
+                addProduct(found);
+                toast.success(`تمت إضافة: ${found.name}`);
+              } else {
+                setQuery(code);
+                toast.warning("لم يُعثر على منتج بهذا الباركود — تم وضعه في البحث");
+              }
+            }}
+          />
+
 
           {/* Category chips */}
           {categories.length > 0 && (

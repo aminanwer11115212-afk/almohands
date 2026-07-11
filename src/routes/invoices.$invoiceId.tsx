@@ -478,7 +478,7 @@ function InvoiceDetailPage() {
     }
     if (autoshare && !shareTriggeredRef.current) {
       shareTriggeredRef.current = true;
-      setTimeout(() => { handleWhatsAppShare().catch(() => {}); }, 400);
+      setTimeout(() => { try { handleWhatsAppShare(); } catch { /* noop */ } }, 400);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autopdf, autoshare, formatReady, hasInv]);

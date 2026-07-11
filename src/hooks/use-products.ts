@@ -22,7 +22,7 @@ export async function fetchProducts(params: ProductsQueryParams): Promise<Produc
   const q = params.q.trim();
   if (q) {
     const safe = q.replace(/[,()]/g, " ");
-    query = query.or(`name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%`);
+    query = query.or(`name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%,part_number.ilike.%${safe}%,location.ilike.%${safe}%`);
   }
 
   // Paginate to bypass PostgREST's 1000-row default cap; supports 10k+ products.

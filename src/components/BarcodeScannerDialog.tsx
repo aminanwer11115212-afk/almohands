@@ -46,6 +46,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
   const [error, setError] = useState<string>("");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
+  const [retryTick, setRetryTick] = useState(0);
   const detectedOnceRef = useRef(false);
 
   useEffect(() => {

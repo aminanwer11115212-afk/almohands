@@ -464,13 +464,16 @@ function openPrintWindow(opts: {
     <div class="meta"><span>تاريخ الطباعة: ${today}</span><span>عدد الأصناف: ${fmt(rows.length)}</span></div>
     <table>
       <thead><tr>
-        <th style="width:34px">#</th><th>المنتج</th><th style="width:110px">الباركود</th>
-        <th style="width:60px">الكمية</th><th style="width:80px">سعر الشراء</th>
-        <th style="width:80px">سعر البيع</th><th style="width:96px">قيمة التكلفة</th>
+        <th style="width:30px">#</th><th>المنتج</th>
+        <th style="width:100px">الباركود</th>
+        <th style="width:90px">رقم القطعة</th>
+        <th style="width:70px">الرف</th>
+        <th style="width:55px">الكمية</th><th style="width:75px">سعر الشراء</th>
+        <th style="width:75px">سعر البيع</th><th style="width:90px">قيمة التكلفة</th>
       </tr></thead>
       <tbody>${rowsHtml}</tbody>
       <tfoot><tr>
-        <td colspan="3">الإجماليات</td>
+        <td colspan="5">الإجماليات</td>
         <td>${fmt(totals.qty)}</td><td>—</td><td>—</td>
         <td>${fmt(totals.cost)}</td>
       </tr></tfoot>

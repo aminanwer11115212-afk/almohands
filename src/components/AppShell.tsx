@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -14,6 +14,18 @@ type Props = {
 };
 
 export function AppShell({ title, children, showBack = false, rightAction, subtitle, wide = false }: Props) {
+  const router = useRouter();
+  const goBack = () => {
+    try {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.history.back();
+      } else {
+        router.navigate({ to: "/" });
+      }
+    } catch {
+      router.navigate({ to: "/" });
+    }
+  };
   return (
     // Full-viewport shell with independent scroll areas:
     //  - the sidebar owns its own scroll (nav is overflow-y-auto inside)
@@ -42,13 +54,14 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
             }
           >
             {showBack ? (
-              <Link
-                to="/"
+              <button
+                type="button"
+                onClick={goBack}
                 className="grid size-10 place-items-center rounded-full hover:bg-white/10 lg:hover:bg-muted focus-visible:bg-white/10 lg:focus-visible:bg-muted transition"
-                aria-label="رجوع للرئيسية"
+                aria-label="رجوع للصفحة السابقة"
               >
                 <ArrowRight className="size-5" aria-hidden="true" />
-              </Link>
+              </button>
             ) : (
               <span className="size-10 lg:hidden" aria-hidden="true" />
             )}

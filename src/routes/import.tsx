@@ -24,14 +24,15 @@ function ImportPageGuarded() {
   );
 }
 
-type ColKey = "name" | "barcode" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
+type ColKey = "name" | "barcode" | "part_number" | "category" | "unit" | "location" | "quantity" | "min_quantity" | "cost_price" | "sale_price" | "notes";
 
 const COL_ALIASES: Record<ColKey, string[]> = {
   name: ["الاسم", "اسم المنتج", "اسم الصنف", "الصنف", "المنتج", "name", "product", "product_name", "item", "item_name"],
   barcode: ["الباركود", "باركود", "الكود", "كود", "رمز", "barcode", "sku", "code"],
+  part_number: ["رقم القطعة", "رقم قطعة", "رقم الصنف", "part", "part_no", "part_number", "partnumber", "part no", "oem"],
   category: ["الفئة", "التصنيف", "القسم", "category", "type"],
   unit: ["الوحدة", "unit"],
-  location: ["الموقع", "المخزن", "الرف", "location", "shelf"],
+  location: ["الموقع", "المخزن", "الرف", "location", "shelf", "aisle", "bin"],
   quantity: ["الكمية", "المخزون", "الرصيد", "quantity", "stock", "qty"],
   min_quantity: ["الحد الأدنى", "الحد الادنى", "أدنى كمية", "ادنى كمية", "min", "min_quantity", "reorder"],
   cost_price: ["سعر الشراء", "سعر الجملة", "التكلفة", "تكلفة", "سعر التكلفة", "شراء", "الشراء", "cost", "cost_price", "purchase", "purchase_price", "buy", "buy_price"],
@@ -40,8 +41,8 @@ const COL_ALIASES: Record<ColKey, string[]> = {
 };
 
 const COL_LABEL: Record<ColKey, string> = {
-  name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
-  location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+  name: "الاسم", barcode: "الباركود", part_number: "رقم القطعة", category: "الفئة", unit: "الوحدة",
+  location: "الموقع (الرف)", quantity: "الكمية", min_quantity: "الحد الأدنى",
   cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
 };
 
@@ -50,6 +51,7 @@ type Mapping = Partial<Record<ColKey, string>>;
 type ParsedRow = {
   name: string;
   barcode: string | null;
+  part_number: string | null;
   category: string | null;
   unit: string;
   location: string | null;
@@ -189,7 +191,7 @@ function ImportPage() {
   function downloadTemplate() {
     try {
       const sample = [
-        { "الاسم": "زيت محرك 5W-30", "الباركود": "1234567890", "الفئة": "زيوت", "الوحدة": "قطعة", "الموقع": "رف A1", "الكمية": 20, "الحد الأدنى": 5, "سعر الشراء": 1200, "سعر البيع": 1500, "ملاحظات": "" },
+        { "الاسم": "زيت محرك 5W-30", "الباركود": "1234567890", "رقم القطعة": "90915-YZZE2", "الفئة": "زيوت", "الوحدة": "قطعة", "الموقع (الرف)": "A1", "الكمية": 20, "الحد الأدنى": 5, "سعر الشراء": 1200, "سعر البيع": 1500, "ملاحظات": "" },
       ];
       const ws = XLSX.utils.json_to_sheet(sample);
       ws["!cols"] = Object.keys(sample[0]).map(() => ({ wch: 18 }));
@@ -310,7 +312,8 @@ function ImportPage() {
       const uid = authData.user.id;
 
       const payload = validRows.map((r) => ({
-        user_id: uid, name: r.name, barcode: r.barcode, category: r.category,
+        user_id: uid, name: r.name, barcode: r.barcode, part_number: r.part_number,
+        category: r.category,
         unit: r.unit || "قطعة", location: r.location, quantity: r.quantity,
         min_quantity: r.min_quantity, cost_price: r.cost_price,
         sale_price: bumpedPrice(r.sale_price), notes: r.notes, is_active: true,
@@ -736,6 +739,7 @@ function parseRow(raw: Record<string, unknown>, rowIndex: number, mapping: Mappi
   return {
     name,
     barcode: str(getRaw("barcode")) || null,
+    part_number: str(getRaw("part_number")) || null,
     category: str(getRaw("category")) || null,
     unit: str(getRaw("unit"), "قطعة"),
     location: str(getRaw("location")) || null,

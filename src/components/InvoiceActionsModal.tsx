@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
-import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
-import { useStoreProfile } from "@/hooks/use-store-profile";
+
+
 import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {
   Printer,
@@ -53,7 +53,6 @@ const statusClasses: Record<string, string> = {
 export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: store } = useStoreProfile();
   const [returning, setReturning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);
@@ -75,26 +74,21 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const inv = data?.inv;
   const items = data?.items ?? [];
 
-  function goFull(autoprint: 0 | 1) {
+  function goFull(opts: { autoprint?: 0 | 1; autopdf?: 0 | 1; autoshare?: 0 | 1 } = {}) {
     if (!inv) return;
     onOpenChange(false);
     navigate({
       to: "/invoices/$invoiceId",
       params: { invoiceId: inv.id },
-      search: { autoprint },
+      search: {
+        autoprint: opts.autoprint ?? 0,
+        autopdf: opts.autopdf ?? 0,
+        autoshare: opts.autoshare ?? 0,
+      },
     });
   }
 
-  function share() {
-    if (!inv) return;
-    const text = buildInvoiceText(
-      inv,
-      items,
-      store?.name || "المهندس",
-      { includeItems: true, footer: store?.invoice_footer || undefined },
-    );
-    openWhatsAppShare(inv.customer_phone, text);
-  }
+  // shareText left out — WhatsApp with PDF is triggered via goFull({ autoshare: 1 }).
 
   async function returnAllToStock() {
     if (!inv || returning) return;
@@ -331,16 +325,16 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
             {/* Actions */}
             <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-2 pt-2">
               <div className="grid grid-cols-2 gap-2 w-full">
-                <ActionBtn onClick={() => goFull(1)} icon={Printer} tone="primary">
+                <ActionBtn onClick={() => goFull({ autoprint: 1 })} icon={Printer} tone="primary">
                   طباعة
                 </ActionBtn>
-                <ActionBtn onClick={share} icon={Share2} tone="whatsapp">
-                  واتساب
+                <ActionBtn onClick={() => goFull({ autoshare: 1 })} icon={Share2} tone="whatsapp">
+                  واتساب (PDF)
                 </ActionBtn>
-                <ActionBtn onClick={() => goFull(0)} icon={Eye}>
+                <ActionBtn onClick={() => goFull()} icon={Eye}>
                   معاينة كاملة
                 </ActionBtn>
-                <ActionBtn onClick={() => goFull(0)} icon={FileText}>
+                <ActionBtn onClick={() => goFull({ autopdf: 1 })} icon={FileText}>
                   PDF
                 </ActionBtn>
 

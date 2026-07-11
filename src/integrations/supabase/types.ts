@@ -606,8 +606,10 @@ export type Database = {
           min_quantity: number
           name: string
           notes: string | null
+          part_number: string | null
           quantity: number
           sale_price: number
+          shelf_location: string | null
           unit: string
           updated_at: string
           user_id: string
@@ -623,8 +625,10 @@ export type Database = {
           min_quantity?: number
           name: string
           notes?: string | null
+          part_number?: string | null
           quantity?: number
           sale_price?: number
+          shelf_location?: string | null
           unit?: string
           updated_at?: string
           user_id: string
@@ -640,8 +644,10 @@ export type Database = {
           min_quantity?: number
           name?: string
           notes?: string | null
+          part_number?: string | null
           quantity?: number
           sale_price?: number
+          shelf_location?: string | null
           unit?: string
           updated_at?: string
           user_id?: string

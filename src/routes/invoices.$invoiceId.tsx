@@ -19,6 +19,8 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
   validateSearch: (s: Record<string, unknown>) => ({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
+    autopdf: s.autopdf === "1" || s.autopdf === 1 || s.autopdf === true ? 1 : 0,
+    autoshare: s.autoshare === "1" || s.autoshare === 1 || s.autoshare === true ? 1 : 0,
   }),
   component: () => (<PermissionGate perm="invoices.view"><InvoiceDetailPage /></PermissionGate>),
   errorComponent: InvoiceDetailError,
@@ -79,7 +81,7 @@ type PrintFormat = "a4" | "thermal";
 
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
-  const { autoprint } = Route.useSearch();
+  const { autoprint, autopdf, autoshare } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
   const saveProfile = useSaveStoreProfile();
 
@@ -462,6 +464,22 @@ function InvoiceDetailPage() {
     }, 350);
     return () => clearTimeout(t);
   }, [autoprint, formatReady, hasInv, invoiceId]);
+
+  // Auto-trigger PDF/WhatsApp actions if requested via search params (once).
+  const pdfTriggeredRef = useRef(false);
+  const shareTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!formatReady || !hasInv) return;
+    if (autopdf && !pdfTriggeredRef.current) {
+      pdfTriggeredRef.current = true;
+      setTimeout(() => { handleDownloadPdf().catch(() => {}); }, 400);
+    }
+    if (autoshare && !shareTriggeredRef.current) {
+      shareTriggeredRef.current = true;
+      setTimeout(() => { handleWhatsAppShare().catch(() => {}); }, 400);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autopdf, autoshare, formatReady, hasInv]);
 
   if (isLoading) {
     return (

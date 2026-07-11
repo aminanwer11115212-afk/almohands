@@ -32,8 +32,8 @@ type TableKey = typeof TABLES[number]["key"];
 /** Standard Arabic column headers — match the ones the import page detects. */
 const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
   products: {
-    name: "الاسم", barcode: "الباركود", category: "الفئة", unit: "الوحدة",
-    location: "الموقع", quantity: "الكمية", min_quantity: "الحد الأدنى",
+    name: "الاسم", barcode: "الباركود", part_number: "رقم القطعة", category: "الفئة", unit: "الوحدة",
+    location: "الموقع (الرف)", quantity: "الكمية", min_quantity: "الحد الأدنى",
     cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
   },
 };
@@ -43,7 +43,7 @@ const AUTO_COLS_LAST = ["id", "user_id", "created_at", "updated_at"];
 
 /** Canonical, stable column order per table — guarantees identical output between exports. */
 const SCHEMA_ORDER: Partial<Record<TableKey, string[]>> = {
-  products: ["name", "barcode", "category", "unit", "location", "quantity", "min_quantity", "cost_price", "sale_price", "notes"],
+  products: ["name", "barcode", "part_number", "category", "unit", "location", "quantity", "min_quantity", "cost_price", "sale_price", "notes"],
   customers: ["name", "phone", "email", "address", "notes", "balance"],
   suppliers: ["name", "phone", "email", "address", "notes"],
   invoices: ["invoice_number", "customer_id", "status", "subtotal", "discount", "tax", "total", "paid", "payment_method_id", "transaction_ref", "notes", "cancelled_at", "cancelled_by", "cancellation_reason"],

@@ -1,106 +1,69 @@
-# خطة إعادة هيكلة وتحسين نظام Albatool
+# خطة التنفيذ — 5 مهام موزعة على Sub-Agents
 
-هدف: تنظيف الكود، توحيد معالجة الأخطاء، إصلاح الأعطال المعروفة، وتحسين الأداء — بدون تغيير سلوك المستخدم النهائي أو تخطيط الشاشات.
+## المهام المطلوبة
 
----
-
-## المرحلة 1 — تدقيق وتشخيص (Audit)
-
-**الناتج:** تقرير مكتوب في `docs/audit-report.md` يحوي:
-- قائمة الملفات الأكبر من 800 سطر (InvoiceCreatePage 2707، QuoteCreatePage 2338، ProductsPage 2317…).
-- خريطة hooks/مكونات مكررة بين صفحات Create.
-- كل نداء `supabase.from(...)` بدون معالجة أخطاء.
-- كل `try` بدون `catch` واضح للمستخدم، وكل `.then` بدون `.catch`.
-- كل `dangerouslySetInnerHTML`، كل input بدون validation.
-- كل جدول عام بدون RLS/GRANT مكتمل.
-
-لا تعديلات كود في هذه المرحلة — فحص فقط.
+1. **زر رجوع موحد** في كل الصفحات → للصفحة السابقة (وليس دائماً للرئيسية).
+2. **رقم القطعة / موقع الرف** (`part_number` / `shelf_location`) للمنتجات — يظهر في الطباعة/PDF/التصدير والبحث.
+3. **Scan باركود بالكاميرا** في صفحة الكاشير → يفتح الكاميرا، يقرأ الباركود، يضيف المنتج تلقائياً لسلة البيع.
+4. **أزرار +/- للكمية** في الكاشير بدل كتابة الرقم.
+5. **إصلاح أزرار المعاينة (WhatsApp / PDF)** في نافذة معاينة الفاتورة.
 
 ---
 
-## المرحلة 2 — طبقة معالجة الأخطاء الموحدة
+## التقسيم على Sub-Agents (متوازي حيث لا تعارض)
 
-**الملفات الجديدة:**
-- `src/lib/errors/AppError.ts` — نوع خطأ موحد (`code`, `messageAr`, `cause`).
-- `src/lib/errors/handle.ts` — `handleError(err, ctx)` يحوّل أي خطأ (Supabase/Zod/Network) إلى رسالة عربية عبر `toast.error` ويسجل التفاصيل التقنية.
-- `src/lib/errors/withTry.ts` — wrapper للـ mutations/handlers يضمن try/catch + toast.
-- `src/components/ErrorBoundary.tsx` — حدود خطأ على مستوى الـ layout وكل route رئيسي.
+### Agent A — Back Button (UI فقط)
+- تعديل `src/components/AppShell.tsx`: تغيير سلوك `showBack` من `<Link to="/">` إلى `router.history.back()` مع fallback للرئيسية.
+- تدقيق كل صفحات `src/routes/*.tsx` لتفعيل `showBack` حيث لا تكون الصفحة رئيسية.
 
-**التطبيق:**
-- ربط `ErrorBoundary` في `__root.tsx` و`_authenticated.tsx`.
-- استبدال كل `catch (e) { console.error(e) }` بـ `handleError(e, {scope})`.
-- في كل `useMutation`: إضافة `onError: handleError`.
+### Agent B — Part Number / Shelf Location (Schema + UI)
+- **Migration**: إضافة عمودَي `part_number TEXT` و`shelf_location TEXT` على `products` (+ index على `part_number`).
+- **UI**: 
+  - نموذج إضافة/تعديل المنتج (`products.new.tsx`, `products.$productId.tsx`) — حقلا إدخال.
+  - قائمة المنتجات — إظهار `رقم القطعة` و`الرف` كأعمدة/شارات.
+  - البحث في `use-products.ts` — تضمين `part_number` و`shelf_location` في `.or(...)`.
+  - التصدير (`export.tsx`) والاستيراد (`import.tsx`) — إضافتهما إلى `SCHEMA_ORDER.products` و`COL_LABEL`.
+  - قوالب طباعة الفاتورة (`invoices.$invoiceId.tsx` قسم PDF/print) وطباعة قوائم المنتجات.
 
----
+### Agent C — Camera Barcode Scanner (كاشير فقط)
+- تثبيت `@zxing/browser` (أو `html5-qrcode`).
+- مكوّن جديد `src/components/BarcodeScannerDialog.tsx`: يفتح كاميرا خلفية، يبث نتيجة الباركود.
+- في `src/routes/cashier.tsx`: زر 📷 بجانب حقل الباركود؛ عند القراءة الناجحة يبحث المنتج بـ`barcode` ويضيفه للسلة كما لو كتبه المستخدم.
 
-## المرحلة 3 — طبقة Validation بـ Zod
+### Agent D — Quantity +/- Stepper (كاشير فقط)
+- في `src/routes/cashier.tsx`: استبدال حقل الكمية النصي بمكوّن `QtyStepper` (زر −، عرض الرقم، زر +) مع اختصار طويل للضغط المستمر. الاحتفاظ بإمكانية الكتابة اليدوية اختيارياً.
 
-- `src/lib/schemas/` — schema لكل كيان (customer, product, supplier, invoice, invoiceItem, purchase, payment).
-- تطبيق `schema.safeParse` قبل كل حفظ في:
-  - `customers.tsx`, `products.index.tsx`, `suppliers.tsx`
-  - صفحات الإنشاء (Invoice/Quote/Purchase/StockReturn)
-  - نماذج الاستيراد (import.tsx) — validate كل صف قبل الإدخال.
-- حدود طول واضحة (name ≤ 100، phone regex، email، أرقام ≥ 0).
-
----
-
-## المرحلة 4 — إصلاح العيوب المعروفة (Bug Fixes)
-
-سيُوثَّق كل bug + الحل داخل commit منفصل. القائمة الأولية:
-
-| # | العيب | السبب | الحل |
-|---|---|---|---|
-| 1 | تصدير PDF: الاتجاه RTL يعمل في نافذة الطباعة فقط لا في العناوين | القالب الحالي لا يطبق `dir="rtl"` على `<html>` والجدول | تحديث `pdf-html-export.ts` ليضع `dir="rtl"` + `text-align:right` على كل `th/td` |
-| 2 | CSV/XLSX عربي مشوّه في بعض الأجهزة | نقص BOM في XLSX + عدم فرض `utf-8` في CSV headers | إضافة BOM موحد + تحديد `type: 'text/csv;charset=utf-8'` |
-| 3 | Double-submit في صفحات الإنشاء عند النقر السريع | بعض الصفحات بلا `savingRef` guard | فرض النمط: `savingRef` + `disabled={saving}` + try/finally |
-| 4 | فقدان `invalidateQueries` بعد حذف/تعديل في بعض الشاشات | مفاتيح queries غير موحدة | إنشاء `src/lib/queryKeys.ts` مركزي + invalidation شامل بعد كل mutation |
-| 5 | استيراد المنتجات: صف واحد فاسد يوقف الدفعة كلها | لا يوجد isolation | معالجة على مستوى الصف مع تجميع الأخطاء وعرض تقرير |
-| 6 | حذف بلا سجل تدقيق (audit) في بعض الجداول | trigger مفقود | إضافة migration: trigger على `customers/products/suppliers` يكتب في `audit_logs` |
-| 7 | حقول numeric تقبل نصاً | لا تحقق نوع | Zod coerce.number().nonnegative() |
-| 8 | تسريب بيانات في console.log | logs غير محمية | إزالة/تقييد بـ `if (import.meta.env.DEV)` |
-| 9 | RLS: بعض الجداول لا تفلتر بـ `auth.uid()` بشكل صريح | سياسة ضعيفة | مراجعة سياسات كل جدول public |
-| 10 | Race condition في `assign_invoice_number` عند حالات نادرة | يعتمد على advisory lock فقط | التأكد من وجود UNIQUE(user_id, invoice_number) |
-
-كل bug يُصلَح مع شرح "المشكلة/الحل" في commit message.
+### Agent E — إصلاح PDF/WhatsApp في معاينة الفاتورة
+- فحص `src/components/InvoiceActionsModal.tsx` + `src/routes/invoices.$invoiceId.tsx` + `src/lib/invoice-share.ts`.
+- التأكد من:
+  - `elementToPdfBlob` يحصل على `HTMLElement` صالح (ref مهيأ قبل الضغط).
+  - `openWhatsAppShare` يعمل على desktop (يفتح wa.me في تبويب جديد) وعلى mobile (Web Share).
+  - إظهار toast خطأ واضح عند الفشل بدل الصمت.
+- إضافة `part_number`/`shelf_location` إلى قالب PDF (تنسيق مع Agent B).
 
 ---
 
-## المرحلة 5 — إعادة هيكلة الملفات الكبيرة
+## الترتيب الزمني
 
-وفق منهجية `albatool-safe-refactor` — خطوة واحدة لكل دورة، صفر تغيير سلوكي.
+```text
+Wave 1 (بالتوازي):  A + B(migration+schema) + C(install+dialog) + D + E(fix)
+Wave 2:              B(UI + export/import + print)  ← يعتمد على أن الـ migration تمّت
+Wave 3:              مراجعة سريعة + build check
+```
 
-**الترتيب:**
-1. `InvoiceCreatePage` (2707) → استخراج hooks: `useDocumentForm`, `useDocumentItems`, `useDocumentCustomer`, `useDocumentCurrency`, `useDocumentPayment`, `useDocumentSave`.
-2. `QuoteCreatePage` (2338) → إعادة استخدام نفس hooks.
-3. `ProductsPage` (2317) → استخراج `ProductsTable`, `ProductFormDialog`, `ProductFilters`.
-4. `CustomersPage` (1824) → `CustomerTable`, `CustomerFormDialog`, `CustomerDetailsPanel`.
-5. `StockReturnCreatePage`, `PurchaseCreatePage` → نفس الـ hooks.
-6. `RecentItemsSidebar` (1210) → تقسيم لعناصر أصغر.
+## ملاحظات تقنية
 
-**قواعد:** لا تغيير أسماء state/handlers، لا تغيير JSX/tokens، خطوة واحدة = ملف واحد.
+- Migration `products` سيتطلب تحديث `SCHEMA_ORDER` و`COL_LABEL` في كل من import/export لضمان ثبات ترتيب الأعمدة.
+- مكتبة الباركود (`@zxing/browser`) صغيرة وتعمل بـ`getUserMedia`؛ تحتاج HTTPS (المعاينة والنشر على HTTPS بالفعل).
+- زر الرجوع سيستخدم `window.history.length > 1` كشرط قبل `back()`، وإلا يوجّه للرئيسية.
+- لن أعدّل ملفات auto-gen ولا الـ triggers.
 
----
+## المخرجات المتوقعة للمستخدم
 
-## المرحلة 6 — تحسين الأداء
+- زر رجوع يعمل في كل صفحة داخلية.
+- كل منتج له رقم قطعة + موقع رف، يظهر في القوائم والطباعة والـ PDF.
+- زر كاميرا في الكاشير يقرأ الباركود ويضيف المنتج مباشرة.
+- أزرار +/- سريعة لضبط الكمية.
+- زرا PDF وWhatsApp في نافذة الفاتورة يعملان بشكل صحيح.
 
-- Pagination موحد للجداول الكبيرة (`useProducts`, `useCustomers`, `useInvoices`) عبر hook `usePagedQuery`.
-- Virtualization (`@tanstack/react-virtual`) لجداول > 500 صف.
-- Streaming export (منجز جزئياً) — إكماله لكل الجداول.
-- Debounce لحقول البحث (300ms).
-- Memoization للحسابات الثقيلة في `useDocumentItems` (calcTotal).
-- تقليل re-renders عبر `select` في React Query.
-
----
-
-## المرحلة 7 — التحقق والتوثيق
-
-- إضافة `docs/architecture.md` يشرح الطبقات الجديدة.
-- `docs/error-handling.md` — دليل استخدام `handleError`/`withTry`.
-- Playwright smoke tests على المسارات الحرجة (إنشاء فاتورة، حذف عميل، استيراد، تصدير).
-- تشغيل `supabase--linter` + `security--run_security_scan` وتصفير التنبيهات.
-
----
-
-## تنفيذ
-
-سأنفّذ مرحلة واحدة في كل رد، وأنتظر موافقتك قبل الانتقال للتالية. ابدأ بأي مرحلة تريد — أو قل "ابدأ من 1" وأنفّذ التسلسل.
+هل أبدأ التنفيذ بهذا الترتيب؟

@@ -20,6 +20,7 @@ const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر
 const productSchema = z.object({
   name: z.string().trim().min(1, "اسم المنتج مطلوب").max(200, "الاسم طويل جداً"),
   barcode: z.string().trim().max(64).optional(),
+  partNumber: z.string().trim().max(64).optional(),
   category: z.string().trim().max(80).optional(),
   unit: z.enum(UNITS as [string, ...string[]]),
   location: z.string().trim().max(50).optional(),
@@ -52,6 +53,7 @@ function EditProductPage() {
 
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [partNumber, setPartNumber] = useState("");
   const [category, setCategory] = useState("");
   const [unit, setUnit] = useState("قطعة");
   const [location, setLocation] = useState("");
@@ -69,6 +71,7 @@ function EditProductPage() {
     if (product) {
       setName(product.name);
       setBarcode(product.barcode ?? "");
+      setPartNumber(product.partNumber ?? "");
       setCategory(product.category ?? "");
       setUnit(product.unit);
       setLocation(product.location ?? "");
@@ -87,6 +90,7 @@ function EditProductPage() {
     const parsed = productSchema.safeParse({
       name,
       barcode: barcode.trim() || undefined,
+      partNumber: partNumber.trim() || undefined,
       category: category.trim() || undefined,
       unit,
       location: location.trim() || undefined,
@@ -111,6 +115,7 @@ function EditProductPage() {
         .update({
           name: p.name,
           barcode: p.barcode ?? null,
+          part_number: p.partNumber ?? null,
           category: p.category ?? null,
           unit: p.unit,
           location: p.location ?? null,
@@ -119,7 +124,7 @@ function EditProductPage() {
           cost_price: p.costPrice,
           sale_price: p.salePrice,
           notes: p.notes ?? null,
-        })
+        } as never)
         .eq("id", productId);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -208,18 +213,23 @@ function EditProductPage() {
           <Field label="الباركود">
             <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left" />
           </Field>
-          <Field label="الفئة">
-            <input value={category} onChange={(e) => setCategory(e.target.value)} className="ip" />
+          <Field label="رقم القطعة (Part No.)">
+            <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="90915-YZZE2" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
+          <Field label="الفئة">
+            <input value={category} onChange={(e) => setCategory(e.target.value)} className="ip" />
+          </Field>
+          <Field label="الموقع (الرف)">
+            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
+          </Field>
+        </div>
+        <div>
           <Field label="الوحدة">
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="ip">
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
-          </Field>
-          <Field label="الموقع (الرف)">
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

@@ -179,7 +179,7 @@ function ProductsPage() {
             type="text"
             value={q}
             onChange={(e) => setSearch({ q: e.target.value })}
-            placeholder="ابحث بالاسم أو الباركود أو الصنف"
+            placeholder="ابحث بالاسم/الباركود/الصنف/رقم القطعة/الرف"
             className="w-full h-11 rounded-xl border border-border bg-card pr-9 pl-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
@@ -221,7 +221,7 @@ function ProductsPage() {
             <thead className="bg-muted text-muted-foreground text-xs">
               <tr>
                 <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
-                <Th className="text-center">الباركود</Th>
+                <Th className="text-center">الباركود / رقم القطعة / الرف</Th>
                 <Th onClick={() => toggleSort("quantity")} active={sort === "quantity"} asc={asc} className="text-center w-24">الكمية</Th>
                 <Th className="text-center w-24">حد أدنى</Th>
                 <Th className="text-center w-28">سعر الشراء</Th>
@@ -261,7 +261,11 @@ function ProductsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center text-muted-foreground nums text-xs">{p.barcode || "—"}</td>
+                    <td className="px-2 py-2 text-center text-muted-foreground nums text-xs" dir="ltr">
+                      <div>{p.barcode || "—"}</div>
+                      {p.partNumber && <div className="text-[10px] opacity-80">#{p.partNumber}</div>}
+                      {p.location && <div className="text-[10px] opacity-70">📍{p.location}</div>}
+                    </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : formatNumber(p.quantity)}
                     </td>
@@ -406,6 +410,8 @@ function openPrintWindow(opts: {
       <td class="c">${i + 1}</td>
       <td class="r">${escapeHtml(p.name)}</td>
       <td class="c mono">${escapeHtml(p.barcode || "—")}</td>
+      <td class="c mono">${escapeHtml(p.partNumber || "—")}</td>
+      <td class="c mono">${escapeHtml(p.location || "—")}</td>
       <td class="c">${fmt(p.quantity)}</td>
       <td class="c">${fmt(p.costPrice)}</td>
       <td class="c">${fmt(p.salePrice)}</td>
@@ -458,13 +464,16 @@ function openPrintWindow(opts: {
     <div class="meta"><span>تاريخ الطباعة: ${today}</span><span>عدد الأصناف: ${fmt(rows.length)}</span></div>
     <table>
       <thead><tr>
-        <th style="width:34px">#</th><th>المنتج</th><th style="width:110px">الباركود</th>
-        <th style="width:60px">الكمية</th><th style="width:80px">سعر الشراء</th>
-        <th style="width:80px">سعر البيع</th><th style="width:96px">قيمة التكلفة</th>
+        <th style="width:30px">#</th><th>المنتج</th>
+        <th style="width:100px">الباركود</th>
+        <th style="width:90px">رقم القطعة</th>
+        <th style="width:70px">الرف</th>
+        <th style="width:55px">الكمية</th><th style="width:75px">سعر الشراء</th>
+        <th style="width:75px">سعر البيع</th><th style="width:90px">قيمة التكلفة</th>
       </tr></thead>
       <tbody>${rowsHtml}</tbody>
       <tfoot><tr>
-        <td colspan="3">الإجماليات</td>
+        <td colspan="5">الإجماليات</td>
         <td>${fmt(totals.qty)}</td><td>—</td><td>—</td>
         <td>${fmt(totals.cost)}</td>
       </tr></tfoot>

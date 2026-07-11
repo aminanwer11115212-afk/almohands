@@ -3,7 +3,7 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User, Printer, Eye, Share2,
+  Wallet, Landmark, Package, X, User, Printer, Eye, Share2, Camera,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
@@ -18,6 +18,7 @@ import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
@@ -39,6 +40,7 @@ function CashierPage() {
   const queryClient = useQueryClient();
 
   const [query, setQuery] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -442,26 +444,56 @@ function CashierPage() {
         {/* Left: search + categories + product grid */}
         <div className="min-w-0 space-y-3">
           {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && visibleProducts.length > 0) {
-                  addProduct(visibleProducts[0]);
-                  setQuery("");
-                }
-              }}
-              placeholder="ابحث بالاسم أو الباركود… (اضغط / للتركيز)"
-              className="w-full h-12 rounded-xl border border-border bg-card pr-9 pl-24 text-sm outline-none focus:border-brand shadow-sm"
-            />
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-muted-foreground">
-              <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted">F2</kbd>
-              <span>دفع</span>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && visibleProducts.length > 0) {
+                    addProduct(visibleProducts[0]);
+                    setQuery("");
+                  }
+                }}
+                placeholder="ابحث بالاسم/الباركود/رقم القطعة/الرف…"
+                className="w-full h-12 rounded-xl border border-border bg-card pr-9 pl-24 text-sm outline-none focus:border-brand shadow-sm"
+              />
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted">F2</kbd>
+                <span>دفع</span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              aria-label="مسح باركود بالكاميرا"
+              title="مسح الباركود بالكاميرا"
+              className="h-12 px-3 rounded-xl border border-border bg-card hover:bg-muted flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <Camera className="size-4" />
+              <span className="hidden sm:inline">مسح</span>
+            </button>
           </div>
+
+          <BarcodeScannerDialog
+            open={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onDetected={(code) => {
+              const found = products.find(
+                (p) => (p.barcode ?? "").trim() === code.trim(),
+              );
+              if (found) {
+                addProduct(found);
+                toast.success(`تمت إضافة: ${found.name}`);
+              } else {
+                setQuery(code);
+                toast.warning("لم يُعثر على منتج بهذا الباركود — تم وضعه في البحث");
+              }
+            }}
+          />
+
 
           {/* Category chips */}
           {categories.length > 0 && (
@@ -518,6 +550,12 @@ function CashierPage() {
                         </span>
                       )}
                       <div className="text-sm font-bold line-clamp-2 min-h-[2.5rem]">{p.name}</div>
+                      {(p.partNumber || p.location) && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground" dir="ltr">
+                          {p.partNumber && <span className="px-1 rounded bg-muted">#{p.partNumber}</span>}
+                          {p.location && <span className="px-1 rounded bg-muted">📍{p.location}</span>}
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center justify-between text-xs">
                         <span
                           className={`nums ${outOfStock ? "text-rose-600" : low ? "text-amber-600" : "text-muted-foreground"}`}
@@ -660,25 +698,29 @@ function CashierPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => updateQty(i.productId, -1)}
-                        className="size-6 grid place-items-center rounded border border-border hover:bg-muted"
+                        aria-label="إنقاص"
+                        className="size-9 grid place-items-center rounded-lg border border-border hover:bg-muted active:scale-95 transition"
                       >
-                        <Minus className="size-3" />
+                        <Minus className="size-4" />
                       </button>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        min={0}
                         value={i.quantity}
                         onChange={(e) => setItemQty(i.productId, Number(e.target.value) || 0)}
-                        className="w-10 h-6 text-center text-xs font-bold nums border border-border rounded bg-background outline-none focus:border-brand"
+                        className="w-14 h-9 text-center text-sm font-bold nums border border-border rounded-lg bg-background outline-none focus:border-brand"
                       />
                       <button
                         onClick={() => updateQty(i.productId, +1)}
                         disabled={i.quantity >= i.maxQty}
-                        className="size-6 grid place-items-center rounded border border-border hover:bg-muted disabled:opacity-40"
+                        aria-label="زيادة"
+                        className="size-9 grid place-items-center rounded-lg border border-border hover:bg-muted active:scale-95 transition disabled:opacity-40"
                       >
-                        <Plus className="size-3" />
+                        <Plus className="size-4" />
                       </button>
                     </div>
                   </li>

@@ -40,6 +40,7 @@ function CashierPage() {
   const queryClient = useQueryClient();
 
   const [query, setQuery] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");

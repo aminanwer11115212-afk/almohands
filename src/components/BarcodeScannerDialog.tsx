@@ -170,7 +170,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected }: Props) {
                   <AlertCircle className="size-6 text-red-400" />
                   <div className="leading-relaxed">{error || "خطأ في الكاميرا"}</div>
                   <button
-                    onClick={() => { setStatus("idle"); setDeviceId((d) => d); setError(""); /* retrigger */ setTimeout(() => setStatus("starting"), 0); }}
+                    onClick={() => { setError(""); setRetryTick((n) => n + 1); }}
                     className="mt-1 h-8 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs"
                   >
                     إعادة المحاولة

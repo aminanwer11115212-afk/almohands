@@ -89,16 +89,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     });
   }
 
-  function shareText() {
-    if (!inv) return;
-    const text = buildInvoiceText(
-      inv,
-      items,
-      store?.name || "المهندس",
-      { includeItems: true, footer: store?.invoice_footer || undefined },
-    );
-    openWhatsAppShare(inv.customer_phone, text);
-  }
+  // shareText left out — WhatsApp with PDF is triggered via goFull({ autoshare: 1 }).
 
   async function returnAllToStock() {
     if (!inv || returning) return;

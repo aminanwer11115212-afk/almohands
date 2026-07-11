@@ -554,22 +554,19 @@ function InvoiceDetailPage() {
     }
   }
 
-  async function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
+  function sendWhatsAppText(phone: string | null) {
     if (shareBusy) return;
     setShareBusy(true);
     const reqId = newRequestId("wa");
-    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, pickContact: !!opts.pickContact } });
     try {
       const text = buildInvoiceText(inv, items, storeName, {
         includeItems: true,
         footer: invoiceFooter || undefined,
         storePhone,
       });
-      // Send text directly; if pickContact or no phone, wa.me opens the contact picker.
-      const phone = opts.pickContact ? null : inv.customer_phone;
       openWhatsAppShare(phone, text);
       toast.success(phone ? "تم فتح واتساب مع نص الفاتورة" : "اختر جهة الاتصال في واتساب");
-      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id } });
+      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, hadPhone: !!phone } });
     } catch (e) {
       handleError(e, "تعذّر فتح واتساب", {
         event: "whatsapp_share_failed",
@@ -578,6 +575,12 @@ function InvoiceDetailPage() {
     } finally {
       setShareBusy(false);
     }
+  }
+
+  function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
+    if (opts.pickContact) { setPickerOpen(true); return; }
+    // Direct send to invoice customer's phone; if none, wa.me opens contact picker.
+    sendWhatsAppText(inv.customer_phone ?? null);
   }
 
 

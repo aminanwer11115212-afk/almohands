@@ -81,7 +81,7 @@ type PrintFormat = "a4" | "thermal";
 
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
-  const { autoprint } = Route.useSearch();
+  const { autoprint, autopdf, autoshare } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
   const saveProfile = useSaveStoreProfile();
 

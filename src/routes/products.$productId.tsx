@@ -71,6 +71,7 @@ function EditProductPage() {
     if (product) {
       setName(product.name);
       setBarcode(product.barcode ?? "");
+      setPartNumber(product.partNumber ?? "");
       setCategory(product.category ?? "");
       setUnit(product.unit);
       setLocation(product.location ?? "");

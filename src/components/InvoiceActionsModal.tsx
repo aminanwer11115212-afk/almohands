@@ -53,7 +53,6 @@ const statusClasses: Record<string, string> = {
 export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: store } = useStoreProfile();
   const [returning, setReturning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [partialOpen, setPartialOpen] = useState(false);

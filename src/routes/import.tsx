@@ -738,6 +738,7 @@ function parseRow(raw: Record<string, unknown>, rowIndex: number, mapping: Mappi
   return {
     name,
     barcode: str(getRaw("barcode")) || null,
+    part_number: str(getRaw("part_number")) || null,
     category: str(getRaw("category")) || null,
     unit: str(getRaw("unit"), "قطعة"),
     location: str(getRaw("location")) || null,

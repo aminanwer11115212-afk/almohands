@@ -54,13 +54,14 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
             }
           >
             {showBack ? (
-              <Link
-                to="/"
+              <button
+                type="button"
+                onClick={goBack}
                 className="grid size-10 place-items-center rounded-full hover:bg-white/10 lg:hover:bg-muted focus-visible:bg-white/10 lg:focus-visible:bg-muted transition"
-                aria-label="رجوع للرئيسية"
+                aria-label="رجوع للصفحة السابقة"
               >
                 <ArrowRight className="size-5" aria-hidden="true" />
-              </Link>
+              </button>
             ) : (
               <span className="size-10 lg:hidden" aria-hidden="true" />
             )}

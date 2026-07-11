@@ -730,6 +730,17 @@ function InvoiceDetailPage() {
         </DialogContent>
       </Dialog>
 
+      <WhatsAppCustomerPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        defaultCustomerId={inv.customer_id ?? null}
+        defaultCustomerName={inv.customer_name ?? null}
+        defaultCustomerPhone={inv.customer_phone ?? null}
+        onConfirm={(phone) => sendWhatsAppText(phone)}
+      />
+
+
+
 
       {/* Inline edit panel */}
       {editMode && (

@@ -18,6 +18,7 @@ import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),

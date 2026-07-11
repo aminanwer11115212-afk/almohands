@@ -660,25 +660,29 @@ function CashierPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => updateQty(i.productId, -1)}
-                        className="size-6 grid place-items-center rounded border border-border hover:bg-muted"
+                        aria-label="إنقاص"
+                        className="size-9 grid place-items-center rounded-lg border border-border hover:bg-muted active:scale-95 transition"
                       >
-                        <Minus className="size-3" />
+                        <Minus className="size-4" />
                       </button>
                       <input
                         type="number"
+                        inputMode="numeric"
+                        min={0}
                         value={i.quantity}
                         onChange={(e) => setItemQty(i.productId, Number(e.target.value) || 0)}
-                        className="w-10 h-6 text-center text-xs font-bold nums border border-border rounded bg-background outline-none focus:border-brand"
+                        className="w-14 h-9 text-center text-sm font-bold nums border border-border rounded-lg bg-background outline-none focus:border-brand"
                       />
                       <button
                         onClick={() => updateQty(i.productId, +1)}
                         disabled={i.quantity >= i.maxQty}
-                        className="size-6 grid place-items-center rounded border border-border hover:bg-muted disabled:opacity-40"
+                        aria-label="زيادة"
+                        className="size-9 grid place-items-center rounded-lg border border-border hover:bg-muted active:scale-95 transition disabled:opacity-40"
                       >
-                        <Plus className="size-3" />
+                        <Plus className="size-4" />
                       </button>
                     </div>
                   </li>

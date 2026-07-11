@@ -75,17 +75,21 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
   const inv = data?.inv;
   const items = data?.items ?? [];
 
-  function goFull(autoprint: 0 | 1) {
+  function goFull(opts: { autoprint?: 0 | 1; autopdf?: 0 | 1; autoshare?: 0 | 1 } = {}) {
     if (!inv) return;
     onOpenChange(false);
     navigate({
       to: "/invoices/$invoiceId",
       params: { invoiceId: inv.id },
-      search: { autoprint },
+      search: {
+        autoprint: opts.autoprint ?? 0,
+        autopdf: opts.autopdf ?? 0,
+        autoshare: opts.autoshare ?? 0,
+      },
     });
   }
 
-  function share() {
+  function shareText() {
     if (!inv) return;
     const text = buildInvoiceText(
       inv,

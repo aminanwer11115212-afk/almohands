@@ -10,6 +10,7 @@ import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp, openWhatsAppShare } from "@/lib/invoice-share";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { WhatsAppCustomerPickerDialog } from "@/components/WhatsAppCustomerPickerDialog";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
 import { logger, newRequestId } from "@/lib/logger";
@@ -89,6 +90,7 @@ function InvoiceDetailPage() {
   const [formatReady, setFormatReady] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -476,7 +478,7 @@ function InvoiceDetailPage() {
     }
     if (autoshare && !shareTriggeredRef.current) {
       shareTriggeredRef.current = true;
-      setTimeout(() => { handleWhatsAppShare().catch(() => {}); }, 400);
+      setTimeout(() => { try { handleWhatsAppShare(); } catch { /* noop */ } }, 400);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autopdf, autoshare, formatReady, hasInv]);
@@ -552,22 +554,19 @@ function InvoiceDetailPage() {
     }
   }
 
-  async function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
+  function sendWhatsAppText(phone: string | null) {
     if (shareBusy) return;
     setShareBusy(true);
     const reqId = newRequestId("wa");
-    logger.info("whatsapp_share_start", { context: { reqId, invoiceId: inv.id, pickContact: !!opts.pickContact } });
     try {
       const text = buildInvoiceText(inv, items, storeName, {
         includeItems: true,
         footer: invoiceFooter || undefined,
         storePhone,
       });
-      // Send text directly; if pickContact or no phone, wa.me opens the contact picker.
-      const phone = opts.pickContact ? null : inv.customer_phone;
       openWhatsAppShare(phone, text);
       toast.success(phone ? "تم فتح واتساب مع نص الفاتورة" : "اختر جهة الاتصال في واتساب");
-      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id } });
+      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, hadPhone: !!phone } });
     } catch (e) {
       handleError(e, "تعذّر فتح واتساب", {
         event: "whatsapp_share_failed",
@@ -576,6 +575,12 @@ function InvoiceDetailPage() {
     } finally {
       setShareBusy(false);
     }
+  }
+
+  function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
+    if (opts.pickContact) { setPickerOpen(true); return; }
+    // Direct send to invoice customer's phone; if none, wa.me opens contact picker.
+    sendWhatsAppText(inv.customer_phone ?? null);
   }
 
 
@@ -724,6 +729,17 @@ function InvoiceDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WhatsAppCustomerPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        defaultCustomerId={inv.customer_id ?? null}
+        defaultCustomerName={inv.customer_name ?? null}
+        defaultCustomerPhone={inv.customer_phone ?? null}
+        onConfirm={(phone) => sendWhatsAppText(phone)}
+      />
+
+
 
 
       {/* Inline edit panel */}

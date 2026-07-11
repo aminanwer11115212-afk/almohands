@@ -312,7 +312,8 @@ function ImportPage() {
       const uid = authData.user.id;
 
       const payload = validRows.map((r) => ({
-        user_id: uid, name: r.name, barcode: r.barcode, category: r.category,
+        user_id: uid, name: r.name, barcode: r.barcode, part_number: r.part_number,
+        category: r.category,
         unit: r.unit || "قطعة", location: r.location, quantity: r.quantity,
         min_quantity: r.min_quantity, cost_price: r.cost_price,
         sale_price: bumpedPrice(r.sale_price), notes: r.notes, is_active: true,

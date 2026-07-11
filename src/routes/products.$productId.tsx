@@ -115,6 +115,7 @@ function EditProductPage() {
         .update({
           name: p.name,
           barcode: p.barcode ?? null,
+          part_number: p.partNumber ?? null,
           category: p.category ?? null,
           unit: p.unit,
           location: p.location ?? null,
@@ -123,7 +124,7 @@ function EditProductPage() {
           cost_price: p.costPrice,
           sale_price: p.salePrice,
           notes: p.notes ?? null,
-        })
+        } as never)
         .eq("id", productId);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["products"] });

@@ -62,6 +62,7 @@ function NewProductPage() {
     const parsed = productSchema.safeParse({
       name,
       barcode: barcode.trim() || undefined,
+      partNumber: partNumber.trim() || undefined,
       category: category.trim() || undefined,
       unit,
       location: location.trim() || undefined,

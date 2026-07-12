@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Save, ScanBarcode } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { logProductAudit } from "@/lib/product-audit";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),

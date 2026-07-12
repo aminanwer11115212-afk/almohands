@@ -18,6 +18,7 @@ import { useStoreProfile } from "@/hooks/use-store-profile";
 import { handleError } from "@/lib/errors";
 import logo from "@/assets/logo.png";
 import type { Product } from "@/types/product";
+import { buildInventoryReportHtml } from "@/lib/inventory-print";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),

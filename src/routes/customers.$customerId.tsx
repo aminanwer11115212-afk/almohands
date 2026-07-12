@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
+import { buildCsvBlob, jsonBlob, saveBlob } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/customers/$customerId")({
   head: () => ({ meta: [{ title: "دفتر العميل — المهندس" }] }),

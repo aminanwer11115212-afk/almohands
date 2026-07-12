@@ -502,6 +502,39 @@ function ProductsPage() {
         </div>
       </div>
 
+      {/* Pagination */}
+      {filtered.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs" data-testid="pagination">
+          <span className="text-muted-foreground">
+            عرض <span className="font-bold text-foreground nums">{formatNumber(pageStart + 1)}</span>
+            {" - "}
+            <span className="font-bold text-foreground nums">{formatNumber(Math.min(pageStart + safePageSize, filtered.length))}</span>
+            {" من "}
+            <span className="font-bold text-foreground nums">{formatNumber(filtered.length)}</span>
+            {" منتج"}
+          </span>
+          <div className="flex items-center gap-1">
+            <button type="button" disabled={safePage <= 1}
+              onClick={() => setSearch({ page: 1 })}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">« الأولى</button>
+            <button type="button" disabled={safePage <= 1}
+              onClick={() => setSearch({ page: safePage - 1 })}
+              data-testid="prev-page"
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">‹ السابق</button>
+            <span className="px-3 nums font-bold">
+              {formatNumber(safePage)} / {formatNumber(totalPages)}
+            </span>
+            <button type="button" disabled={safePage >= totalPages}
+              onClick={() => setSearch({ page: safePage + 1 })}
+              data-testid="next-page"
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">التالي ›</button>
+            <button type="button" disabled={safePage >= totalPages}
+              onClick={() => setSearch({ page: totalPages })}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">الأخيرة »</button>
+          </div>
+        </div>
+      )}
+
 
       {canWrite && !editMode && (
         <Link to="/products/new"

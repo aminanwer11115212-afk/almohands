@@ -9,6 +9,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toProduct } from "@/types/product";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { logProductAudit, diffProduct, PRODUCT_AUDIT_FIELDS } from "@/lib/product-audit";
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({ meta: [{ title: "تعديل منتج — المهندس" }] }),

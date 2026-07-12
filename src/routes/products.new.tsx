@@ -55,7 +55,6 @@ function NewProductPage() {
   const [costPrice, setCostPrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   // Auto-open the camera scanner on mount so the user can scan immediately.

@@ -443,17 +443,27 @@ function ProductsPage() {
           <Plus className="size-7" />
         </Link>
       )}
-      {deleting && <DeleteProductModal product={deleting} onClose={() => setDeleting(null)} />}
+      {deleting && deleting.length > 0 && (
+        <DeleteProductModal products={deleting} onClose={() => setDeleting(null)} onDone={() => setSelected(new Set())} />
+      )}
     </AppShell>
   );
 }
 
-function DeleteProductModal({ product, onClose }: { product: Product; onClose: () => void }) {
+function DeleteProductModal({ products, onClose, onDone }: { products: Product[]; onClose: () => void; onDone?: () => void }) {
   const del = useDeleteProduct();
+  const isBulk = products.length > 1;
+  const withStock = products.filter((p) => p.quantity > 0);
   async function handleDelete() {
     try {
-      await del.mutateAsync(product);
-      toast.success("تم حذف المنتج");
+      let ok = 0; const failed: string[] = [];
+      for (const p of products) {
+        try { await del.mutateAsync(p); ok++; }
+        catch (e) { failed.push(p.name); console.error(e); }
+      }
+      if (ok) toast.success(isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج");
+      if (failed.length) toast.error(`تعذّر حذف: ${failed.slice(0, 3).join("، ")}${failed.length > 3 ? "…" : ""}`);
+      onDone?.();
       onClose();
     } catch (err) {
       handleError(err, "تعذّر حذف المنتج");
@@ -463,15 +473,23 @@ function DeleteProductModal({ product, onClose }: { product: Product; onClose: (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-destructive">حذف منتج</h2>
+          <h2 className="text-lg font-bold text-destructive">{isBulk ? `حذف ${products.length} منتج` : "حذف منتج"}</h2>
           <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
         </div>
-        <p className="text-sm">
-          هل أنت متأكد من حذف <span className="font-bold">{product.name}</span>؟
-        </p>
-        {product.quantity > 0 && (
+        {isBulk ? (
+          <div className="text-sm space-y-1">
+            <p>هل أنت متأكد من حذف المنتجات المحددة؟</p>
+            <ul className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 text-xs p-2 space-y-0.5">
+              {products.slice(0, 20).map((p) => <li key={p.id}>• {p.name}</li>)}
+              {products.length > 20 && <li className="text-muted-foreground">… و{products.length - 20} أخرى</li>}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm">هل أنت متأكد من حذف <span className="font-bold">{products[0].name}</span>؟</p>
+        )}
+        {withStock.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
-            ⚠️ يوجد رصيد بالمخزون: {formatNumber(product.quantity)} — لن يمكن استرجاعه.
+            ⚠️ {isBulk ? `${withStock.length} منتج يحتوي على رصيد بالمخزون` : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`} — لن يمكن استرجاعه.
           </div>
         )}
         <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">

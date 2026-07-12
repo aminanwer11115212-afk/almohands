@@ -1,69 +1,97 @@
-# خطة التنفيذ — 5 مهام موزعة على Sub-Agents
+# خطة إعادة الهيكلة والتحسين الشاملة
 
-## المهام المطلوبة
+## نظرة عامة
 
-1. **زر رجوع موحد** في كل الصفحات → للصفحة السابقة (وليس دائماً للرئيسية).
-2. **رقم القطعة / موقع الرف** (`part_number` / `shelf_location`) للمنتجات — يظهر في الطباعة/PDF/التصدير والبحث.
-3. **Scan باركود بالكاميرا** في صفحة الكاشير → يفتح الكاميرا، يقرأ الباركود، يضيف المنتج تلقائياً لسلة البيع.
-4. **أزرار +/- للكمية** في الكاشير بدل كتابة الرقم.
-5. **إصلاح أزرار المعاينة (WhatsApp / PDF)** في نافذة معاينة الفاتورة.
+بناءً على تقرير التدقيق في `docs/audit-report.md`، هذه خطة من **6 مراحل متتابعة** لإصلاح كل العيوب المرصودة (B1→B10)، تقوية معالجة الأخطاء، وتقسيم الملفات الضخمة (>400 سطر) دون كسر السلوك.
 
----
-
-## التقسيم على Sub-Agents (متوازي حيث لا تعارض)
-
-### Agent A — Back Button (UI فقط)
-- تعديل `src/components/AppShell.tsx`: تغيير سلوك `showBack` من `<Link to="/">` إلى `router.history.back()` مع fallback للرئيسية.
-- تدقيق كل صفحات `src/routes/*.tsx` لتفعيل `showBack` حيث لا تكون الصفحة رئيسية.
-
-### Agent B — Part Number / Shelf Location (Schema + UI)
-- **Migration**: إضافة عمودَي `part_number TEXT` و`shelf_location TEXT` على `products` (+ index على `part_number`).
-- **UI**: 
-  - نموذج إضافة/تعديل المنتج (`products.new.tsx`, `products.$productId.tsx`) — حقلا إدخال.
-  - قائمة المنتجات — إظهار `رقم القطعة` و`الرف` كأعمدة/شارات.
-  - البحث في `use-products.ts` — تضمين `part_number` و`shelf_location` في `.or(...)`.
-  - التصدير (`export.tsx`) والاستيراد (`import.tsx`) — إضافتهما إلى `SCHEMA_ORDER.products` و`COL_LABEL`.
-  - قوالب طباعة الفاتورة (`invoices.$invoiceId.tsx` قسم PDF/print) وطباعة قوائم المنتجات.
-
-### Agent C — Camera Barcode Scanner (كاشير فقط)
-- تثبيت `@zxing/browser` (أو `html5-qrcode`).
-- مكوّن جديد `src/components/BarcodeScannerDialog.tsx`: يفتح كاميرا خلفية، يبث نتيجة الباركود.
-- في `src/routes/cashier.tsx`: زر 📷 بجانب حقل الباركود؛ عند القراءة الناجحة يبحث المنتج بـ`barcode` ويضيفه للسلة كما لو كتبه المستخدم.
-
-### Agent D — Quantity +/- Stepper (كاشير فقط)
-- في `src/routes/cashier.tsx`: استبدال حقل الكمية النصي بمكوّن `QtyStepper` (زر −، عرض الرقم، زر +) مع اختصار طويل للضغط المستمر. الاحتفاظ بإمكانية الكتابة اليدوية اختيارياً.
-
-### Agent E — إصلاح PDF/WhatsApp في معاينة الفاتورة
-- فحص `src/components/InvoiceActionsModal.tsx` + `src/routes/invoices.$invoiceId.tsx` + `src/lib/invoice-share.ts`.
-- التأكد من:
-  - `elementToPdfBlob` يحصل على `HTMLElement` صالح (ref مهيأ قبل الضغط).
-  - `openWhatsAppShare` يعمل على desktop (يفتح wa.me في تبويب جديد) وعلى mobile (Web Share).
-  - إظهار toast خطأ واضح عند الفشل بدل الصمت.
-- إضافة `part_number`/`shelf_location` إلى قالب PDF (تنسيق مع Agent B).
+**المبادئ:**
+- خطوة صغيرة → build → تحقق → التالي.
+- صفر تغيير في السلوك أثناء إعادة الهيكلة.
+- كل `catch` يمر عبر `handleError`، كل `mutation` لها `onError`، كل نموذج يمر عبر `Zod`.
 
 ---
 
-## الترتيب الزمني
+## المرحلة 1 — توحيد معالجة الأخطاء (Error Handling Sweep)
 
-```text
-Wave 1 (بالتوازي):  A + B(migration+schema) + C(install+dialog) + D + E(fix)
-Wave 2:              B(UI + export/import + print)  ← يعتمد على أن الـ migration تمّت
-Wave 3:              مراجعة سريعة + build check
-```
+**الهدف:** كل `try/catch` وكل `useMutation` في المشروع يستخدم البنية الموحدة الموجودة في `src/lib/errors.ts`.
 
-## ملاحظات تقنية
+- إضافة hook `useSafeMutation` يلفّ `useMutation` ويطبّق `handleError` + `logger` + toast تلقائياً.
+- سحب كل `catch (e) { console.error(...) }` واستبدالها بـ `handleError(e, { scope, action })`.
+- تقييد كل `console.log` بـ `if (import.meta.env.DEV)` (B8).
+- إضافة `ErrorBoundary` فرعي حول كل Route ثقيل (Invoices, Reports, Cashier).
 
-- Migration `products` سيتطلب تحديث `SCHEMA_ORDER` و`COL_LABEL` في كل من import/export لضمان ثبات ترتيب الأعمدة.
-- مكتبة الباركود (`@zxing/browser`) صغيرة وتعمل بـ`getUserMedia`؛ تحتاج HTTPS (المعاينة والنشر على HTTPS بالفعل).
-- زر الرجوع سيستخدم `window.history.length > 1` كشرط قبل `back()`، وإلا يوجّه للرئيسية.
-- لن أعدّل ملفات auto-gen ولا الـ triggers.
+**الملفات المتأثرة:** ~40 ملف — تعديلات صغيرة متكررة.
 
-## المخرجات المتوقعة للمستخدم
+## المرحلة 2 — Zod Schemas الكاملة (Validation Layer)
 
-- زر رجوع يعمل في كل صفحة داخلية.
-- كل منتج له رقم قطعة + موقع رف، يظهر في القوائم والطباعة والـ PDF.
-- زر كاميرا في الكاشير يقرأ الباركود ويضيف المنتج مباشرة.
-- أزرار +/- سريعة لضبط الكمية.
-- زرا PDF وWhatsApp في نافذة الفاتورة يعملان بشكل صحيح.
+توسيع `src/lib/schemas.ts` ليغطي كل الكيانات:
 
-هل أبدأ التنفيذ بهذا الترتيب؟
+- `customerSchema`, `supplierSchema`, `productSchema` (مع `coerce.number()` لكل حقل رقمي — يحل B7).
+- `invoiceSchema`, `invoiceItemSchema`, `purchaseSchema`, `paymentSchema`.
+- كل نموذج (form) يستدعي `schema.safeParse(data)` قبل الحفظ، وأخطاء الحقول تظهر inline.
+
+## المرحلة 3 — إصلاح العيوب المرصودة (Bug Fixes B1→B10)
+
+| # | العيب | الإصلاح |
+|---|---|---|
+| B1 | PDF بدون `dir="rtl"` | تعديل `pdf-html-export.ts` — إضافة `<html dir="rtl" lang="ar">` وتنسيق الجداول RTL |
+| B2 | BOM CSV غير موحد | مُصدِّر مركزي `csv-export.ts` يضيف `\uFEFF` ويصرّح `charset=utf-8` |
+| B3 | Double-submit | تطبيق `savingRef` + `disabled={saving}` في كل صفحات الإنشاء (Invoice/Purchase/Quote/Customer/Product) |
+| B4 | مفاتيح Query متفرقة | `src/lib/queryKeys.ts` مركزي (`qk.customers.list`, `qk.invoices.byId(id)` …) واستبدال كل المفاتيح النصية |
+| B5 | فشل الاستيراد على صف واحد | معالجة صف-صف مع تجميع الأخطاء في تقرير نهائي بدل إسقاط الدفعة |
+| B6 | لا Audit Trail على الحذف | trigger موحد `log_row_delete()` على `customers/products/suppliers` يكتب في `audit_logs` |
+| B7 | حقول رقمية تقبل نصاً | يُحل عبر Zod `coerce.number().nonnegative()` (المرحلة 2) |
+| B8 | `console.log` في الإنتاج | تقييد بـ `import.meta.env.DEV` (المرحلة 1) |
+| B9 | مراجعة RLS | فحص كل جدول `public.*` والتأكد أن السياسات تستخدم `has_role(auth.uid(), …)` وليس عمود صف |
+| B10 | تكرار `invoice_number` | migration يضيف `UNIQUE(user_id, invoice_number)` إن لم يوجد |
+
+كل عيب: شرح المشكلة → الحل المطبّق → التحقق (build/اختبار).
+
+## المرحلة 4 — إعادة هيكلة الملفات الضخمة
+
+وفق منهجية `albatool-safe-refactor` (خطوة واحدة، حفظ الأسماء، صفر تغيير سلوكي):
+
+1. `invoices.$invoiceId.tsx` (1206) → hooks: `useInvoiceHeader`, `useInvoiceItems`, `useInvoiceActions` + components: `InvoiceHeaderBar`, `InvoiceItemsTable`, `InvoiceTotalsPanel`, `InvoiceToolbar`.
+2. `reports.tsx` (991) → `ReportsFilters`, `ReportsSummaryCards`, `ReportsCashierBlock`, `ReportsExportBar`.
+3. `cashier.tsx` (901) → `useCashierCart`, `useCashierScanner`, `CashierProductGrid`, `CashierCartPanel`, `CashierPaymentDialog`.
+4. `import.tsx` (765) → `useImportParser`, `useImportDryRun`, `ImportMappingStep`, `ImportProgressPanel`.
+5. `export.tsx` (588) → `useExportJob` + `ExportOptionsForm` + `ExportHistoryTable`.
+
+الهدف: كل صفحة رئيسية <400 سطر.
+
+## المرحلة 5 — الأداء والتخزين المؤقت
+
+- Pagination افتراضي في UI للجداول الكبيرة (Products/Invoices/Customers) مع `keepPreviousData`.
+- توحيد `staleTime` لكل قسم في `queryKeys.ts`.
+- `React.lazy` للصفحات الثقيلة (Reports, Import, Export).
+- فهرسة DB: تأكيد `INDEX (user_id, created_at DESC)` على `invoices`, `purchases`, `notifications`, `audit_logs`.
+
+## المرحلة 6 — الاختبارات والتوثيق
+
+- اختبارات Vitest للـ helpers الحرجة: `errors.ts`, `csv-export.ts`, `pdf-html-export.ts`, `queryKeys.ts`.
+- اختبار تكامل Playwright: تدفق كامل (بيع → إلغاء → إشعار مدير).
+- تحديث `docs/audit-report.md` بالنتائج النهائية + `docs/error-handling-guide.md` للمطورين.
+
+---
+
+## الجدول التنفيذي
+
+| المرحلة | الحجم التقريبي | المخرج |
+|---|---|---|
+| 1 — Error Sweep | ~40 ملف | صفر `catch` بدون `handleError` |
+| 2 — Zod | ~10 ملفات | كل نموذج مُتحقّق منه |
+| 3 — Bug Fixes | 10 إصلاحات | B1→B10 مغلقة |
+| 4 — Refactor | 5 صفحات كبيرة | كل صفحة <400 سطر |
+| 5 — الأداء | ~15 ملف | تحميل أسرع + فهارس DB |
+| 6 — Tests/Docs | مجموعة اختبارات + دليلان | تغطية للمسارات الحرجة |
+
+## تفاصيل تقنية
+
+- **لا مساس بـ:** `src/integrations/supabase/*` (auto-gen)، `.env`، `supabase/config.toml`.
+- **الأمان:** كل migration جديد يشمل `GRANT` + `ENABLE RLS` + سياسات `has_role`.
+- **التحقق:** بعد كل خطوة → build harness + قراءة الملف المُعدَّل + `wc -l` قبل/بعد.
+- **الترتيب:** المراحل متتابعة؛ لا تبدأ المرحلة التالية قبل إغلاق الحالية.
+
+## البداية المقترحة
+
+أبدأ فوراً بالمرحلة 1: إنشاء `useSafeMutation` + كنس أول 10 ملفات (Invoices, Cashier, Products). أوافيك بعد كل مرحلة بملخص قصير قبل الانتقال للتالية.

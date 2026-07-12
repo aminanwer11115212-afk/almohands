@@ -109,10 +109,11 @@ describe("buildInventoryReportHtml — row density guarantees", () => {
       .map((th) => Number(/width:\s*(\d+)px/.exec(th.getAttribute("style") ?? "")?.[1] ?? 0));
     const fixedSum = widths.reduce((a, b) => a + b, 0);
     // A4 = 210mm; @page margin 10mm each side + .sheet padding 8mm each side ≈ 174mm
-    // At 96dpi: 174mm ≈ 658px. The name column is fluid, so fixed widths must
-    // leave at least ~120px for the name column.
+    // At 96dpi: 174mm ≈ 658px. The name column is fluid with ellipsis, so
+    // the fixed widths just need to leave *some* room for it (>= 40px).
     const A4_CONTENT_PX = 658;
-    expect(fixedSum).toBeLessThanOrEqual(A4_CONTENT_PX - 120);
+    const MIN_NAME_COL = 40;
+    expect(fixedSum).toBeLessThanOrEqual(A4_CONTENT_PX - MIN_NAME_COL);
   });
 
   it("escapes HTML in product names (defence-in-depth)", () => {

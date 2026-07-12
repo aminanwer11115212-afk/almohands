@@ -20,12 +20,18 @@ import logo from "@/assets/logo.png";
 import type { Product } from "@/types/product";
 import { buildInventoryReportHtml } from "@/lib/inventory-print";
 
+const PAGE_SIZES = [50, 100, 200, 300, 500] as const;
+
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
   sort: fallback(z.enum(["name", "quantity", "sale_price"]), "name").default("name"),
   asc: fallback(z.boolean(), true).default(true),
   low: fallback(z.boolean(), false).default(false),
+  category: fallback(z.string(), "").default(""),
+  page: fallback(z.number().int(), 1).default(1),
+  pageSize: fallback(z.number().int(), 50).default(50),
 });
+
 
 type ProductsSearch = z.infer<typeof searchSchema>;
 

@@ -54,8 +54,14 @@ function ProductsPage() {
   const [editMode, setEditMode] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState<Product[] | null>(null);
   const savingRef = useRef(false);
+
+  // Selection & keyboard navigation
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [focusedIdx, setFocusedIdx] = useState(0);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   // Realtime
   useEffect(() => {

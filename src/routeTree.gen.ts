@@ -40,6 +40,7 @@ import { Route as InvoicesInvoiceIdRouteImport } from './routes/invoices.$invoic
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as AuditCancellationsRouteImport } from './routes/audit.cancellations'
 import { Route as AdminScanErrorsRouteImport } from './routes/admin.scan-errors'
+import { Route as AdminDiagnosticsRouteImport } from './routes/admin.diagnostics'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -200,6 +201,11 @@ const AdminScanErrorsRoute = AdminScanErrorsRouteImport.update({
   path: '/admin/scan-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDiagnosticsRoute = AdminDiagnosticsRouteImport.update({
+  id: '/admin/diagnostics',
+  path: '/admin/diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/diagnostics': typeof AdminDiagnosticsRoute
   '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
@@ -284,6 +291,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/diagnostics': typeof AdminDiagnosticsRoute
   '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
@@ -322,6 +330,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/admin/diagnostics': typeof AdminDiagnosticsRoute
   '/admin/scan-errors': typeof AdminScanErrorsRoute
   '/audit/cancellations': typeof AuditCancellationsRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/diagnostics'
     | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/diagnostics'
     | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
@@ -435,6 +446,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/diagnostics'
     | '/admin/scan-errors'
     | '/audit/cancellations'
     | '/customers/$customerId'
@@ -473,6 +485,7 @@ export interface RootRouteChildren {
   SuppliersRoute: typeof SuppliersRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  AdminDiagnosticsRoute: typeof AdminDiagnosticsRoute
   AdminScanErrorsRoute: typeof AdminScanErrorsRoute
   AuditCancellationsRoute: typeof AuditCancellationsRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
@@ -706,6 +719,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminScanErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/diagnostics': {
+      id: '/admin/diagnostics'
+      path: '/admin/diagnostics'
+      fullPath: '/admin/diagnostics'
+      preLoaderRoute: typeof AdminDiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -773,6 +793,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  AdminDiagnosticsRoute: AdminDiagnosticsRoute,
   AdminScanErrorsRoute: AdminScanErrorsRoute,
   AuditCancellationsRoute: AuditCancellationsRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,

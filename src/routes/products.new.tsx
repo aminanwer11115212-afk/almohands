@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Save, ScanBarcode } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { logProductAudit } from "@/lib/product-audit";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),
@@ -56,6 +57,16 @@ function NewProductPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  // Auto-open the camera scanner on mount so the user can scan immediately.
+  // Guarded by a ref so it fires only once per page visit.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    // Small delay so the dialog mounts after the page paints.
+    const t = setTimeout(() => setScanOpen(true), 350);
+    return () => clearTimeout(t);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,7 +105,7 @@ function NewProductPage() {
         return;
       }
       const p = parsed.data;
-      const { error } = await supabase.from("products").insert({
+      const { data: inserted, error } = await supabase.from("products").insert({
         user_id: userId,
         name: p.name,
         barcode: p.barcode ?? null,
@@ -107,8 +118,19 @@ function NewProductPage() {
         cost_price: p.costPrice,
         sale_price: p.salePrice,
         notes: p.notes ?? null,
-      } as never);
+      } as never).select("id").single();
       if (error) throw error;
+      // Fire-and-forget audit — never blocks the success path.
+      const newId = (inserted as { id?: string } | null)?.id;
+      if (newId) {
+        void logProductAudit(supabase as never, "product.created", newId, {
+          name: p.name,
+          barcode: p.barcode ?? null,
+          quantity: p.quantity,
+          cost_price: p.costPrice,
+          sale_price: p.salePrice,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("تم حفظ المنتج");
       navigate({ to: "/products" });
@@ -197,6 +219,7 @@ function NewProductPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={(code) => { setBarcode(code); toast.success("تم قراءة الباركود"); }}
+        contextTag="products.new"
       />
 
 

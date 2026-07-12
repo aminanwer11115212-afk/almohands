@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /* Automated smoke tests for BarcodeScannerDialog error paths.
  * Verifies that under (1) missing mediaDevices API, (2) permission denied,
  * (3) camera busy — the scanner never surfaces a toast in cashier mode,

@@ -208,12 +208,6 @@ function CancelledInvoicesPage() {
     }));
   }
 
-  function download(blob: Blob, name: string) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  }
-
   function exportXLSX() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
     const rowsX = buildExportRows();
@@ -229,20 +223,17 @@ function CancelledInvoicesPage() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
     const rowsX = buildExportRows();
     const headers = Object.keys(rowsX[0]);
-    const lines = [headers.join(",")];
-    for (const r of rowsX) lines.push(headers.map((h) => {
-      const v = String((r as any)[h] ?? "");
-      return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-    }).join(","));
-    download(new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" }), `cancelled-invoices-${Date.now()}.csv`);
+    const rows = rowsX.map((r) => headers.map((h) => (r as Record<string, unknown>)[h] as string | number | null | undefined));
+    saveBlob(`cancelled-invoices-${Date.now()}.csv`, buildCsvBlob(headers, rows));
     toast.success(`تم تصدير ${rowsX.length} فاتورة`);
   }
 
   function exportJSON() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
-    download(new Blob([JSON.stringify(buildExportRows(), null, 2)], { type: "application/json" }), `cancelled-invoices-${Date.now()}.json`);
+    saveBlob(`cancelled-invoices-${Date.now()}.json`, jsonBlob(buildExportRows()));
     toast.success(`تم تصدير ${filtered.length} فاتورة`);
   }
+
 
   function exportPDF() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }

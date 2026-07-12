@@ -105,7 +105,7 @@ function NewProductPage() {
         return;
       }
       const p = parsed.data;
-      const { error } = await supabase.from("products").insert({
+      const { data: inserted, error } = await supabase.from("products").insert({
         user_id: userId,
         name: p.name,
         barcode: p.barcode ?? null,
@@ -118,8 +118,19 @@ function NewProductPage() {
         cost_price: p.costPrice,
         sale_price: p.salePrice,
         notes: p.notes ?? null,
-      } as never);
+      } as never).select("id").single();
       if (error) throw error;
+      // Fire-and-forget audit — never blocks the success path.
+      const newId = (inserted as { id?: string } | null)?.id;
+      if (newId) {
+        void logProductAudit(supabase as never, "product.created", newId, {
+          name: p.name,
+          barcode: p.barcode ?? null,
+          quantity: p.quantity,
+          cost_price: p.costPrice,
+          sale_price: p.salePrice,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("تم حفظ المنتج");
       navigate({ to: "/products" });

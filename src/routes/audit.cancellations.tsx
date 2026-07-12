@@ -130,12 +130,6 @@ function AuditCancellationsPage() {
     }));
   }
 
-  function download(blob: Blob, name: string) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  }
-
   function exportXLSX() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
     const data = buildRows();
@@ -151,20 +145,17 @@ function AuditCancellationsPage() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
     const data = buildRows();
     const headers = Object.keys(data[0]);
-    const lines = [headers.join(",")];
-    for (const r of data) lines.push(headers.map((h) => {
-      const v = String((r as any)[h] ?? "");
-      return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-    }).join(","));
-    download(new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" }), `cancellations-audit-${Date.now()}.csv`);
+    const rows = data.map((r) => headers.map((h) => (r as Record<string, unknown>)[h] as string | number | null | undefined));
+    saveBlob(`cancellations-audit-${Date.now()}.csv`, buildCsvBlob(headers, rows));
     toast.success(`تم تصدير ${data.length} سجل`);
   }
 
   function exportJSON() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
-    download(new Blob([JSON.stringify(buildRows(), null, 2)], { type: "application/json" }), `cancellations-audit-${Date.now()}.json`);
+    saveBlob(`cancellations-audit-${Date.now()}.json`, jsonBlob(buildRows()));
     toast.success(`تم تصدير ${filtered.length} سجل`);
   }
+
 
   return (
     <AppShell title="سجل إلغاءات الفواتير" showBack>

@@ -303,7 +303,26 @@ function ProductsPage() {
             className="w-full h-11 rounded-xl border border-border bg-card pr-9 pl-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
-        <button type="button" onClick={() => setSearch({ low: !low })}
+        <select
+          value={category}
+          onChange={(e) => setSearch({ category: e.target.value, page: 1 })}
+          aria-label="فلترة حسب النوع"
+          data-testid="category-filter"
+          className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand min-w-[140px]"
+        >
+          <option value="">كل الأنواع ({formatNumber(categories.length)})</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select
+          value={safePageSize}
+          onChange={(e) => setSearch({ pageSize: Number(e.target.value), page: 1 })}
+          aria-label="عدد المنتجات في الصفحة"
+          data-testid="page-size"
+          className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand"
+        >
+          {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / صفحة</option>)}
+        </select>
+        <button type="button" onClick={() => setSearch({ low: !low, page: 1 })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
             low ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
           }`}>

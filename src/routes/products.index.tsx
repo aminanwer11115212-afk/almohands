@@ -321,13 +321,19 @@ function ProductsPage() {
             <thead className="bg-muted text-muted-foreground text-xs">
               <tr>
                 <th className="w-10 px-2 py-2">
-                  <input
-                    type="checkbox"
-                    aria-label="تحديد الكل"
-                    checked={filtered.length > 0 && selected.size === filtered.length}
-                    ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
-                    onChange={toggleSelectAll}
-                  />
+                  {(() => {
+                    const visSelected = filtered.filter((p) => selected.has(p.id)).length;
+                    const allChecked = filtered.length > 0 && visSelected === filtered.length;
+                    return (
+                      <input
+                        type="checkbox"
+                        aria-label="تحديد الكل"
+                        checked={allChecked}
+                        ref={(el) => { if (el) el.indeterminate = visSelected > 0 && !allChecked; }}
+                        onChange={toggleSelectAll}
+                      />
+                    );
+                  })()}
                 </th>
                 <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
                 <Th className="text-center">الباركود / رقم القطعة / الرف</Th>

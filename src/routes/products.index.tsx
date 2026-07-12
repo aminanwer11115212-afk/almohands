@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Plus, ArrowUpDown, Loader2, Printer, Pencil, Save, X,
-  AlertTriangle, Package, DollarSign, Boxes, Trash2,
+  AlertTriangle, Package, DollarSign, Boxes, Trash2, Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";

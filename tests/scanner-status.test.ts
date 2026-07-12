@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /* Unit tests for the barcode scanner status classifier.
  * Ensures every DOMException name we care about maps to the correct
  * Arabic label so the UI and diagnostics page stay in sync. */

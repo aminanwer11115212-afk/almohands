@@ -48,10 +48,10 @@ export function useSafeMutation<TData = unknown, TVariables = void>(
   return useMutation<TData, unknown, TVariables>({
     ...rest,
     mutationFn,
-    onSuccess: (data, variables, ctx) => {
+    onSuccess: (...args: Parameters<NonNullable<typeof onSuccess>>) => {
       if (successMessage) toast.success(successMessage);
       logger.info(`${logScope}.${action}.success`, { context: { ...(logContext ?? {}) } });
-      onSuccess?.(data, variables, ctx);
+      onSuccess?.(...args);
     },
     onError: (err, variables) => {
       const { message } = handleError(err, errorFallback ?? "فشلت العملية", {

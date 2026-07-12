@@ -293,12 +293,45 @@ function ProductsPage() {
         )}
       </div>
 
+      {/* Keyboard hint + bulk actions */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم ↑/↓ للتنقل، Space للتحديد، Ctrl+A للكل، Delete للحذف، Enter للفتح</span>
+        {selected.size > 0 && (
+          <span className="ms-auto flex items-center gap-2">
+            <span className="font-bold text-foreground">{formatNumber(selected.size)} محدد</span>
+            <button type="button" onClick={() => setSelected(new Set())}
+              className="h-7 px-2 rounded-md border border-border bg-card hover:bg-muted">مسح التحديد</button>
+            {canWrite && (
+              <button type="button"
+                onClick={() => setDeleting(filtered.filter((p) => selected.has(p.id)))}
+                className="h-7 px-2 rounded-md bg-destructive text-destructive-foreground font-bold inline-flex items-center gap-1">
+                <Trash2 className="size-3.5" /> حذف المحدد
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+
       {/* Table */}
-      <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-card shadow-card">
+      <div
+        ref={tableWrapRef}
+        tabIndex={0}
+        onKeyDown={handleTableKeyDown}
+        className="mt-2 rounded-2xl overflow-hidden border border-border bg-card shadow-card outline-none focus:ring-2 focus:ring-brand/40"
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-muted text-muted-foreground text-xs">
               <tr>
+                <th className="w-10 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="تحديد الكل"
+                    checked={filtered.length > 0 && selected.size === filtered.length}
+                    ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
                 <Th className="text-center">الباركود / رقم القطعة / الرف</Th>
                 <Th onClick={() => toggleSort("quantity")} active={sort === "quantity"} asc={asc} className="text-center w-24">الكمية</Th>
@@ -310,18 +343,38 @@ function ProductsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr><td colSpan={7} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
+                <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
               ) : isError ? (
-                <tr><td colSpan={7} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">
+                <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
                   {q ? "لا توجد منتجات مطابقة" : low ? "لا توجد أصناف منخفضة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
                 </td></tr>
-              ) : filtered.map((p) => {
+              ) : filtered.map((p, idx) => {
                 const isLow = p.quantity <= p.minQuantity;
+                const isSelected = selected.has(p.id);
+                const isFocused = idx === focusedIdx;
                 const d = drafts[p.id];
+                const rowClass = [
+                  isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
+                  isFocused ? "ring-2 ring-inset ring-brand" : "",
+                ].join(" ");
                 return (
-                  <tr key={p.id} className={isLow ? "bg-destructive/5" : "hover:bg-muted/40"}>
+                  <tr
+                    key={p.id}
+                    ref={(el) => { rowRefs.current[p.id] = el; }}
+                    className={rowClass}
+                    onClick={() => setFocusedIdx(idx)}
+                  >
+                    <td className="px-2 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`تحديد ${p.name}`}
+                        checked={isSelected}
+                        onChange={() => toggleSelect(p.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       <div className="flex items-center gap-2">
                         <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand flex-1 min-w-0 truncate">
@@ -331,7 +384,7 @@ function ProductsPage() {
                         {canWrite && !editMode && (
                           <button
                             type="button"
-                            onClick={() => setDeleting(p)}
+                            onClick={(e) => { e.stopPropagation(); setDeleting([p]); }}
                             className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
                             aria-label="حذف المنتج" title="حذف المنتج"
                           >
@@ -367,6 +420,7 @@ function ProductsPage() {
             {filtered.length > 0 && (
               <tfoot className="bg-muted/60 font-bold">
                 <tr>
+                  <td></td>
                   <td className="px-3 py-2 text-right">الإجمالي</td>
                   <td></td>
                   <td className="text-center nums">{formatNumber(filtered.reduce((s, p) => s + p.quantity, 0))}</td>
@@ -380,6 +434,7 @@ function ProductsPage() {
           </table>
         </div>
       </div>
+
 
       {canWrite && !editMode && (
         <Link to="/products/new"

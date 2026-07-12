@@ -241,7 +241,7 @@ function DeleteCustomerModal({ customer, onClose }: { customer: Customer; onClos
       toast.success("تم حذف العميل");
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, "تعذّر حذف العميل", { context: { scope: "customers", action: "delete", id: customer.id } });
     }
   }
   return (

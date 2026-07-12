@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, ScanBarcode } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";

@@ -410,12 +410,46 @@ function ProductsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
+                Array.from({ length: Math.min(safePageSize, 10) }).map((_, i) => (
+                  <tr key={`sk-${i}`} data-testid="skeleton-row" className="animate-pulse">
+                    <td className="px-2 py-3"><div className="size-4 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-40 rounded bg-muted" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-32 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-10 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-10 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-16 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-16 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3"><div className="h-4 w-20 rounded bg-muted mx-auto" /></td>
+                  </tr>
+                ))
               ) : isError ? (
                 <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
-                  {q || category || low ? "لا توجد منتجات مطابقة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
+                <tr><td colSpan={8} className="py-12 text-center">
+                  {(q || category || low) ? (
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <Search className="size-8 opacity-40" />
+                      <div className="font-bold text-foreground">لا توجد منتجات مطابقة للفلاتر</div>
+                      <div className="text-xs">
+                        {q && <span className="mx-1">البحث: «{q}»</span>}
+                        {category && <span className="mx-1">النوع: «{category}»</span>}
+                        {low && <span className="mx-1">منخفض المخزون فقط</span>}
+                      </div>
+                      <button type="button"
+                        onClick={() => setSearch({ q: "", category: "", low: false, page: 1 })}
+                        className="h-8 px-3 rounded-md border border-border bg-card hover:bg-muted text-xs font-bold">
+                        <X className="inline size-3.5 ml-1" /> مسح جميع الفلاتر
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <Package className="size-8 opacity-40" />
+                      <div className="font-bold text-foreground">لا توجد منتجات بعد</div>
+                      {canWrite && <Link to="/products/new" className="h-8 px-3 rounded-md bg-brand text-brand-foreground text-xs font-bold inline-flex items-center gap-1">
+                        <Plus className="size-3.5" /> إضافة أول منتج
+                      </Link>}
+                    </div>
+                  )}
                 </td></tr>
               ) : pageRows.map((p, idx) => {
                 const isLow = p.quantity <= p.minQuantity;

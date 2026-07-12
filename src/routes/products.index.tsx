@@ -413,11 +413,11 @@ function ProductsPage() {
                 <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
               ) : isError ? (
                 <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
-              ) : filtered.length === 0 ? (
+              ) : pageRows.length === 0 ? (
                 <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
-                  {q ? "لا توجد منتجات مطابقة" : low ? "لا توجد أصناف منخفضة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
+                  {q || category || low ? "لا توجد منتجات مطابقة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
                 </td></tr>
-              ) : filtered.map((p, idx) => {
+              ) : pageRows.map((p, idx) => {
                 const isLow = p.quantity <= p.minQuantity;
                 const isSelected = selected.has(p.id);
                 const isFocused = idx === focusedIdx;

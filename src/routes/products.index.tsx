@@ -395,7 +395,6 @@ function StatCard({ icon, label, value, tone = "default" }: {
 
 /* ---------------- Print ---------------- */
 
-import { buildInventoryReportHtml } from "@/lib/inventory-print";
 
 function openPrintWindow(opts: {
   rows: Product[];

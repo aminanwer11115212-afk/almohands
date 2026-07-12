@@ -447,11 +447,15 @@ function openPrintWindow(opts: {
   .summary .val { font-size: 13px; font-weight: 800; margin-top: 2px; }
   .footer { margin-top: 12px; text-align: center; font-size: 10px; color: #465569; border-top: 1px solid #d5dbe4; padding-top: 6px; }
   @media print { .noprint { display: none !important; } }
-  .noprint { position: fixed; top: 8px; left: 8px; z-index: 10; }
+  .noprint { position: fixed; top: 8px; left: 8px; z-index: 10; display: flex; gap: 6px; }
   .noprint button { padding: 8px 14px; border: 0; background: #0c2340; color: #fff; border-radius: 6px; font-family: inherit; font-weight: 700; cursor: pointer; }
+  .noprint button.back { background: #6b7280; }
 </style></head>
 <body>
-  <div class="noprint"><button onclick="window.print()">طباعة</button></div>
+  <div class="noprint">
+    <button class="back" onclick="window.close()">← رجوع</button>
+    <button onclick="window.print()">طباعة</button>
+  </div>
   <div class="sheet">
     <div class="header">
       <img src="${logoUrl}" alt="المهندس"/>

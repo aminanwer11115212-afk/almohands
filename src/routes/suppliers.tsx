@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errors";
 import { useSuppliers, useAddSupplier, useUpdateSupplier, useDeleteSupplier, type Supplier } from "@/hooks/use-suppliers";
 
 export const Route = createFileRoute("/suppliers")({

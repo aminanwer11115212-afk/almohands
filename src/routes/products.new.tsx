@@ -219,6 +219,7 @@ function NewProductPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={(code) => { setBarcode(code); toast.success("تم قراءة الباركود"); }}
+        contextTag="products.new"
       />
 
 

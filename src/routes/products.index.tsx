@@ -78,6 +78,78 @@ function ProductsPage() {
     [rows, low],
   );
 
+  // Clamp focused index & prune selection when filter changes
+  useEffect(() => {
+    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, filtered.length - 1)));
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const ids = new Set(filtered.map((p) => p.id));
+      const next = new Set<string>();
+      prev.forEach((id) => ids.has(id) && next.add(id));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtered]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelected((prev) =>
+      prev.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id)),
+    );
+  }
+  function scrollRowIntoView(id: string) {
+    rowRefs.current[id]?.scrollIntoView({ block: "nearest" });
+  }
+  function handleTableKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (editMode) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    if (!filtered.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(filtered.length - 1, focusedIdx + 1);
+      setFocusedIdx(next);
+      scrollRowIntoView(filtered[next].id);
+      if (e.shiftKey) toggleSelect(filtered[next].id);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(0, focusedIdx - 1);
+      setFocusedIdx(next);
+      scrollRowIntoView(filtered[next].id);
+      if (e.shiftKey) toggleSelect(filtered[next].id);
+    } else if (e.key === "Home") {
+      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(filtered[0].id);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const last = filtered.length - 1;
+      setFocusedIdx(last); scrollRowIntoView(filtered[last].id);
+    } else if (e.key === " ") {
+      e.preventDefault();
+      toggleSelect(filtered[focusedIdx].id);
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      toggleSelectAll();
+    } else if (e.key === "Escape") {
+      if (selected.size) { e.preventDefault(); setSelected(new Set()); }
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      if (!canWrite) return;
+      e.preventDefault();
+      const targets = selected.size
+        ? filtered.filter((p) => selected.has(p.id))
+        : [filtered[focusedIdx]];
+      if (targets.length) setDeleting(targets);
+    } else if (e.key === "Enter") {
+      const p = filtered[focusedIdx];
+      if (p) navigate({ to: "/products/$productId", params: { productId: p.id } });
+    }
+  }
+
   const totals = useMemo(() => {
     let qty = 0, cost = 0, sale = 0, lowCount = 0;
     for (const p of rows) {

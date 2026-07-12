@@ -20,12 +20,18 @@ import logo from "@/assets/logo.png";
 import type { Product } from "@/types/product";
 import { buildInventoryReportHtml } from "@/lib/inventory-print";
 
+const PAGE_SIZES = [50, 100, 200, 300, 500] as const;
+
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
   sort: fallback(z.enum(["name", "quantity", "sale_price"]), "name").default("name"),
   asc: fallback(z.boolean(), true).default(true),
   low: fallback(z.boolean(), false).default(false),
+  category: fallback(z.string(), "").default(""),
+  page: fallback(z.number().int(), 1).default(1),
+  pageSize: fallback(z.number().int(), 50).default(50),
 });
+
 
 type ProductsSearch = z.infer<typeof searchSchema>;
 
@@ -43,7 +49,7 @@ type Draft = {
 };
 
 function ProductsPage() {
-  const { q, sort, asc, low } = Route.useSearch();
+  const { q, sort, asc, low, category, page, pageSize } = Route.useSearch();
   const navigate = useNavigate({ from: "/products/" });
   const queryClient = useQueryClient();
   const canWrite = useCan("products.write");
@@ -73,16 +79,43 @@ function ProductsPage() {
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
-  const filtered = useMemo(
-    () => (low ? rows.filter((p) => p.quantity <= p.minQuantity) : rows),
-    [rows, low],
+  // Distinct categories from full dataset (before category filter).
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of rows) if (p.category) set.add(p.category);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ar"));
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    return rows.filter((p) => {
+      if (low && p.quantity > p.minQuantity) return false;
+      if (category && (p.category ?? "") !== category) return false;
+      return true;
+    });
+  }, [rows, low, category]);
+
+  // Pagination — slice filtered.
+  const safePageSize = (PAGE_SIZES as readonly number[]).includes(pageSize) ? pageSize : 50;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / safePageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageStart = (safePage - 1) * safePageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(pageStart, pageStart + safePageSize),
+    [filtered, pageStart, safePageSize],
   );
 
-  // Clamp focused index when filter changes. Preserve selection across
-  // filter/sort/reload — the user may re-filter to reveal hidden selected rows.
+  // Snap page back into range when filters shrink the result set.
   useEffect(() => {
-    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, filtered.length - 1)));
-  }, [filtered]);
+    if (safePage !== page) {
+      navigate({ search: (prev: ProductsSearch) => ({ ...prev, page: safePage }), replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalPages]);
+
+  // Clamp focused index to the current page (preserve selection).
+  useEffect(() => {
+    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, pageRows.length - 1)));
+  }, [pageRows]);
 
 
   function toggleSelect(id: string) {
@@ -94,7 +127,7 @@ function ProductsPage() {
   }
   function toggleSelectAll() {
     setSelected((prev) => {
-      const visIds = filtered.map((p) => p.id);
+      const visIds = pageRows.map((p) => p.id);
       const allChecked = visIds.length > 0 && visIds.every((id) => prev.has(id));
       const next = new Set(prev);
       if (allChecked) visIds.forEach((id) => next.delete(id));
@@ -109,29 +142,35 @@ function ProductsPage() {
     if (editMode) return;
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-    if (!filtered.length) return;
+    if (!pageRows.length) return;
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      const next = Math.min(filtered.length - 1, focusedIdx + 1);
+      const next = Math.min(pageRows.length - 1, focusedIdx + 1);
       setFocusedIdx(next);
-      scrollRowIntoView(filtered[next].id);
-      if (e.shiftKey) toggleSelect(filtered[next].id);
+      scrollRowIntoView(pageRows[next].id);
+      if (e.shiftKey) toggleSelect(pageRows[next].id);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       const next = Math.max(0, focusedIdx - 1);
       setFocusedIdx(next);
-      scrollRowIntoView(filtered[next].id);
-      if (e.shiftKey) toggleSelect(filtered[next].id);
+      scrollRowIntoView(pageRows[next].id);
+      if (e.shiftKey) toggleSelect(pageRows[next].id);
     } else if (e.key === "Home") {
-      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(filtered[0].id);
+      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(pageRows[0].id);
     } else if (e.key === "End") {
       e.preventDefault();
-      const last = filtered.length - 1;
-      setFocusedIdx(last); scrollRowIntoView(filtered[last].id);
+      const last = pageRows.length - 1;
+      setFocusedIdx(last); scrollRowIntoView(pageRows[last].id);
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      if (safePage < totalPages) setSearch({ page: safePage + 1 });
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      if (safePage > 1) setSearch({ page: safePage - 1 });
     } else if (e.key === " ") {
       e.preventDefault();
-      toggleSelect(filtered[focusedIdx].id);
+      toggleSelect(pageRows[focusedIdx].id);
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
       e.preventDefault();
       toggleSelectAll();
@@ -142,8 +181,9 @@ function ProductsPage() {
       e.preventDefault();
       const targets = selected.size
         ? rows.filter((p) => selected.has(p.id))
-        : [filtered[focusedIdx]];
+        : [pageRows[focusedIdx]];
       if (targets.length) setDeleting(targets);
+
 
     } else if (e.key === "Enter") {
       const p = filtered[focusedIdx];
@@ -171,7 +211,7 @@ function ProductsPage() {
 
   function beginEdit() {
     const d: Record<string, Draft> = {};
-    for (const p of filtered) {
+    for (const p of pageRows) {
       d[p.id] = {
         quantity: String(p.quantity),
         cost_price: String(p.costPrice),
@@ -193,7 +233,7 @@ function ProductsPage() {
   const saveAll = useMutation({
     mutationFn: async () => {
       const updates: { id: string; patch: Record<string, number> }[] = [];
-      for (const p of filtered) {
+      for (const p of pageRows) {
         const d = drafts[p.id]; if (!d) continue;
         const nq = Number(d.quantity), nc = Number(d.cost_price),
               ns = Number(d.sale_price), nm = Number(d.min_quantity);
@@ -263,7 +303,26 @@ function ProductsPage() {
             className="w-full h-11 rounded-xl border border-border bg-card pr-9 pl-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
-        <button type="button" onClick={() => setSearch({ low: !low })}
+        <select
+          value={category}
+          onChange={(e) => setSearch({ category: e.target.value, page: 1 })}
+          aria-label="فلترة حسب النوع"
+          data-testid="category-filter"
+          className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand min-w-[140px]"
+        >
+          <option value="">كل الأنواع ({formatNumber(categories.length)})</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select
+          value={safePageSize}
+          onChange={(e) => setSearch({ pageSize: Number(e.target.value), page: 1 })}
+          aria-label="عدد المنتجات في الصفحة"
+          data-testid="page-size"
+          className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand"
+        >
+          {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / صفحة</option>)}
+        </select>
+        <button type="button" onClick={() => setSearch({ low: !low, page: 1 })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
             low ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
           }`}>
@@ -327,8 +386,8 @@ function ProductsPage() {
               <tr>
                 <th className="w-10 px-2 py-2">
                   {(() => {
-                    const visSelected = filtered.filter((p) => selected.has(p.id)).length;
-                    const allChecked = filtered.length > 0 && visSelected === filtered.length;
+                    const visSelected = pageRows.filter((p) => selected.has(p.id)).length;
+                    const allChecked = pageRows.length > 0 && visSelected === pageRows.length;
                     return (
                       <input
                         type="checkbox"
@@ -354,11 +413,11 @@ function ProductsPage() {
                 <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
               ) : isError ? (
                 <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
-              ) : filtered.length === 0 ? (
+              ) : pageRows.length === 0 ? (
                 <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
-                  {q ? "لا توجد منتجات مطابقة" : low ? "لا توجد أصناف منخفضة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
+                  {q || category || low ? "لا توجد منتجات مطابقة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
                 </td></tr>
-              ) : filtered.map((p, idx) => {
+              ) : pageRows.map((p, idx) => {
                 const isLow = p.quantity <= p.minQuantity;
                 const isSelected = selected.has(p.id);
                 const isFocused = idx === focusedIdx;
@@ -442,6 +501,39 @@ function ProductsPage() {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {filtered.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs" data-testid="pagination">
+          <span className="text-muted-foreground">
+            عرض <span className="font-bold text-foreground nums">{formatNumber(pageStart + 1)}</span>
+            {" - "}
+            <span className="font-bold text-foreground nums">{formatNumber(Math.min(pageStart + safePageSize, filtered.length))}</span>
+            {" من "}
+            <span className="font-bold text-foreground nums">{formatNumber(filtered.length)}</span>
+            {" منتج"}
+          </span>
+          <div className="flex items-center gap-1">
+            <button type="button" disabled={safePage <= 1}
+              onClick={() => setSearch({ page: 1 })}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">« الأولى</button>
+            <button type="button" disabled={safePage <= 1}
+              onClick={() => setSearch({ page: safePage - 1 })}
+              data-testid="prev-page"
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">‹ السابق</button>
+            <span className="px-3 nums font-bold">
+              {formatNumber(safePage)} / {formatNumber(totalPages)}
+            </span>
+            <button type="button" disabled={safePage >= totalPages}
+              onClick={() => setSearch({ page: safePage + 1 })}
+              data-testid="next-page"
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">التالي ›</button>
+            <button type="button" disabled={safePage >= totalPages}
+              onClick={() => setSearch({ page: totalPages })}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">الأخيرة »</button>
+          </div>
+        </div>
+      )}
 
 
       {canWrite && !editMode && (

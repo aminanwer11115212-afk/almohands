@@ -299,9 +299,10 @@ function ProductsPage() {
               className="h-7 px-2 rounded-md border border-border bg-card hover:bg-muted">مسح التحديد</button>
             {canWrite && (
               <button type="button"
-                onClick={() => setDeleting(filtered.filter((p) => selected.has(p.id)))}
-                className="h-7 px-2 rounded-md bg-destructive text-destructive-foreground font-bold inline-flex items-center gap-1">
-                <Trash2 className="size-3.5" /> حذف المحدد
+                onClick={() => setDeleting(rows.filter((p) => selected.has(p.id)))}
+                className="h-7 px-2 rounded-md bg-destructive text-destructive-foreground font-bold inline-flex items-center gap-1"
+                data-testid="bulk-delete">
+                <Trash2 className="size-3.5" /> حذف المحدد ({formatNumber(selected.size)})
               </button>
             )}
           </span>

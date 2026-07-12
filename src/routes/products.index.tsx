@@ -49,7 +49,7 @@ type Draft = {
 };
 
 function ProductsPage() {
-  const { q, sort, asc, low } = Route.useSearch();
+  const { q, sort, asc, low, category, page, pageSize } = Route.useSearch();
   const navigate = useNavigate({ from: "/products/" });
   const queryClient = useQueryClient();
   const canWrite = useCan("products.write");
@@ -79,16 +79,43 @@ function ProductsPage() {
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
-  const filtered = useMemo(
-    () => (low ? rows.filter((p) => p.quantity <= p.minQuantity) : rows),
-    [rows, low],
+  // Distinct categories from full dataset (before category filter).
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of rows) if (p.category) set.add(p.category);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ar"));
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    return rows.filter((p) => {
+      if (low && p.quantity > p.minQuantity) return false;
+      if (category && (p.category ?? "") !== category) return false;
+      return true;
+    });
+  }, [rows, low, category]);
+
+  // Pagination — slice filtered.
+  const safePageSize = (PAGE_SIZES as readonly number[]).includes(pageSize) ? pageSize : 50;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / safePageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageStart = (safePage - 1) * safePageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(pageStart, pageStart + safePageSize),
+    [filtered, pageStart, safePageSize],
   );
 
-  // Clamp focused index when filter changes. Preserve selection across
-  // filter/sort/reload — the user may re-filter to reveal hidden selected rows.
+  // Snap page back into range when filters shrink the result set.
   useEffect(() => {
-    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, filtered.length - 1)));
-  }, [filtered]);
+    if (safePage !== page) {
+      navigate({ search: (prev: ProductsSearch) => ({ ...prev, page: safePage }), replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalPages]);
+
+  // Clamp focused index to the current page (preserve selection).
+  useEffect(() => {
+    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, pageRows.length - 1)));
+  }, [pageRows]);
 
 
   function toggleSelect(id: string) {

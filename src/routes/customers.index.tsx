@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useCustomers, useAddCustomer, useUpdateCustomer, useDeleteCustomer, type Customer } from "@/hooks/use-customers";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errors";
 
 export const Route = createFileRoute("/customers/")({
   head: () => ({ meta: [{ title: "العملاء — المهندس" }] }),

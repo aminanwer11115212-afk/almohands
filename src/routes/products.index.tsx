@@ -136,9 +136,10 @@ function ProductsPage() {
       if (!canWrite) return;
       e.preventDefault();
       const targets = selected.size
-        ? filtered.filter((p) => selected.has(p.id))
+        ? rows.filter((p) => selected.has(p.id))
         : [filtered[focusedIdx]];
       if (targets.length) setDeleting(targets);
+
     } else if (e.key === "Enter") {
       const p = filtered[focusedIdx];
       if (p) navigate({ to: "/products/$productId", params: { productId: p.id } });

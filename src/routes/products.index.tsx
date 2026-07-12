@@ -408,7 +408,7 @@ function openPrintWindow(opts: {
   const rowsHtml = rows.map((p, i) => `
     <tr>
       <td class="c">${i + 1}</td>
-      <td class="r">${escapeHtml(p.name)}</td>
+      <td class="r name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</td>
       <td class="c mono">${escapeHtml(p.barcode || "—")}</td>
       <td class="c mono">${escapeHtml(p.partNumber || "—")}</td>
       <td class="c mono">${escapeHtml(p.location || "—")}</td>

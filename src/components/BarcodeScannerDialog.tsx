@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, AlertCircle, Keyboard, Check } from "lucide-react";
+import { X, Camera, Loader2, AlertCircle, Keyboard, Check, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { logScanError } from "@/lib/scan-error-log";
+import {
+  classifyScannerError, recordScannerStatus, reasonDetail, reasonLabel,
+  type ScannerReason,
+} from "@/lib/scanner-status";
 
 type Props = {
   open: boolean;
@@ -11,33 +15,17 @@ type Props = {
    *  quietly fall back to the manual-entry pane. All errors still land
    *  in the silent scan-error log for the admin to review. */
   cashierMode?: boolean;
+  /** Optional context tag stored with the last-status record so the
+   *  diagnostics page can show which screen triggered the last scan. */
+  contextTag?: string;
 };
-
-/** Translate a browser MediaError / generic error into an Arabic message. */
-function friendlyError(e: unknown): string {
-  const err = e as { name?: string; message?: string } | undefined;
-  const name = err?.name ?? "";
-  switch (name) {
-    case "NotAllowedError":
-    case "SecurityError":
-      return "تم رفض الإذن للكاميرا. فعّل الإذن من إعدادات المتصفح ثم أعد المحاولة.";
-    case "NotFoundError":
-    case "OverconstrainedError":
-      return "لا توجد كاميرا متاحة على هذا الجهاز.";
-    case "NotReadableError":
-    case "TrackStartError":
-      return "الكاميرا مستخدمة بواسطة تطبيق آخر. أغلقه ثم أعد المحاولة.";
-    case "AbortError":
-      return "تم إيقاف تشغيل الكاميرا. أعد المحاولة.";
-    default:
-      return err?.message || "تعذّر تشغيل الكاميرا. تأكد من الإذن والاتصال الآمن (HTTPS).";
-  }
-}
 
 /** Camera-based barcode scanner using @zxing/browser. Robust to permission
  *  denials, missing cameras, insecure contexts (non-HTTPS), and rapid
- *  open/close cycles. In cashierMode all errors are silent (logged only). */
-export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = false }: Props) {
+ *  open/close cycles. In cashierMode all errors are silent (logged only).
+ *  Emits a stable ScannerReason to localStorage on every state change so
+ *  admins can review "last camera status" from the diagnostics page. */
+export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = false, contextTag }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const onDetectedRef = useRef(onDetected);
@@ -45,8 +33,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
   useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
-  const [status, setStatus] = useState<"idle" | "starting" | "scanning" | "error">("idle");
-  const [error, setError] = useState<string>("");
+  const [reason, setReason] = useState<ScannerReason>("idle");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
   const [retryTick, setRetryTick] = useState(0);
@@ -54,32 +41,38 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
   const [showManual, setShowManual] = useState(false);
   const detectedOnceRef = useRef(false);
 
-  const fail = (e: unknown, contextTag: string) => {
-    const msg = friendlyError(e);
-    logScanError(e, msg, { tag: contextTag, cashierMode });
-    setError(msg);
-    setStatus("error");
-    if (!cashierMode) toast.error(msg);
-    // In cashier mode, auto-open manual entry so they never see the error UI as the primary state.
+  const updateReason = (r: ScannerReason, ctx?: Record<string, unknown>) => {
+    setReason(r);
+    recordScannerStatus(r, { ...ctx, tag: contextTag, cashierMode });
+  };
+
+  const fail = (e: unknown, contextTagInner: string) => {
+    const r = classifyScannerError(e);
+    const friendly = reasonDetail(r);
+    logScanError(e, friendly, { tag: contextTagInner, cashierMode, reason: r });
+    updateReason(r, { tag: contextTagInner });
+    if (!cashierMode) toast.error(friendly);
     if (cashierMode) setShowManual(true);
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { updateReason("idle"); return; }
     let cancelled = false;
     detectedOnceRef.current = false;
     setShowManual(false);
 
     (async () => {
-      setStatus("starting");
-      setError("");
+      updateReason("starting");
 
       if (typeof window !== "undefined" && window.isSecureContext === false) {
         fail(new DOMException("insecure context", "SecurityError"), "secure-context");
+        // Override — SecurityError -> denied by default, but this is really insecure ctx
+        updateReason("insecure");
         return;
       }
       if (!navigator?.mediaDevices?.getUserMedia) {
         fail(new DOMException("mediaDevices unavailable", "NotSupportedError"), "no-mediaDevices");
+        updateReason("no_api");
         return;
       }
 
@@ -110,13 +103,14 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
             if (!text) return;
             detectedOnceRef.current = true;
             try { ctl.stop(); } catch { /* ignore */ }
+            updateReason("success", { code: text });
             onDetectedRef.current(text);
             onCloseRef.current();
           },
         );
         if (cancelled) { try { controls.stop(); } catch { /* ignore */ } return; }
         controlsRef.current = controls;
-        setStatus("scanning");
+        updateReason("scanning", { deviceId: preferred });
       } catch (e) {
         if (cancelled) return;
         fail(e, "decodeFromVideoDevice");
@@ -143,10 +137,19 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
     const code = manualCode.trim();
     if (!code) return;
     detectedOnceRef.current = true;
+    updateReason("success", { code, manual: true });
     onDetectedRef.current(code);
     setManualCode("");
     onCloseRef.current();
   };
+
+  const isError = reason !== "idle" && reason !== "starting" && reason !== "scanning" && reason !== "success";
+  const badgeColor =
+    reason === "scanning" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" :
+    reason === "starting" ? "bg-blue-500/15 text-blue-600 border-blue-500/30" :
+    reason === "success"  ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" :
+    isError ? "bg-red-500/15 text-red-600 border-red-500/30" :
+    "bg-muted text-muted-foreground border-border";
 
   return (
     <div
@@ -173,22 +176,37 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
           </button>
         </div>
 
+        {/* Explicit status badge — always visible so the user knows exactly why the camera isn't showing */}
+        <div className="px-4 py-2 border-b border-border flex items-center justify-between gap-2 text-[11px]">
+          <span className="text-muted-foreground">حالة الكاميرا</span>
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-bold ${badgeColor}`}
+            data-testid="scanner-status"
+            data-reason={reason}
+          >
+            {reason === "starting" && <Loader2 className="size-3 animate-spin" />}
+            {reason === "scanning" && <CheckCircle2 className="size-3" />}
+            {isError && <AlertCircle className="size-3" />}
+            {reasonLabel(reason)}
+          </span>
+        </div>
+
         <div className="relative bg-black aspect-[4/3] grid place-items-center">
           <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
-          {status !== "scanning" && (
+          {reason !== "scanning" && (
             <div className="absolute inset-0 grid place-items-center text-white text-xs bg-black/60 p-4 text-center">
-              {status === "starting" && (
+              {reason === "starting" && (
                 <span className="flex items-center gap-2">
                   <Loader2 className="size-4 animate-spin" /> جاري تشغيل الكاميرا…
                 </span>
               )}
-              {status === "error" && !cashierMode && (
+              {isError && !cashierMode && (
                 <div className="flex flex-col items-center gap-2 max-w-xs">
                   <AlertCircle className="size-6 text-red-400" />
-                  <div className="leading-relaxed">{error || "خطأ في الكاميرا"}</div>
+                  <div className="leading-relaxed">{reasonDetail(reason)}</div>
                   <div className="flex gap-2 mt-1">
                     <button
-                      onClick={() => { setError(""); setRetryTick((n) => n + 1); }}
+                      onClick={() => setRetryTick((n) => n + 1)}
                       className="h-8 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs"
                     >
                       إعادة المحاولة
@@ -202,8 +220,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
                   </div>
                 </div>
               )}
-              {status === "error" && cashierMode && (
-                // Cashier mode: never show error text. Show a neutral prompt to type the code.
+              {isError && cashierMode && (
                 <div className="flex flex-col items-center gap-2 max-w-xs">
                   <Keyboard className="size-6 text-white/80" />
                   <div className="leading-relaxed">أدخل رمز الباركود يدويًا</div>
@@ -211,7 +228,7 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
               )}
             </div>
           )}
-          {status === "scanning" && (
+          {reason === "scanning" && (
             <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-24 border-2 border-brand rounded-lg pointer-events-none" />
           )}
         </div>
@@ -234,7 +251,6 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
           </div>
         )}
 
-        {/* Manual entry — always available, auto-shown on error or in cashier mode fallback */}
         <div className="px-4 py-3 border-t border-border space-y-2">
           {!showManual ? (
             <button

@@ -55,6 +55,7 @@ function NewProductPage() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

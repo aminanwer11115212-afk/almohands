@@ -386,8 +386,8 @@ function ProductsPage() {
               <tr>
                 <th className="w-10 px-2 py-2">
                   {(() => {
-                    const visSelected = filtered.filter((p) => selected.has(p.id)).length;
-                    const allChecked = filtered.length > 0 && visSelected === filtered.length;
+                    const visSelected = pageRows.filter((p) => selected.has(p.id)).length;
+                    const allChecked = pageRows.length > 0 && visSelected === pageRows.length;
                     return (
                       <input
                         type="checkbox"

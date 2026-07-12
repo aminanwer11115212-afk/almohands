@@ -127,7 +127,7 @@ function ProductsPage() {
   }
   function toggleSelectAll() {
     setSelected((prev) => {
-      const visIds = filtered.map((p) => p.id);
+      const visIds = pageRows.map((p) => p.id);
       const allChecked = visIds.length > 0 && visIds.every((id) => prev.has(id));
       const next = new Set(prev);
       if (allChecked) visIds.forEach((id) => next.delete(id));
@@ -142,29 +142,35 @@ function ProductsPage() {
     if (editMode) return;
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-    if (!filtered.length) return;
+    if (!pageRows.length) return;
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      const next = Math.min(filtered.length - 1, focusedIdx + 1);
+      const next = Math.min(pageRows.length - 1, focusedIdx + 1);
       setFocusedIdx(next);
-      scrollRowIntoView(filtered[next].id);
-      if (e.shiftKey) toggleSelect(filtered[next].id);
+      scrollRowIntoView(pageRows[next].id);
+      if (e.shiftKey) toggleSelect(pageRows[next].id);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       const next = Math.max(0, focusedIdx - 1);
       setFocusedIdx(next);
-      scrollRowIntoView(filtered[next].id);
-      if (e.shiftKey) toggleSelect(filtered[next].id);
+      scrollRowIntoView(pageRows[next].id);
+      if (e.shiftKey) toggleSelect(pageRows[next].id);
     } else if (e.key === "Home") {
-      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(filtered[0].id);
+      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(pageRows[0].id);
     } else if (e.key === "End") {
       e.preventDefault();
-      const last = filtered.length - 1;
-      setFocusedIdx(last); scrollRowIntoView(filtered[last].id);
+      const last = pageRows.length - 1;
+      setFocusedIdx(last); scrollRowIntoView(pageRows[last].id);
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      if (safePage < totalPages) setSearch({ page: safePage + 1 });
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      if (safePage > 1) setSearch({ page: safePage - 1 });
     } else if (e.key === " ") {
       e.preventDefault();
-      toggleSelect(filtered[focusedIdx].id);
+      toggleSelect(pageRows[focusedIdx].id);
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
       e.preventDefault();
       toggleSelectAll();
@@ -175,8 +181,9 @@ function ProductsPage() {
       e.preventDefault();
       const targets = selected.size
         ? rows.filter((p) => selected.has(p.id))
-        : [filtered[focusedIdx]];
+        : [pageRows[focusedIdx]];
       if (targets.length) setDeleting(targets);
+
 
     } else if (e.key === "Enter") {
       const p = filtered[focusedIdx];

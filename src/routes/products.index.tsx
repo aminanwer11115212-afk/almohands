@@ -460,36 +460,71 @@ function ProductsPage() {
 
 function DeleteProductModal({ products, onClose, onDone }: { products: Product[]; onClose: () => void; onDone?: () => void }) {
   const del = useDeleteProduct();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
   const isBulk = products.length > 1;
   const withStock = products.filter((p) => p.quantity > 0);
+
   async function handleDelete() {
+    setBusy(true);
     try {
+      const ids = products.map((p) => p.id);
+      // Snapshot raw rows for potential Undo before deletion.
+      const { data: snapshot } = await supabase.from("products").select("*").in("id", ids);
+      const rawRows = snapshot ?? [];
+
       let ok = 0; const failed: string[] = [];
       for (const p of products) {
         try { await del.mutateAsync(p); ok++; }
         catch (e) { failed.push(p.name); console.error(e); }
       }
-      if (ok) toast.success(isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج");
+
+      if (ok) {
+        toast.success(
+          isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج",
+          {
+            duration: 8000,
+            action: rawRows.length > 0 ? {
+              label: "تراجع",
+              onClick: async () => {
+                try {
+                  const { error } = await supabase.from("products").insert(rawRows as never);
+                  if (error) throw error;
+                  qc.invalidateQueries({ queryKey: ["products"] });
+                  toast.success(isBulk ? `تم استرجاع ${rawRows.length} منتج` : "تم استرجاع المنتج");
+                } catch (e) {
+                  handleError(e, "تعذّر الاسترجاع");
+                }
+              },
+            } : undefined,
+          },
+        );
+      }
       if (failed.length) toast.error(`تعذّر حذف: ${failed.slice(0, 3).join("، ")}${failed.length > 3 ? "…" : ""}`);
       onDone?.();
       onClose();
     } catch (err) {
       handleError(err, "تعذّر حذف المنتج");
+    } finally {
+      setBusy(false);
     }
   }
+  const pending = busy || del.isPending;
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose} data-testid="delete-modal">
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-destructive">{isBulk ? `حذف ${products.length} منتج` : "حذف منتج"}</h2>
+          <h2 className="text-lg font-bold text-destructive">
+            {isBulk ? `تأكيد حذف ${formatNumber(products.length)} منتج` : "تأكيد حذف منتج"}
+          </h2>
           <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
         </div>
         {isBulk ? (
           <div className="text-sm space-y-1">
-            <p>هل أنت متأكد من حذف المنتجات المحددة؟</p>
+            <p>هل أنت متأكد من حذف <span className="font-bold text-destructive">{formatNumber(products.length)}</span> منتج؟</p>
             <ul className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 text-xs p-2 space-y-0.5">
               {products.slice(0, 20).map((p) => <li key={p.id}>• {p.name}</li>)}
-              {products.length > 20 && <li className="text-muted-foreground">… و{products.length - 20} أخرى</li>}
+              {products.length > 20 && <li className="text-muted-foreground">… و{formatNumber(products.length - 20)} أخرى</li>}
             </ul>
           </div>
         ) : (
@@ -497,17 +532,17 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
         )}
         {withStock.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
-            ⚠️ {isBulk ? `${withStock.length} منتج يحتوي على رصيد بالمخزون` : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`} — لن يمكن استرجاعه.
+            ⚠️ {isBulk ? `${withStock.length} منتج يحتوي على رصيد بالمخزون` : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`}.
           </div>
         )}
         <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">
-          سيُسجَّل الحذف في سجل التدقيق (audit_logs).
+          سيُسجَّل الحذف في سجل التدقيق. يمكنك التراجع خلال 8 ثوانٍ من ظهور الإشعار.
         </div>
         <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold">إلغاء</button>
-          <button onClick={handleDelete} disabled={del.isPending}
+          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold" data-testid="cancel-delete">إلغاء</button>
+          <button onClick={handleDelete} disabled={pending} data-testid="confirm-delete"
             className="flex-1 h-11 rounded-xl bg-destructive text-destructive-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
-            {del.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
             حذف نهائي
           </button>
         </div>
@@ -515,6 +550,7 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
     </div>
   );
 }
+
 
 function Th({ children, onClick, active, asc, className = "" }: {
   children: React.ReactNode; onClick?: () => void; active?: boolean; asc?: boolean; className?: string;

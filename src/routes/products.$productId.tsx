@@ -111,23 +111,48 @@ function EditProductPage() {
     setSaving(true);
     try {
       const p = parsed.data;
+      const nextRow: Record<string, unknown> = {
+        name: p.name,
+        barcode: p.barcode ?? null,
+        part_number: p.partNumber ?? null,
+        category: p.category ?? null,
+        unit: p.unit,
+        location: p.location ?? null,
+        quantity: p.quantity,
+        min_quantity: p.minQuantity,
+        cost_price: p.costPrice,
+        sale_price: p.salePrice,
+        notes: p.notes ?? null,
+      };
       const { error } = await supabase
         .from("products")
-        .update({
-          name: p.name,
-          barcode: p.barcode ?? null,
-          part_number: p.partNumber ?? null,
-          category: p.category ?? null,
-          unit: p.unit,
-          location: p.location ?? null,
-          quantity: p.quantity,
-          min_quantity: p.minQuantity,
-          cost_price: p.costPrice,
-          sale_price: p.salePrice,
-          notes: p.notes ?? null,
-        } as never)
+        .update(nextRow as never)
         .eq("id", productId);
       if (error) throw error;
+      // Diff previous vs next and audit only the actually-changed columns.
+      if (product) {
+        const prevRow: Record<string, unknown> = {
+          name: product.name,
+          barcode: product.barcode ?? null,
+          part_number: (product as { partNumber?: string | null }).partNumber ?? null,
+          category: product.category ?? null,
+          unit: product.unit,
+          location: (product as { location?: string | null }).location ?? null,
+          quantity: product.quantity,
+          min_quantity: product.minQuantity,
+          cost_price: product.costPrice,
+          sale_price: product.salePrice,
+          notes: product.notes ?? null,
+        };
+        const changes = diffProduct(prevRow, nextRow, PRODUCT_AUDIT_FIELDS);
+        if (Object.keys(changes).length > 0) {
+          void logProductAudit(supabase as never, "product.updated", productId, {
+            name: p.name,
+            barcode: p.barcode ?? null,
+            changes,
+          });
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product", productId] });
       toast.success("تم حفظ التعديلات");

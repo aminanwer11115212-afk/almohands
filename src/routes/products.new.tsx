@@ -130,7 +130,18 @@ function NewProductPage() {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الباركود">
-            <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left" />
+            <div className="flex gap-2">
+              <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left flex-1" />
+              <button
+                type="button"
+                onClick={() => setScanOpen(true)}
+                className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
+                aria-label="مسح الباركود بالكاميرا"
+                title="مسح بالكاميرا"
+              >
+                <ScanBarcode className="size-5" />
+              </button>
+            </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
             <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="مثال: 90915-YZZE2" />

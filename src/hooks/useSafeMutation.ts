@@ -7,14 +7,17 @@ import { logger } from "@/lib/logger";
  * Thin wrapper around `useMutation` that guarantees:
  *  - every failure passes through `handleError` (Arabic toast + logger + request id)
  *  - every success can show a standard toast via `successMessage`
- *  - a `scope` + `action` label is attached to every log entry
+ *  - a `logScope` + `action` label is attached to every log entry
  *
- * Prefer this over raw `useMutation` in the entire codebase.
+ * Prefer this over raw `useMutation` across the codebase.
+ *
+ * Note: `logScope` is used instead of `scope` because TanStack Query
+ * already reserves `scope: MutationScope` on `UseMutationOptions`.
  */
 export interface SafeMutationOptions<TData, TVariables>
   extends Omit<UseMutationOptions<TData, unknown, TVariables>, "onError"> {
   /** Short scope name for logs, e.g. "invoices", "products". */
-  scope: string;
+  logScope: string;
   /** Verb describing the action, e.g. "create", "delete", "update". */
   action: string;
   /** Fallback Arabic message shown when the error is opaque. */
@@ -31,7 +34,7 @@ export function useSafeMutation<TData = unknown, TVariables = void>(
   options: SafeMutationOptions<TData, TVariables>,
 ): UseMutationResult<TData, unknown, TVariables> {
   const {
-    scope,
+    logScope,
     action,
     errorFallback,
     successMessage,
@@ -47,12 +50,12 @@ export function useSafeMutation<TData = unknown, TVariables = void>(
     mutationFn,
     onSuccess: (data, variables, ctx) => {
       if (successMessage) toast.success(successMessage);
-      logger.info(`${scope}.${action}.success`, undefined, { ...(logContext ?? {}) });
+      logger.info(`${logScope}.${action}.success`, { context: { ...(logContext ?? {}) } });
       onSuccess?.(data, variables, ctx);
     },
     onError: (err, variables) => {
       const { message } = handleError(err, errorFallback ?? "فشلت العملية", {
-        context: { scope, action, ...(logContext ?? {}) },
+        context: { scope: logScope, action, ...(logContext ?? {}) },
       });
       onErrorSafe?.(err, message, variables);
     },

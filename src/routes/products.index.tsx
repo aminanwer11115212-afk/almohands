@@ -434,13 +434,15 @@ function openPrintWindow(opts: {
   .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: .5px; }
   .header .sub { font-size: 12px; color: #465569; margin-top: 2px; }
   .meta { display: flex; justify-content: space-between; font-size: 11px; color: #465569; margin-bottom: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-  thead th { background: #0c2340; color: #fff; padding: 6px 4px; font-weight: 700; border: 1px solid #0c2340; }
-  tbody td { padding: 5px 4px; border: 1px solid #d5dbe4; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5px; table-layout: fixed; }
+  thead th { background: #0c2340; color: #fff; padding: 4px 3px; font-weight: 700; border: 1px solid #0c2340; }
+  tbody td { padding: 2px 3px; border: 1px solid #d5dbe4; line-height: 1.25; vertical-align: middle; }
+  tbody tr { page-break-inside: avoid; }
   tbody tr:nth-child(even) td { background: #f6f8fb; }
   .c { text-align: center; } .r { text-align: right; } .strong { font-weight: 800; }
-  .mono { font-family: 'Courier New', monospace; font-size: 10.5px; }
-  tfoot td { background: #eef2f7; font-weight: 800; padding: 7px 4px; border: 1px solid #0c2340; text-align: center; }
+  .mono { font-family: 'Courier New', monospace; font-size: 10px; white-space: nowrap; }
+  .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tfoot td { background: #eef2f7; font-weight: 800; padding: 5px 4px; border: 1px solid #0c2340; text-align: center; }
   .summary { margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .summary .card { border: 1px solid #d5dbe4; border-radius: 6px; padding: 6px 8px; }
   .summary .lbl { font-size: 10px; color: #465569; }

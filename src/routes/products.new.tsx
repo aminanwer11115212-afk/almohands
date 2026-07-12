@@ -193,6 +193,13 @@ function NewProductPage() {
         </button>
       </form>
 
+      <BarcodeScannerDialog
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetected={(code) => { setBarcode(code); toast.success("تم قراءة الباركود"); }}
+      />
+
+
       <style>{`
         .ip {
           width: 100%; height: 2.75rem; border-radius: 0.75rem;

@@ -132,7 +132,7 @@ function SupplierFormModal({ mode, supplier, onClose }: { mode: "add" | "edit"; 
       }
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, mode === "edit" ? "تعذّر تحديث المورد" : "تعذّر إضافة المورد", { context: { scope: "suppliers", action: mode } });
     }
   }
 

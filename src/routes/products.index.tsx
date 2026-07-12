@@ -233,7 +233,7 @@ function ProductsPage() {
   const saveAll = useMutation({
     mutationFn: async () => {
       const updates: { id: string; patch: Record<string, number> }[] = [];
-      for (const p of filtered) {
+      for (const p of pageRows) {
         const d = drafts[p.id]; if (!d) continue;
         const nq = Number(d.quantity), nc = Number(d.cost_price),
               ns = Number(d.sale_price), nm = Number(d.min_quantity);

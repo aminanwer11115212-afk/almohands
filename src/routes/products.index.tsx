@@ -93,9 +93,14 @@ function ProductsPage() {
     });
   }
   function toggleSelectAll() {
-    setSelected((prev) =>
-      prev.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id)),
-    );
+    setSelected((prev) => {
+      const visIds = filtered.map((p) => p.id);
+      const allChecked = visIds.length > 0 && visIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allChecked) visIds.forEach((id) => next.delete(id));
+      else visIds.forEach((id) => next.add(id));
+      return next;
+    });
   }
   function scrollRowIntoView(id: string) {
     rowRefs.current[id]?.scrollIntoView({ block: "nearest" });

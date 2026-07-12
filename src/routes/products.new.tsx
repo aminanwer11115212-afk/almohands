@@ -7,8 +7,9 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { getErrorMessage, parseNumber } from "@/lib/errors";
+import { parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { useSafeMutation } from "@/hooks/useSafeMutation";
 import { logProductAudit } from "@/lib/product-audit";
 
 export const Route = createFileRoute("/products/new")({

@@ -57,6 +57,16 @@ function NewProductPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  // Auto-open the camera scanner on mount so the user can scan immediately.
+  // Guarded by a ref so it fires only once per page visit.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    // Small delay so the dialog mounts after the page paints.
+    const t = setTimeout(() => setScanOpen(true), 350);
+    return () => clearTimeout(t);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

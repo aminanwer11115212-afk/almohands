@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errors";
 import { useSuppliers, useAddSupplier, useUpdateSupplier, useDeleteSupplier, type Supplier } from "@/hooks/use-suppliers";
 
 export const Route = createFileRoute("/suppliers")({
@@ -131,7 +132,7 @@ function SupplierFormModal({ mode, supplier, onClose }: { mode: "add" | "edit"; 
       }
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, mode === "edit" ? "تعذّر تحديث المورد" : "تعذّر إضافة المورد", { context: { scope: "suppliers", action: mode } });
     }
   }
 
@@ -174,7 +175,7 @@ function DeleteSupplierModal({ supplier, onClose }: { supplier: Supplier; onClos
       toast.success("تم حذف المورد");
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, "تعذّر حذف المورد", { context: { scope: "suppliers", action: "delete", id: supplier.id } });
     }
   }
   return (

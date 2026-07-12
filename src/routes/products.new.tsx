@@ -7,8 +7,9 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { getErrorMessage, parseNumber } from "@/lib/errors";
+import { parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
+import { useSafeMutation } from "@/hooks/useSafeMutation";
 import { logProductAudit } from "@/lib/product-audit";
 
 export const Route = createFileRoute("/products/new")({
@@ -54,7 +55,6 @@ function NewProductPage() {
   const [costPrice, setCostPrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   // Auto-open the camera scanner on mount so the user can scan immediately.
@@ -67,11 +67,54 @@ function NewProductPage() {
     const t = setTimeout(() => setScanOpen(true), 350);
     return () => clearTimeout(t);
   }, []);
+  const saveMutation = useSafeMutation<{ id?: string } | null, ReturnType<typeof productSchema.parse>>({
+    logScope: "products",
+    action: "create",
+    errorFallback: "تعذّر حفظ المنتج",
+    successMessage: "تم حفظ المنتج",
+    mutationFn: async (p) => {
+      const { data: userData, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("انتهت الجلسة — سجّل الدخول مجدداً");
+      const { data: inserted, error } = await supabase.from("products").insert({
+        user_id: userId,
+        name: p.name,
+        barcode: p.barcode ?? null,
+        part_number: p.partNumber ?? null,
+        category: p.category ?? null,
+        unit: p.unit,
+        location: p.location ?? null,
+        quantity: p.quantity,
+        min_quantity: p.minQuantity,
+        cost_price: p.costPrice,
+        sale_price: p.salePrice,
+        notes: p.notes ?? null,
+      } as never).select("id").single();
+      if (error) throw error;
+      return inserted as { id?: string } | null;
+    },
+    onSuccess: (inserted, p) => {
+      const newId = (inserted as { id?: string } | null)?.id;
+      if (newId) {
+        void logProductAudit(supabase as never, "product.created", newId, {
+          name: p.name,
+          barcode: p.barcode ?? null,
+          quantity: p.quantity,
+          cost_price: p.costPrice,
+          sale_price: p.salePrice,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      navigate({ to: "/products" });
+    },
+    onErrorSafe: (_e, message) => setError(message),
+  });
+  const saving = saveMutation.isPending;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
     const parsed = productSchema.safeParse({
       name,
       barcode: barcode.trim() || undefined,
@@ -94,54 +137,9 @@ function NewProductPage() {
     if (parsed.data.salePrice > 0 && parsed.data.costPrice > parsed.data.salePrice) {
       toast.warning("تنبيه: سعر التكلفة أعلى من سعر البيع");
     }
-
-    setSaving(true);
-    try {
-      const { data: userData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) throw authErr;
-      const userId = userData.user?.id;
-      if (!userId) {
-        navigate({ to: "/auth" });
-        return;
-      }
-      const p = parsed.data;
-      const { data: inserted, error } = await supabase.from("products").insert({
-        user_id: userId,
-        name: p.name,
-        barcode: p.barcode ?? null,
-        part_number: p.partNumber ?? null,
-        category: p.category ?? null,
-        unit: p.unit,
-        location: p.location ?? null,
-        quantity: p.quantity,
-        min_quantity: p.minQuantity,
-        cost_price: p.costPrice,
-        sale_price: p.salePrice,
-        notes: p.notes ?? null,
-      } as never).select("id").single();
-      if (error) throw error;
-      // Fire-and-forget audit — never blocks the success path.
-      const newId = (inserted as { id?: string } | null)?.id;
-      if (newId) {
-        void logProductAudit(supabase as never, "product.created", newId, {
-          name: p.name,
-          barcode: p.barcode ?? null,
-          quantity: p.quantity,
-          cost_price: p.costPrice,
-          sale_price: p.salePrice,
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("تم حفظ المنتج");
-      navigate({ to: "/products" });
-    } catch (err) {
-      const msg = getErrorMessage(err, "تعذّر حفظ المنتج");
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
+    saveMutation.mutate(parsed.data);
   }
+
 
 
   return (

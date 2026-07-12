@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useCustomers, useAddCustomer, useUpdateCustomer, useDeleteCustomer, type Customer } from "@/hooks/use-customers";
 import { toast } from "sonner";
+import { handleError } from "@/lib/errors";
 
 export const Route = createFileRoute("/customers/")({
   head: () => ({ meta: [{ title: "العملاء — المهندس" }] }),
@@ -192,7 +193,7 @@ function CustomerFormModal({ mode, customer, onClose }: { mode: "add" | "edit"; 
       }
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, mode === "edit" ? "تعذّر تحديث العميل" : "تعذّر إضافة العميل", { context: { scope: "customers", action: mode } });
     }
   }
 
@@ -240,7 +241,7 @@ function DeleteCustomerModal({ customer, onClose }: { customer: Customer; onClos
       toast.success("تم حذف العميل");
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, "تعذّر حذف العميل", { context: { scope: "customers", action: "delete", id: customer.id } });
     }
   }
   return (

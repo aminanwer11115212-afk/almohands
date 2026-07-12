@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
+import { buildCsvBlob, jsonBlob, saveBlob } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/customers/$customerId")({
   head: () => ({ meta: [{ title: "دفتر العميل — المهندس" }] }),
@@ -396,23 +397,16 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
   function exportCSV() {
     if (filtered.length === 0) return;
     const headers = ["التاريخ", "رقم الفاتورة", "المنتج", "الكمية", "الوحدة", "السعر", "الإجمالي"];
-    const lines = [headers.join(",")];
-    for (const it of filtered) {
-      const row = [
-        new Date(it.created_at).toLocaleDateString("ar-EG"),
-        String(it.invoice_number ?? ""),
-        it.product_name,
-        String(it.quantity),
-        it.unit,
-        String(it.unit_price),
-        String(it.line_total),
-      ].map((v) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-      lines.push(row.join(","));
-    }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `products-${customerName}-${Date.now()}.csv`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 500);
+    const rows = filtered.map((it) => [
+      new Date(it.created_at).toLocaleDateString("ar-EG"),
+      String(it.invoice_number ?? ""),
+      it.product_name,
+      it.quantity,
+      it.unit,
+      it.unit_price,
+      it.line_total,
+    ]);
+    saveBlob(`products-${customerName}-${Date.now()}.csv`, buildCsvBlob(headers, rows));
   }
 
   return (

@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, ScanBarcode } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
@@ -54,6 +55,7 @@ function NewProductPage() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -128,7 +130,18 @@ function NewProductPage() {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الباركود">
-            <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left" />
+            <div className="flex gap-2">
+              <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left flex-1" />
+              <button
+                type="button"
+                onClick={() => setScanOpen(true)}
+                className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
+                aria-label="مسح الباركود بالكاميرا"
+                title="مسح بالكاميرا"
+              >
+                <ScanBarcode className="size-5" />
+              </button>
+            </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
             <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="مثال: 90915-YZZE2" />
@@ -179,6 +192,13 @@ function NewProductPage() {
           {saving ? <Loader2 className="size-4 animate-spin" /> : <><Save className="size-4" /> حفظ المنتج</>}
         </button>
       </form>
+
+      <BarcodeScannerDialog
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetected={(code) => { setBarcode(code); toast.success("تم قراءة الباركود"); }}
+      />
+
 
       <style>{`
         .ip {

@@ -193,7 +193,7 @@ function CustomerFormModal({ mode, customer, onClose }: { mode: "add" | "edit"; 
       }
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, mode === "edit" ? "تعذّر تحديث العميل" : "تعذّر إضافة العميل", { context: { scope: "customers", action: mode } });
     }
   }
 

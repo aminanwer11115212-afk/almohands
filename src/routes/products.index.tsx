@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Plus, ArrowUpDown, Loader2, Printer, Pencil, Save, X,
-  AlertTriangle, Package, DollarSign, Boxes, Trash2,
+  AlertTriangle, Package, DollarSign, Boxes, Trash2, Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
@@ -54,8 +54,14 @@ function ProductsPage() {
   const [editMode, setEditMode] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState<Product[] | null>(null);
   const savingRef = useRef(false);
+
+  // Selection & keyboard navigation
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [focusedIdx, setFocusedIdx] = useState(0);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   // Realtime
   useEffect(() => {
@@ -71,6 +77,78 @@ function ProductsPage() {
     () => (low ? rows.filter((p) => p.quantity <= p.minQuantity) : rows),
     [rows, low],
   );
+
+  // Clamp focused index & prune selection when filter changes
+  useEffect(() => {
+    setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, filtered.length - 1)));
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const ids = new Set(filtered.map((p) => p.id));
+      const next = new Set<string>();
+      prev.forEach((id) => ids.has(id) && next.add(id));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtered]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelected((prev) =>
+      prev.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id)),
+    );
+  }
+  function scrollRowIntoView(id: string) {
+    rowRefs.current[id]?.scrollIntoView({ block: "nearest" });
+  }
+  function handleTableKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (editMode) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    if (!filtered.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(filtered.length - 1, focusedIdx + 1);
+      setFocusedIdx(next);
+      scrollRowIntoView(filtered[next].id);
+      if (e.shiftKey) toggleSelect(filtered[next].id);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(0, focusedIdx - 1);
+      setFocusedIdx(next);
+      scrollRowIntoView(filtered[next].id);
+      if (e.shiftKey) toggleSelect(filtered[next].id);
+    } else if (e.key === "Home") {
+      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(filtered[0].id);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const last = filtered.length - 1;
+      setFocusedIdx(last); scrollRowIntoView(filtered[last].id);
+    } else if (e.key === " ") {
+      e.preventDefault();
+      toggleSelect(filtered[focusedIdx].id);
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      toggleSelectAll();
+    } else if (e.key === "Escape") {
+      if (selected.size) { e.preventDefault(); setSelected(new Set()); }
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      if (!canWrite) return;
+      e.preventDefault();
+      const targets = selected.size
+        ? filtered.filter((p) => selected.has(p.id))
+        : [filtered[focusedIdx]];
+      if (targets.length) setDeleting(targets);
+    } else if (e.key === "Enter") {
+      const p = filtered[focusedIdx];
+      if (p) navigate({ to: "/products/$productId", params: { productId: p.id } });
+    }
+  }
 
   const totals = useMemo(() => {
     let qty = 0, cost = 0, sale = 0, lowCount = 0;
@@ -215,12 +293,45 @@ function ProductsPage() {
         )}
       </div>
 
+      {/* Keyboard hint + bulk actions */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم ↑/↓ للتنقل، Space للتحديد، Ctrl+A للكل، Delete للحذف، Enter للفتح</span>
+        {selected.size > 0 && (
+          <span className="ms-auto flex items-center gap-2">
+            <span className="font-bold text-foreground">{formatNumber(selected.size)} محدد</span>
+            <button type="button" onClick={() => setSelected(new Set())}
+              className="h-7 px-2 rounded-md border border-border bg-card hover:bg-muted">مسح التحديد</button>
+            {canWrite && (
+              <button type="button"
+                onClick={() => setDeleting(filtered.filter((p) => selected.has(p.id)))}
+                className="h-7 px-2 rounded-md bg-destructive text-destructive-foreground font-bold inline-flex items-center gap-1">
+                <Trash2 className="size-3.5" /> حذف المحدد
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+
       {/* Table */}
-      <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-card shadow-card">
+      <div
+        ref={tableWrapRef}
+        tabIndex={0}
+        onKeyDown={handleTableKeyDown}
+        className="mt-2 rounded-2xl overflow-hidden border border-border bg-card shadow-card outline-none focus:ring-2 focus:ring-brand/40"
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead className="bg-muted text-muted-foreground text-xs">
               <tr>
+                <th className="w-10 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="تحديد الكل"
+                    checked={filtered.length > 0 && selected.size === filtered.length}
+                    ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
                 <Th className="text-center">الباركود / رقم القطعة / الرف</Th>
                 <Th onClick={() => toggleSort("quantity")} active={sort === "quantity"} asc={asc} className="text-center w-24">الكمية</Th>
@@ -232,18 +343,38 @@ function ProductsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
-                <tr><td colSpan={7} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
+                <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="inline size-5 animate-spin" /></td></tr>
               ) : isError ? (
-                <tr><td colSpan={7} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">
+                <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
                   {q ? "لا توجد منتجات مطابقة" : low ? "لا توجد أصناف منخفضة" : "لا توجد منتجات بعد — اضغط + لإضافة منتج"}
                 </td></tr>
-              ) : filtered.map((p) => {
+              ) : filtered.map((p, idx) => {
                 const isLow = p.quantity <= p.minQuantity;
+                const isSelected = selected.has(p.id);
+                const isFocused = idx === focusedIdx;
                 const d = drafts[p.id];
+                const rowClass = [
+                  isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
+                  isFocused ? "ring-2 ring-inset ring-brand" : "",
+                ].join(" ");
                 return (
-                  <tr key={p.id} className={isLow ? "bg-destructive/5" : "hover:bg-muted/40"}>
+                  <tr
+                    key={p.id}
+                    ref={(el) => { rowRefs.current[p.id] = el; }}
+                    className={rowClass}
+                    onClick={() => setFocusedIdx(idx)}
+                  >
+                    <td className="px-2 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`تحديد ${p.name}`}
+                        checked={isSelected}
+                        onChange={() => toggleSelect(p.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       <div className="flex items-center gap-2">
                         <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand flex-1 min-w-0 truncate">
@@ -253,7 +384,7 @@ function ProductsPage() {
                         {canWrite && !editMode && (
                           <button
                             type="button"
-                            onClick={() => setDeleting(p)}
+                            onClick={(e) => { e.stopPropagation(); setDeleting([p]); }}
                             className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
                             aria-label="حذف المنتج" title="حذف المنتج"
                           >
@@ -289,6 +420,7 @@ function ProductsPage() {
             {filtered.length > 0 && (
               <tfoot className="bg-muted/60 font-bold">
                 <tr>
+                  <td></td>
                   <td className="px-3 py-2 text-right">الإجمالي</td>
                   <td></td>
                   <td className="text-center nums">{formatNumber(filtered.reduce((s, p) => s + p.quantity, 0))}</td>
@@ -303,6 +435,7 @@ function ProductsPage() {
         </div>
       </div>
 
+
       {canWrite && !editMode && (
         <Link to="/products/new"
           className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
@@ -310,17 +443,27 @@ function ProductsPage() {
           <Plus className="size-7" />
         </Link>
       )}
-      {deleting && <DeleteProductModal product={deleting} onClose={() => setDeleting(null)} />}
+      {deleting && deleting.length > 0 && (
+        <DeleteProductModal products={deleting} onClose={() => setDeleting(null)} onDone={() => setSelected(new Set())} />
+      )}
     </AppShell>
   );
 }
 
-function DeleteProductModal({ product, onClose }: { product: Product; onClose: () => void }) {
+function DeleteProductModal({ products, onClose, onDone }: { products: Product[]; onClose: () => void; onDone?: () => void }) {
   const del = useDeleteProduct();
+  const isBulk = products.length > 1;
+  const withStock = products.filter((p) => p.quantity > 0);
   async function handleDelete() {
     try {
-      await del.mutateAsync(product);
-      toast.success("تم حذف المنتج");
+      let ok = 0; const failed: string[] = [];
+      for (const p of products) {
+        try { await del.mutateAsync(p); ok++; }
+        catch (e) { failed.push(p.name); console.error(e); }
+      }
+      if (ok) toast.success(isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج");
+      if (failed.length) toast.error(`تعذّر حذف: ${failed.slice(0, 3).join("، ")}${failed.length > 3 ? "…" : ""}`);
+      onDone?.();
       onClose();
     } catch (err) {
       handleError(err, "تعذّر حذف المنتج");
@@ -330,15 +473,23 @@ function DeleteProductModal({ product, onClose }: { product: Product; onClose: (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-destructive">حذف منتج</h2>
+          <h2 className="text-lg font-bold text-destructive">{isBulk ? `حذف ${products.length} منتج` : "حذف منتج"}</h2>
           <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
         </div>
-        <p className="text-sm">
-          هل أنت متأكد من حذف <span className="font-bold">{product.name}</span>؟
-        </p>
-        {product.quantity > 0 && (
+        {isBulk ? (
+          <div className="text-sm space-y-1">
+            <p>هل أنت متأكد من حذف المنتجات المحددة؟</p>
+            <ul className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 text-xs p-2 space-y-0.5">
+              {products.slice(0, 20).map((p) => <li key={p.id}>• {p.name}</li>)}
+              {products.length > 20 && <li className="text-muted-foreground">… و{products.length - 20} أخرى</li>}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm">هل أنت متأكد من حذف <span className="font-bold">{products[0].name}</span>؟</p>
+        )}
+        {withStock.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
-            ⚠️ يوجد رصيد بالمخزون: {formatNumber(product.quantity)} — لن يمكن استرجاعه.
+            ⚠️ {isBulk ? `${withStock.length} منتج يحتوي على رصيد بالمخزون` : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`} — لن يمكن استرجاعه.
           </div>
         )}
         <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">

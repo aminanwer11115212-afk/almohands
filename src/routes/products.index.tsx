@@ -78,17 +78,12 @@ function ProductsPage() {
     [rows, low],
   );
 
-  // Clamp focused index & prune selection when filter changes
+  // Clamp focused index when filter changes. Preserve selection across
+  // filter/sort/reload — the user may re-filter to reveal hidden selected rows.
   useEffect(() => {
     setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, filtered.length - 1)));
-    setSelected((prev) => {
-      if (prev.size === 0) return prev;
-      const ids = new Set(filtered.map((p) => p.id));
-      const next = new Set<string>();
-      prev.forEach((id) => ids.has(id) && next.add(id));
-      return next.size === prev.size ? prev : next;
-    });
   }, [filtered]);
+
 
   function toggleSelect(id: string) {
     setSelected((prev) => {

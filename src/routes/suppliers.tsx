@@ -175,7 +175,7 @@ function DeleteSupplierModal({ supplier, onClose }: { supplier: Supplier; onClos
       toast.success("تم حذف المورد");
       onClose();
     } catch (err) {
-      toast.error((err as Error).message);
+      handleError(err, "تعذّر حذف المورد", { context: { scope: "suppliers", action: "delete", id: supplier.id } });
     }
   }
   return (

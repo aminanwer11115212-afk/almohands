@@ -211,7 +211,7 @@ function ProductsPage() {
 
   function beginEdit() {
     const d: Record<string, Draft> = {};
-    for (const p of filtered) {
+    for (const p of pageRows) {
       d[p.id] = {
         quantity: String(p.quantity),
         cost_price: String(p.costPrice),

@@ -103,8 +103,12 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
   const blob = content instanceof Blob ? content : new Blob(["\ufeff" + content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Delay revoke so the browser's Save-As dialog has time to grab the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 async function fetchTable(name: TableKey, from?: string, to?: string) {
@@ -263,12 +267,15 @@ function ExportPage() {
           total += rows.length;
           if (rows.length === 0) continue;
           const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-          const headers = orderCols(allKeys, key);
+          const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
+          const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, key);
+          const labels = headerMap ? cols.map((c) => headerMap[c]) : cols;
+          const tableMeta = TABLES.find((t) => t.key === key);
           exportPdfFromRows({
-            title: key,
+            title: tableMeta?.label ?? key,
             subtitle: new Date().toLocaleString("ar-EG"),
-            headers,
-            rows: rows.map((r) => headers.map((h) => String(r[h] ?? ""))),
+            headers: labels,
+            rows: rows.map((r) => cols.map((h) => String(r[h] ?? ""))),
           });
           continue;
         }

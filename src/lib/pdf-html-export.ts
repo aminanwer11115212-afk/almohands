@@ -9,19 +9,29 @@ export function exportPdfFromRows(opts: {
   orientation?: "portrait" | "landscape";
   subtitle?: string;
 }) {
-  const { title, headers, rows, orientation = "landscape", subtitle } = opts;
-  const w = window.open("", "_blank", "width=1024,height=768");
-  if (!w) return;
+  const { title, headers, rows, subtitle } = opts;
+  // Auto-choose landscape when many columns to prevent squashing.
+  const orientation = opts.orientation ?? (headers.length > 6 ? "landscape" : "portrait");
+  const w = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
+  if (!w) {
+    console.warn("[exportPdfFromRows] popup blocked");
+    return;
+  }
   const esc = (s: unknown) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   const html = `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
 <title>${esc(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
 <style>
   @page { size: A4 ${orientation}; margin: 12mm; }
   * { box-sizing: border-box; }
@@ -30,8 +40,10 @@ export function exportPdfFromRows(opts: {
   h1 { font-size: 16px; margin: 0 0 4px; }
   .sub { font-size: 11px; color:#475569; margin-bottom: 10px; }
   table { width:100%; border-collapse: collapse; font-size: 11px; }
-  th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: right; vertical-align: middle; }
+  th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: right; vertical-align: middle; word-break: break-word; }
+  thead { display: table-header-group; }
   thead th { background:#f1f5f9; font-weight: 700; }
+  tbody tr { page-break-inside: avoid; }
   tbody tr:nth-child(even) { background:#fafafa; }
   tfoot { display: table-row-group; }
   @media print { .noprint { display:none } }
@@ -53,7 +65,8 @@ export function exportPdfFromRows(opts: {
   </table>
   <script>
     window.addEventListener('load', function(){
-      setTimeout(function(){ window.focus(); window.print(); }, 250);
+      // Give Google Fonts a moment to load so print uses Cairo, not fallback.
+      setTimeout(function(){ window.focus(); window.print(); }, 600);
     });
   </script>
 </body></html>`;

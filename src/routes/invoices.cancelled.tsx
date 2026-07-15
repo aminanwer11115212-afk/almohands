@@ -237,15 +237,21 @@ function CancelledInvoicesPage() {
 
   function exportPDF() {
     if (filtered.length === 0) { toast.info("لا توجد بيانات للتصدير"); return; }
-    const rowsX = buildExportRows();
-    const headers = Object.keys(rowsX[0]);
-    exportPdfFromRows({
-      title: "الفواتير الملغاة",
-      subtitle: new Date().toLocaleString("ar-EG"),
-      headers,
-      rows: rowsX.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
-    });
-    toast.success(`تم تصدير ${rowsX.length} فاتورة`);
+    try {
+      const rowsX = buildExportRows();
+      const headers = Object.keys(rowsX[0]);
+      exportPdfFromRows({
+        title: "الفواتير الملغاة",
+        subtitle: new Date().toLocaleString("ar-EG"),
+        headers,
+        orientation: "landscape",
+        rows: rowsX.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
+      });
+      toast.success(`تم تصدير ${rowsX.length} فاتورة`);
+    } catch (e) {
+      console.error("[cancelled.exportPDF]", e);
+      toast.error("تعذّر تصدير PDF");
+    }
   }
 
   function toggleSort(k: SortKey) {

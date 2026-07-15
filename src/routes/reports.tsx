@@ -131,15 +131,21 @@ function exportInvoicesXLSX(invoices: any[], directory: { id: string; email: str
 
 function exportInvoicesPDF(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
   if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
-  const rows = buildInvoiceRows(invoices, directory);
-  const headers = Object.keys(rows[0]);
-  exportPdfFromRows({
-    title: `تقرير الفواتير — ${periodLabel}`,
-    subtitle: new Date().toLocaleString("ar-EG"),
-    headers,
-    rows: rows.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
-  });
-  toast.success(`تم تصدير ${rows.length} فاتورة`);
+  try {
+    const rows = buildInvoiceRows(invoices, directory);
+    const headers = Object.keys(rows[0]);
+    exportPdfFromRows({
+      title: `تقرير الفواتير — ${periodLabel}`,
+      subtitle: new Date().toLocaleString("ar-EG"),
+      headers,
+      orientation: "landscape",
+      rows: rows.map((r) => headers.map((h) => String((r as any)[h] ?? ""))),
+    });
+    toast.success(`تم تصدير ${rows.length} فاتورة`);
+  } catch (e) {
+    console.error("[reports.exportPDF]", e);
+    toast.error("تعذّر تصدير PDF — جرّب مجدداً");
+  }
 }
 
 /* ------------------------ shared data ------------------------ */

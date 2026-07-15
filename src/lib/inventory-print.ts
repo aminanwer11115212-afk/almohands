@@ -101,12 +101,12 @@ export function buildInventoryReportHtml(opts: InventoryPrintOptions): string {
   </div>
   <div class="sheet">
     <div class="header">
-      <img src="${logoUrl}" alt="المهندس"/>
+      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(storeName)}"/>
       <div class="title">
         <h1>${escapeHtml(storeName)}</h1>
         <div class="sub">تقرير جرد المخزون الشامل</div>
       </div>
-      <img src="${logoUrl}" alt="المهندس"/>
+      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(storeName)}"/>
     </div>
     <div class="meta"><span>تاريخ الطباعة: ${today}</span><span>عدد الأصناف: ${fmt(rows.length)}</span></div>
     <table>

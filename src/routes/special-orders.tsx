@@ -351,6 +351,25 @@ function SpecialOrdersPage() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      {o.status !== "cancelled" && !o.invoice_id && (
+                        <button
+                          onClick={() => convertToInvoice(o)}
+                          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-emerald-600 hover:text-white text-muted-foreground"
+                          title="تحويل إلى فاتورة في الكاشير"
+                        >
+                          <Receipt className="size-4" />
+                        </button>
+                      )}
+                      {o.invoice_id && (
+                        <button
+                          onClick={() => navigate({ to: "/invoices/$invoiceId", params: { invoiceId: o.invoice_id! } })}
+                          className="grid place-items-center size-8 rounded-lg bg-emerald-500/10 text-emerald-700 hover:bg-emerald-600 hover:text-white"
+                          title="عرض الفاتورة المرتبطة"
+                        >
+                          <Receipt className="size-4" />
+                        </button>
+                      )}
+
                       <button
                         onClick={() => setEditing(o)}
                         className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground"

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
@@ -95,6 +95,8 @@ function InvoiceDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewFitMode, setPreviewFitMode] = useState<"fit" | "100">("fit");
+  const [showGuides, setShowGuides] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -102,6 +104,64 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+
+  // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
+  // scrollbars, and mobile browser quirks. Computes zoom based on both width & height
+  // so the sheet is always fully visible without clipped margins.
+  const computeFitZoom = () => {
+    const scroller = previewScrollRef.current;
+    if (!scroller) return 1;
+    const mmToPx = 96 / 25.4;
+    const paperWmm = format === "thermal" ? 80 : 297;
+    const paperHmm = format === "thermal" ? 200 : 210;
+    const paperW = paperWmm * mmToPx;
+    const paperH = paperHmm * mmToPx;
+    // Reserve padding + small safety gutter for scrollbar/rounding differences across browsers.
+    const rect = scroller.getBoundingClientRect();
+    const availW = Math.max(120, rect.width - 40);
+    const availH = Math.max(120, rect.height - 40);
+    // On very small viewports, don't allow the sheet to overflow horizontally.
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+    const wZoom = availW / paperW;
+    const hZoom = availH / paperH;
+    // Mobile: prioritize width fit; desktop: use the smaller of the two so nothing clips.
+    const raw = isMobile ? wZoom : Math.min(wZoom, hZoom);
+    return Math.max(0.2, Math.min(3, +raw.toFixed(2)));
+  };
+
+  const applyFit = () => {
+    setPreviewFitMode("fit");
+    setPreviewZoom(computeFitZoom());
+  };
+  const applyReset = () => {
+    // Reset behavior: if we're currently in Fit mode, snap back to a fresh fit calc;
+    // otherwise reset to 100%. Either way, guides return to visible.
+    setShowGuides(true);
+    if (previewFitMode === "fit") setPreviewZoom(computeFitZoom());
+    else setPreviewZoom(1);
+  };
+
+  // Auto-fit when preview opens or window resizes (debounced via rAF).
+  useEffect(() => {
+    if (!previewOpen) return;
+    let raf = 0;
+    const refit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (previewFitMode === "fit") setPreviewZoom(computeFitZoom());
+      });
+    };
+    // Initial fit after layout settles
+    raf = requestAnimationFrame(() => setPreviewZoom(computeFitZoom()));
+    window.addEventListener("resize", refit);
+    window.addEventListener("orientationchange", refit);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", refit);
+      window.removeEventListener("orientationchange", refit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewOpen, format, previewFitMode]);
 
   // Load current user id for per-user preference storage
   useEffect(() => {
@@ -1079,12 +1139,12 @@ function InvoiceDetailPage() {
         <DialogContent className="max-w-5xl w-full max-h-[95vh] h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3 border-b border-border bg-[#F0F2F5]">
             <DialogTitle className="text-base sm:text-lg font-semibold text-[#050505]">معاينة الطباعة</DialogTitle>
-            <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm">
+            <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm flex-wrap">
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(2))); }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
-                disabled={previewZoom <= 0.3}
+                disabled={previewZoom <= 0.2}
                 aria-label="تصغير"
                 title="تصغير"
               >
@@ -1093,7 +1153,7 @@ function InvoiceDetailPage() {
               <span className="text-xs tabular-nums w-10 text-center font-mono text-[#050505]">{Math.round(previewZoom * 100)}%</span>
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2))); }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
                 disabled={previewZoom >= 3}
                 aria-label="تكبير"
@@ -1103,29 +1163,38 @@ function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const scroller = previewScrollRef.current;
-                  if (!scroller) return;
-                  // Fit-to-page: compute zoom so the sheet fills the container while keeping safe margins.
-                  const paperMm = format === "thermal" ? 80 : 297; // landscape A4 width
-                  const mmToPx = 96 / 25.4;
-                  const paperPx = paperMm * mmToPx;
-                  const avail = scroller.clientWidth - 32;
-                  const z = Math.max(0.3, Math.min(3, +(avail / paperPx).toFixed(2)));
-                  setPreviewZoom(z);
-                }}
-                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 font-semibold text-[#1877F2]"
+                onClick={applyFit}
+                className={`text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 font-semibold ${previewFitMode === "fit" ? "bg-[#E7F3FF] text-[#1877F2]" : "text-[#1877F2]"}`}
                 title="ملاءمة للصفحة"
               >
                 <Maximize2 className="size-3.5" /> ملاءمة
               </button>
               <button
                 type="button"
-                onClick={() => setPreviewZoom(1)}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom(1); }}
                 className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B]"
                 title="حجم طبيعي"
               >
                 100%
+              </button>
+              <button
+                type="button"
+                onClick={applyReset}
+                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B] flex items-center gap-1"
+                title="إعادة ضبط المعاينة"
+                aria-label="إعادة ضبط"
+              >
+                <RotateCcw className="size-3.5" /> إعادة ضبط
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGuides((v) => !v)}
+                className={`text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 ${showGuides ? "text-[#1877F2]" : "text-[#65676B]"}`}
+                title={showGuides ? "إخفاء خطوط الهوامش" : "إظهار خطوط الهوامش"}
+                aria-pressed={showGuides}
+              >
+                {showGuides ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                {showGuides ? "الهوامش" : "الهوامش"}
               </button>
             </div>
           </DialogHeader>
@@ -1147,16 +1216,16 @@ function InvoiceDetailPage() {
                   minHeight: format === "thermal" ? "auto" : "210mm",
                 }}
               >
-                {/* Margin guide (dashed inner box shows printable safe area) */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 print:hidden"
-                  style={{
-                    padding: format === "thermal" ? "2mm" : "8mm",
-                  }}
-                >
-                  <div className="w-full h-full border border-dashed border-[#1877F2]/40 rounded-[1px]" />
-                </div>
+                {/* Margin guide (dashed inner box shows printable safe area) — toggleable */}
+                {showGuides && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 print:hidden"
+                    style={{ padding: format === "thermal" ? "2mm" : "8mm" }}
+                  >
+                    <div className="w-full h-full border border-dashed border-[#1877F2]/50 rounded-[1px]" />
+                  </div>
+                )}
                 {format === "a4" ? (
                   <A4Invoice
                     inv={inv}

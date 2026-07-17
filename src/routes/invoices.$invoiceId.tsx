@@ -1082,6 +1082,122 @@ function InvoiceDetailPage() {
         onConfirm={(phone) => sendWhatsAppText(phone)}
       />
 
+      {/* Add payment dialog */}
+      <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="size-5 text-emerald-600" /> تسجيل دفعة على الفاتورة #{inv.invoice_number}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between rounded-md bg-muted p-2 text-sm">
+              <span>الإجمالي: <span className="nums font-semibold">{formatSDG(Number(inv.total) || 0)}</span></span>
+              <span>المدفوع: <span className="nums font-semibold">{formatSDG(Number(inv.paid) || 0)}</span></span>
+              <span>المتبقي: <span className="nums font-bold text-emerald-700">{formatSDG(Number(inv.remaining) || 0)}</span></span>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold mb-1 block">المبلغ</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 nums"
+              />
+              <div className="mt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayAmount(String(Math.max(0, Number(inv.remaining) || 0)))}
+                  className="text-xs underline text-emerald-700"
+                >دفع المتبقي</button>
+                <button
+                  type="button"
+                  onClick={() => setPayAmount(String((Math.max(0, Number(inv.remaining) || 0)) / 2))}
+                  className="text-xs underline text-muted-foreground"
+                >النصف</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold mb-1 block">حساب الدفع</label>
+              {paymentMethods.length === 0 ? (
+                <p className="text-xs text-muted-foreground">لا توجد حسابات مفعّلة — أضف حساباً من صفحة الحسابات.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-1.5">
+                  {paymentMethods.map((m) => {
+                    const active = m.id === payMethodId;
+                    const Icon = m.type === "bank" ? Landmark : Wallet;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setPayMethodId(m.id)}
+                        className={`flex items-center gap-2 rounded-md border p-2 text-sm text-right ${active ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-input hover:bg-muted"}`}
+                      >
+                        <Icon className={`size-4 ${m.type === "bank" ? "text-blue-600" : "text-emerald-600"}`} />
+                        <span className="font-medium">{m.name}</span>
+                        <span className="text-[11px] text-muted-foreground me-auto">{m.type === "bank" ? "بنكي" : "نقدي"}{m.bank_name ? ` — ${m.bank_name}` : ""}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {(() => {
+              const chosen = paymentMethods.find((m) => m.id === payMethodId);
+              if (chosen?.type === "bank") {
+                return (
+                  <div>
+                    <label className="text-xs font-semibold mb-1 block flex items-center gap-1">
+                      <CreditCard className="size-3.5" /> رقم العملية
+                    </label>
+                    <input
+                      type="text"
+                      value={payReference}
+                      onChange={(e) => setPayReference(e.target.value)}
+                      placeholder="رقم مرجعي/تحويل بنكي"
+                      className="w-full h-10 rounded-md border border-input bg-background px-3"
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <div>
+              <label className="text-xs font-semibold mb-1 block">ملاحظات (اختياري)</label>
+              <input
+                type="text"
+                value={payNotes}
+                onChange={(e) => setPayNotes(e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setPayDialogOpen(false)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >إلغاء</button>
+            <button
+              onClick={() => addPaymentMutation.mutate()}
+              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount}
+              className="px-4 h-10 rounded-md bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {addPaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              تسجيل الدفعة
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+
 
 
 

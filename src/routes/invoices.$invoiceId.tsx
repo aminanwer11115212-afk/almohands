@@ -90,25 +90,42 @@ function InvoiceDetailPage() {
   const [formatReady, setFormatReady] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [busyPhase, setBusyPhase] = useState<string>("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [userId, setUserId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
+  // Load current user id for per-user preference storage
   useEffect(() => {
-    if (storeProfile?.print_size) {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
+
+  // Resolve print format: per-user localStorage overrides store profile default.
+  useEffect(() => {
+    const userKey = userId ? `invoice_print_format:${userId}` : null;
+    const personal = userKey ? localStorage.getItem(userKey) : null;
+    if (personal === "a4" || personal === "thermal") {
+      setFormat(personal);
+    } else if (storeProfile?.print_size) {
       const size = String(storeProfile.print_size).toLowerCase();
       setFormat(size.includes("mm") ? "thermal" : "a4");
     }
     setFormatReady(true);
-  }, [storeProfile?.print_size]);
+  }, [storeProfile?.print_size, userId]);
 
   const changeFormat = (next: PrintFormat) => {
     setFormat(next);
+    // Save per-user preference immediately
+    if (userId) {
+      try { localStorage.setItem(`invoice_print_format:${userId}`, next); } catch { /* quota */ }
+    }
     const nextSize = next === "thermal" ? "80mm" : "A4";
     if (storeProfile && storeProfile.print_size !== nextSize) {
       saveProfile.mutate({ print_size: nextSize });

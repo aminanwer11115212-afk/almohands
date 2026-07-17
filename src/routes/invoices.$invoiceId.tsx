@@ -686,6 +686,19 @@ function InvoiceDetailPage() {
 
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">
+      {/* Global progress bar while generating/sharing PDF */}
+      {(pdfBusy || shareBusy) && (
+        <div className="fixed top-0 inset-x-0 z-50 print:hidden" role="progressbar" aria-label="جارٍ المعالجة">
+          <div className="h-1 bg-primary/20 overflow-hidden">
+            <div className="h-full w-1/3 bg-primary animate-[progress_1.2s_ease-in-out_infinite]" />
+          </div>
+          {busyPhase && (
+            <div className="mx-auto max-w-4xl text-xs text-center py-1 bg-primary/10 text-primary font-medium">
+              {busyPhase}
+            </div>
+          )}
+        </div>
+      )}
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
         <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-2 flex-wrap">

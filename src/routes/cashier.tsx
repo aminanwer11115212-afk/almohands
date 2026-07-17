@@ -1043,11 +1043,15 @@ function CashierPage() {
                   min={0}
                   max={100}
                   inputMode="decimal"
-                  className="w-full h-7 rounded border border-border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none focus:border-brand"
+                  className={`w-full h-7 rounded border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none ${markupError ? "border-destructive focus:border-destructive" : "border-border focus:border-brand"}`}
                 />
                 <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
               </div>
             </div>
+            {markupError && (
+              <p className="text-[10px] text-destructive text-end">{markupError}</p>
+            )}
+
             {markupNum > 0 && (
               <Row label={`+ زيادة ${formatNumber(markupNum)}%`} value={formatSDG(markupAmount)} highlight="emerald" />
             )}

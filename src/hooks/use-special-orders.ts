@@ -143,3 +143,37 @@ export function useDeleteSpecialOrder() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
   });
 }
+
+/** Read chronological status history (newest first) for one order. */
+export function useSpecialOrderHistory(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["special-order-history", orderId],
+    enabled: !!orderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("special_order_history" as never)
+        .select("*")
+        .eq("order_id", orderId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as SpecialOrderHistoryEntry[];
+    },
+    staleTime: 5_000,
+  });
+}
+
+/** Attach a saved invoice id to a special order (idempotent). */
+export function useLinkSpecialOrderInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { orderId: string; invoiceId: string }) => {
+      const { error } = await supabase
+        .from("special_orders")
+        .update({ invoice_id: input.invoiceId, status: "delivered" } as never)
+        .eq("id", input.orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
+  });
+}
+

@@ -310,9 +310,13 @@ function InvoiceDetailPage() {
     staleTime: 5_000,
   });
 
+  const visibleEditRows = useMemo(
+    () => editRows.filter((r) => !deletedRowIds.has(r.id)),
+    [editRows, deletedRowIds],
+  );
   const editTotal = useMemo(
-    () => editRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
-    [editRows],
+    () => visibleEditRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
+    [visibleEditRows],
   );
 
   const maxAllowedFor = (row: EditRow): number | null => {

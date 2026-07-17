@@ -17,6 +17,7 @@ import { Toaster } from "../components/ui/sonner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { AuthGate } from "../components/AuthGate";
 import { handleError } from "../lib/errors";
+import { useAutoLocalBackup } from "../hooks/use-auto-backup";
 
 function NotFoundComponent() {
   return (
@@ -131,6 +132,8 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useAutoLocalBackup();
 
   useEffect(() => {
     registerPwa();

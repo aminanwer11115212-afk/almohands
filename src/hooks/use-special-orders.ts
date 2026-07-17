@@ -21,9 +21,21 @@ export interface SpecialOrder {
   status: SpecialOrderStatus;
   cancellation_reason: string | null;
   expected_at: string | null;
+  invoice_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface SpecialOrderHistoryEntry {
+  id: string;
+  order_id: string;
+  changed_by: string | null;
+  from_status: SpecialOrderStatus | null;
+  to_status: SpecialOrderStatus;
+  reason: string | null;
+  created_at: string;
+}
+
 
 export interface SpecialOrderInput {
   customer_id?: string | null;

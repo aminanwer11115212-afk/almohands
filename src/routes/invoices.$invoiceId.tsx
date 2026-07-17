@@ -1041,14 +1041,13 @@ function InvoiceDetailPage() {
         </div>
       </main>
 
-      {/* Mobile-only floating action bar: prominent Print + Share buttons.
-          Only shown once print format is resolved (i.e. we know target printer size). */}
+      {/* Mobile-only floating action bar — Facebook-style pill buttons. */}
       {formatReady && (
         <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 print:hidden bg-background/95 backdrop-blur border-t border-border p-2 flex gap-2 shadow-lg">
           <button
             onClick={confirmAndPrint}
             disabled={pdfBusy || shareBusy}
-            className="flex-1 h-12 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow disabled:opacity-60"
+            className="flex-1 h-11 rounded-full bg-[#1877F2] hover:bg-[#166FE5] active:bg-[#1461C9] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 transition-colors"
             aria-label="طباعة الفاتورة"
           >
             <Printer className="size-5" />
@@ -1057,7 +1056,7 @@ function InvoiceDetailPage() {
           <button
             onClick={() => handleSharePdfNative()}
             disabled={pdfBusy}
-            className="h-12 px-4 rounded-lg bg-sky-500 text-white font-bold text-sm flex items-center justify-center gap-1 shadow disabled:opacity-60"
+            className="h-11 px-4 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] font-semibold text-sm flex items-center justify-center gap-1 disabled:opacity-60 transition-colors"
             aria-label="مشاركة PDF"
           >
             {pdfBusy ? <Loader2 className="size-5 animate-spin" /> : <Share2 className="size-5" />}
@@ -1065,108 +1064,148 @@ function InvoiceDetailPage() {
           <button
             onClick={() => setPreviewOpen(true)}
             disabled={pdfBusy}
-            className="h-12 px-4 rounded-lg bg-muted text-foreground border border-input font-bold text-sm flex items-center justify-center disabled:opacity-60"
+            className="h-11 px-4 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] font-semibold text-sm flex items-center justify-center disabled:opacity-60 transition-colors"
             aria-label="معاينة"
           >
             <Eye className="size-5" />
           </button>
         </div>
       )}
-      {/* Spacer so content isn't hidden behind FAB */}
       {formatReady && <div className="sm:hidden h-16 print:hidden" aria-hidden />}
 
-      {/* Preview dialog — shows exact PDF render before download/send */}
+      {/* Preview dialog — Facebook-style, with margin guides + Fit-to-page. */}
       <Dialog open={previewOpen} onOpenChange={(o) => { setPreviewOpen(o); if (!o) setPreviewZoom(1); }}>
-        <DialogContent className="max-w-4xl w-full max-h-[95vh] h-[95vh] sm:h-auto overflow-hidden flex flex-col p-3 sm:p-6">
-          <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-            <DialogTitle className="text-base sm:text-lg">معاينة قبل الطباعة</DialogTitle>
-            <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-1 py-0.5">
+        <DialogContent className="max-w-5xl w-full max-h-[95vh] h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+          <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3 border-b border-border bg-[#F0F2F5]">
+            <DialogTitle className="text-base sm:text-lg font-semibold text-[#050505]">معاينة الطباعة</DialogTitle>
+            <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm">
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
-                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
-                disabled={previewZoom <= 0.5}
-                aria-label="تصغير المعاينة"
+                onClick={() => setPreviewZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))}
+                className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
+                disabled={previewZoom <= 0.3}
+                aria-label="تصغير"
                 title="تصغير"
               >
                 <ZoomOut className="size-4" />
               </button>
-              <span className="text-xs tabular-nums w-10 text-center font-mono">{Math.round(previewZoom * 100)}%</span>
+              <span className="text-xs tabular-nums w-10 text-center font-mono text-[#050505]">{Math.round(previewZoom * 100)}%</span>
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))}
-                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
-                disabled={previewZoom >= 2}
-                aria-label="تكبير المعاينة"
+                onClick={() => setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
+                className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
+                disabled={previewZoom >= 3}
+                aria-label="تكبير"
                 title="تكبير"
               >
                 <ZoomIn className="size-4" />
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  const scroller = previewScrollRef.current;
+                  if (!scroller) return;
+                  // Fit-to-page: compute zoom so the sheet fills the container while keeping safe margins.
+                  const paperMm = format === "thermal" ? 80 : 297; // landscape A4 width
+                  const mmToPx = 96 / 25.4;
+                  const paperPx = paperMm * mmToPx;
+                  const avail = scroller.clientWidth - 32;
+                  const z = Math.max(0.3, Math.min(3, +(avail / paperPx).toFixed(2)));
+                  setPreviewZoom(z);
+                }}
+                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 font-semibold text-[#1877F2]"
+                title="ملاءمة للصفحة"
+              >
+                <Maximize2 className="size-3.5" /> ملاءمة
+              </button>
+              <button
+                type="button"
                 onClick={() => setPreviewZoom(1)}
-                className="text-xs px-2 py-1 rounded hover:bg-muted"
-                title="إعادة الحجم الطبيعي"
+                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B]"
+                title="حجم طبيعي"
               >
                 100%
               </button>
             </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto bg-muted/40 p-2 sm:p-4 -mx-3 sm:-mx-6">
+          <div ref={previewScrollRef} className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
+            {/* Paper wrapper: keeps A4 landscape aspect + margin guide overlay */}
             <div
-              ref={previewRef}
-              className="mx-auto bg-white shadow-sm origin-top transition-transform"
+              className="mx-auto origin-top transition-transform"
               style={{
-                maxWidth: format === "thermal" ? "80mm" : "210mm",
+                width: format === "thermal" ? "80mm" : "297mm",
                 transform: `scale(${previewZoom})`,
                 transformOrigin: "top center",
               }}
             >
-              {format === "a4" ? (
-                <A4Invoice
-                  inv={inv}
-                  items={items}
-                  paymentMethod={paymentMethod}
-                  storeName={storeName}
-                  storeSubtitle={storeSubtitle}
-                  storePhone={storePhone}
-                  invoiceFooter={invoiceFooter}
-                  showLogo={showLogo}
-                  paymentLabel={paymentLabel}
-                />
-              ) : (
-                <ThermalInvoice
-                  inv={inv}
-                  items={items}
-                  paymentMethod={paymentMethod}
-                  storeName={storeName}
-                  storeSubtitle={storeSubtitle}
-                  storePhone={storePhone}
-                  storeAddress={storeAddress}
-                  invoiceFooter={invoiceFooter}
-                  showLogo={showLogo}
-                  paymentLabel={paymentLabel}
-                />
-              )}
+              <div
+                ref={previewRef}
+                className="relative bg-white shadow-md"
+                style={{
+                  width: format === "thermal" ? "80mm" : "297mm",
+                  minHeight: format === "thermal" ? "auto" : "210mm",
+                }}
+              >
+                {/* Margin guide (dashed inner box shows printable safe area) */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 print:hidden"
+                  style={{
+                    padding: format === "thermal" ? "2mm" : "8mm",
+                  }}
+                >
+                  <div className="w-full h-full border border-dashed border-[#1877F2]/40 rounded-[1px]" />
+                </div>
+                {format === "a4" ? (
+                  <A4Invoice
+                    inv={inv}
+                    items={items}
+                    paymentMethod={paymentMethod}
+                    storeName={storeName}
+                    storeSubtitle={storeSubtitle}
+                    storePhone={storePhone}
+                    invoiceFooter={invoiceFooter}
+                    showLogo={showLogo}
+                    paymentLabel={paymentLabel}
+                  />
+                ) : (
+                  <ThermalInvoice
+                    inv={inv}
+                    items={items}
+                    paymentMethod={paymentMethod}
+                    storeName={storeName}
+                    storeSubtitle={storeSubtitle}
+                    storePhone={storePhone}
+                    storeAddress={storeAddress}
+                    invoiceFooter={invoiceFooter}
+                    showLogo={showLogo}
+                    paymentLabel={paymentLabel}
+                  />
+                )}
+              </div>
+              <div className="text-center text-[10px] text-[#65676B] mt-1 print:hidden">
+                {format === "a4" ? "A4 أفقي · 297×210mm · هامش 8mm" : "حراري · 80mm · هامش 2mm"}
+              </div>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
+          {/* Facebook-style unified footer buttons */}
+          <DialogFooter className="gap-2 flex-wrap px-4 py-3 border-t border-border bg-[#F0F2F5]">
             <button
               onClick={() => setPreviewOpen(false)}
-              className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
+              className="px-4 h-10 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-sm font-semibold transition-colors"
             >
               إغلاق
             </button>
             <button
               onClick={confirmAndPrint}
-              className="px-4 h-9 rounded-md bg-white/10 border border-input text-sm font-bold flex items-center gap-1 hover:bg-muted"
+              className="px-4 h-10 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-sm font-semibold flex items-center gap-1.5 transition-colors"
             >
               <Printer className="size-4" /> طباعة
             </button>
             <button
               onClick={() => handleSharePdfNative()}
               disabled={pdfBusy}
-              className="px-4 h-9 rounded-md bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              className="px-4 h-10 rounded-full bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60 transition-colors"
             >
               {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
               مشاركة PDF
@@ -1174,10 +1213,10 @@ function InvoiceDetailPage() {
             <button
               onClick={() => handleWhatsAppShare()}
               disabled={shareBusy}
-              className="px-4 h-9 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              className="px-4 h-10 rounded-full bg-[#42B72A] hover:bg-[#36A420] text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60 transition-colors"
             >
               {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-              إرسال واتساب + PDF
+              واتساب + PDF
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1189,16 +1228,25 @@ function InvoiceDetailPage() {
           100% { transform: translateX(400%); }
         }
         @media print {
-          body { background: white !important; }
+          html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
           .print\\:hidden { display: none !important; }
-          /* A4 landscape = 297mm wide × 210mm tall */
-          .print-a4 { width: 297mm; min-height: 210mm; margin: 0 auto; box-shadow: none !important; border: none !important; max-width: none !important; }
-          .print-thermal { width: 80mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
+          /* Fit-to-page: force content to shrink into printable area without clipping */
+          .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
+          .print-a4 {
+            width: 281mm; /* A4 landscape 297mm - 2×8mm margins */
+            min-height: 194mm;
+            margin: 0 auto !important;
+            page-break-inside: avoid;
+          }
+          .print-thermal { width: 76mm; margin: 0 auto !important; }
           ${format === "thermal"
-            ? "@page { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: A4 landscape; margin: 8mm; }"}
+            ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
+            : "@page { size: A4 landscape; margin: 8mm; } @page :first { size: A4 landscape; margin: 8mm; } @page :left { size: A4 landscape; } @page :right { size: A4 landscape; }"}
         }
-
+        /* Hard-lock A4 to landscape even if the browser is asked to switch to portrait. */
+        @media print and (orientation: portrait) {
+          ${format === "a4" ? ".print-a4 { transform: rotate(-90deg) translateY(-100%); transform-origin: top left; width: 194mm; height: 281mm; }" : ""}
+        }
       `}</style>
     </div>
   );

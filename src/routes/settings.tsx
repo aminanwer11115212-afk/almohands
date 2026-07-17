@@ -346,3 +346,62 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
     </label>
   );
 }
+
+function LocalBackupSection() {
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<BackupEntry[]>(() => readBackupHistory());
+
+  function refresh() { setHistory(readBackupHistory()); }
+
+  async function runNow() {
+    setBusy(true);
+    try {
+      await runLocalBackup("manual");
+      toast.success("تم حفظ النسخة المحلية في مجلد التنزيلات");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "تعذّر إنشاء النسخة المحلية"));
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  }
+
+  const recent = history.slice().reverse().slice(0, 10);
+  return (
+    <section className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-3">
+      <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+        <HardDrive className="size-4 text-primary" />
+        النسخ الاحتياطي المحلي التلقائي
+      </h2>
+      <p className="text-xs text-muted-foreground">
+        يحفظ النظام نسخة محلية (JSON + Excel) في مجلد التنزيلات تلقائياً عند فتح التطبيق أول مرة يومياً وعند إغلاقه، ويحتفظ بسجل آخر 30 يوم.
+      </p>
+      <button onClick={runNow} disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2">
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <HardDrive className="size-4" />}
+        إنشاء نسخة الآن
+      </button>
+      {recent.length > 0 && (
+        <div className="border border-border rounded-lg divide-y divide-border text-xs">
+          {recent.map((e, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 p-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {e.ok
+                  ? <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                  : <AlertCircle className="size-3.5 text-red-600 shrink-0" />}
+                <span className="truncate">
+                  {e.kind === "open" ? "بداية اليوم" : e.kind === "close" ? "نهاية الجلسة" : "يدوي"}
+                  {" — "}
+                  {new Date(e.ts).toLocaleString("ar")}
+                </span>
+              </div>
+              <span className="text-muted-foreground shrink-0">
+                {e.ok ? `${Math.round(e.bytes / 1024)} ك.ب` : "فشل"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+

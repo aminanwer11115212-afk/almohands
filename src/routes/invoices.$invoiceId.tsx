@@ -988,6 +988,18 @@ function InvoiceDetailPage() {
             <Share2 className="size-4" /> اختر جهة اتصال
           </button>
 
+          {inv.status !== "cancelled" && Number(inv.remaining) > 0 && (
+            <button
+              onClick={() => setPayDialogOpen(true)}
+              className="flex items-center gap-1 text-sm bg-emerald-500/90 hover:bg-emerald-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
+              title="تسجيل دفعة جديدة على الفاتورة"
+              aria-label="تسجيل دفعة"
+            >
+              <Wallet className="size-4" />
+              <span className="hidden sm:inline">تسجيل دفعة</span>
+            </button>
+          )}
+
           <button
             onClick={() => setEditMode((v) => !v)}
             className={`flex items-center gap-1 text-sm rounded-lg px-2.5 sm:px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}

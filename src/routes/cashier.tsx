@@ -19,6 +19,16 @@ import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
@@ -41,6 +51,12 @@ function CashierPage() {
 
   const [query, setQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [customItemOpen, setCustomItemOpen] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUnit, setCustomUnit] = useState("قطعة");
+  const [customPrice, setCustomPrice] = useState("");
+  const [customCost, setCustomCost] = useState("0");
+  const [customQty, setCustomQty] = useState("1");
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -48,6 +64,7 @@ function CashierPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [showCustomerList, setShowCustomerList] = useState(false);
   const [discount, setDiscount] = useState("0");
+  const [markupPct, setMarkupPct] = useState("0");
   const [paid, setPaid] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,8 +135,12 @@ function CashierPage() {
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
     [cart],
   );
-  const discountNum = Math.min(subtotal, Math.max(0, parseNumber(discount, { min: 0 })));
-  const total = Math.max(0, subtotal - discountNum);
+  const markupNum = Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+  const markupMultiplier = 1 + markupNum / 100;
+  const subtotalAfterMarkup = subtotal * markupMultiplier;
+  const markupAmount = subtotalAfterMarkup - subtotal;
+  const discountNum = Math.min(subtotalAfterMarkup, Math.max(0, parseNumber(discount, { min: 0 })));
+  const total = Math.max(0, subtotalAfterMarkup - discountNum);
   const paidNum = paid === "" ? total : Math.max(0, parseNumber(paid, { min: 0 }));
   const remaining = total - paidNum;
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
@@ -155,6 +176,45 @@ function CashierPage() {
     });
   }
 
+  function addCustomItem() {
+    const name = customName.trim();
+    const unit = customUnit.trim() || "قطعة";
+    const price = parseNumber(customPrice, { min: 0 });
+    const cost = customCost.trim() === "" ? 0 : Math.max(0, parseNumber(customCost, { min: 0 }));
+    const qty = parseNumber(customQty, { min: 0 });
+    if (!name) {
+      toast.error("أدخل اسم الصنف");
+      return;
+    }
+    if (!(price > 0)) {
+      toast.error("سعر البيع يجب أن يكون أكبر من صفر");
+      return;
+    }
+    if (!(qty > 0)) {
+      toast.error("الكمية يجب أن تكون أكبر من صفر");
+      return;
+    }
+    setCart((prev) => [
+      ...prev,
+      {
+        productId: `custom-${Date.now()}`,
+        name,
+        unit,
+        unitPrice: price,
+        costPrice: cost,
+        quantity: qty,
+        maxQty: Number.MAX_SAFE_INTEGER,
+      },
+    ]);
+    setCustomItemOpen(false);
+    setCustomName("");
+    setCustomUnit("قطعة");
+    setCustomPrice("");
+    setCustomCost("0");
+    setCustomQty("1");
+    toast.success("تمت إضافة الصنف المخصص");
+  }
+
   function updateQty(id: string, delta: number) {
     setCart((prev) =>
       prev
@@ -188,6 +248,7 @@ function CashierPage() {
     if (confirm("مسح السلة بالكامل؟")) {
       setCart([]);
       setDiscount("0");
+      setMarkupPct("0");
       setPaid("");
       toast.success("تم مسح السلة");
     }
@@ -272,7 +333,7 @@ function CashierPage() {
             customer_phone: phone || null,
             source: "pos",
             status,
-            subtotal,
+            subtotal: subtotalAfterMarkup,
             discount: discountNum,
             total,
             paid: paidNum,
@@ -287,17 +348,20 @@ function CashierPage() {
         if (e1) throw e1;
         if (!inv) throw new Error("تعذّر إنشاء الفاتورة");
 
-        const items = cart.map((i) => ({
-          invoice_id: inv.id,
-          user_id: userId,
-          product_id: i.productId,
-          product_name: i.name,
-          unit: i.unit,
-          quantity: i.quantity,
-          unit_price: i.unitPrice,
-          cost_price: i.costPrice,
-          line_total: i.unitPrice * i.quantity,
-        }));
+        const items = cart.map((i) => {
+          const adjustedPrice = i.unitPrice * markupMultiplier;
+          return {
+            invoice_id: inv.id,
+            user_id: userId,
+            product_id: i.productId.startsWith("custom-") ? null : i.productId,
+            product_name: i.name,
+            unit: i.unit,
+            quantity: i.quantity,
+            unit_price: adjustedPrice,
+            cost_price: i.costPrice,
+            line_total: adjustedPrice * i.quantity,
+          };
+        });
         const { error: e2 } = await supabase.from("invoice_items").insert(items);
         if (e2) {
           await supabase.from("invoices").delete().eq("id", inv.id);
@@ -306,7 +370,10 @@ function CashierPage() {
 
         const shareText = buildInvoiceText(
           { invoice_number: inv.invoice_number, customer_name: trimmedName || null, total, paid: paidNum, remaining, created_at: new Date().toISOString() },
-          cart.map((i) => ({ product_name: i.name, quantity: i.quantity, unit_price: i.unitPrice, line_total: i.unitPrice * i.quantity })),
+          cart.map((i) => {
+            const adjustedPrice = i.unitPrice * markupMultiplier;
+            return { product_name: i.name, quantity: i.quantity, unit_price: adjustedPrice, line_total: adjustedPrice * i.quantity };
+          }),
           storeProfile?.name || "المتجر",
           { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
         );
@@ -324,6 +391,7 @@ function CashierPage() {
       setCustomerPhone("");
       setSelectedCustomerId(null);
       setDiscount("0");
+      setMarkupPct("0");
       setPaid("");
       setReferenceNumber("");
       setQuery("");
@@ -475,7 +543,94 @@ function CashierPage() {
               <Camera className="size-4" />
               <span className="hidden sm:inline">مسح</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setCustomItemOpen(true)}
+              aria-label="إضافة صنف مخصص"
+              title="إضافة صنف مخصص"
+              className="h-12 px-3 rounded-xl border border-border bg-card hover:bg-muted flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">صنف مخصص</span>
+            </button>
           </div>
+
+          <Dialog open={customItemOpen} onOpenChange={setCustomItemOpen}>
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle>إضافة صنف مخصص</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="custom-name">اسم الصنف</Label>
+                  <Input
+                    id="custom-name"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="مثال: خدمة تركيب"
+                    autoFocus
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="custom-unit">الوحدة</Label>
+                    <Input
+                      id="custom-unit"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      placeholder="قطعة"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="custom-qty">الكمية</Label>
+                    <Input
+                      id="custom-qty"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      value={customQty}
+                      onChange={(e) => setCustomQty(e.target.value)}
+                      className="nums"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="custom-price">سعر البيع</Label>
+                    <Input
+                      id="custom-price"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      value={customPrice}
+                      onChange={(e) => setCustomPrice(e.target.value)}
+                      className="nums"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="custom-cost">سعر التكلفة (اختياري)</Label>
+                    <Input
+                      id="custom-cost"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      value={customCost}
+                      onChange={(e) => setCustomCost(e.target.value)}
+                      className="nums"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCustomItemOpen(false)}>
+                  إلغاء
+                </Button>
+                <Button type="button" onClick={addCustomItem}>
+                  إضافة إلى السلة
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <BarcodeScannerDialog
             open={scannerOpen}
@@ -801,6 +956,24 @@ function CashierPage() {
           <div className="p-3 bg-muted/50 border-t border-border space-y-1.5">
             <Row label="الفرعي" value={formatSDG(subtotal)} />
             <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">نسبة زيادة %</span>
+              <div className="relative w-24">
+                <input
+                  value={markupPct}
+                  onChange={(e) => setMarkupPct(e.target.value.replace(/^-/, ""))}
+                  type="number"
+                  min={0}
+                  max={100}
+                  inputMode="decimal"
+                  className="w-full h-7 rounded border border-border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none focus:border-brand"
+                />
+                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+              </div>
+            </div>
+            {markupNum > 0 && (
+              <Row label={`+ زيادة ${formatNumber(markupNum)}%`} value={formatSDG(markupAmount)} highlight="emerald" />
+            )}
+            <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">الخصم</span>
               <input
                 value={discount}
@@ -810,6 +983,9 @@ function CashierPage() {
                 className="w-24 h-7 rounded border border-border bg-background text-left px-2 text-xs font-bold nums outline-none focus:border-brand"
               />
             </div>
+            {discountNum > 0 && (
+              <Row label="− خصم" value={formatSDG(discountNum)} highlight="rose" />
+            )}
             <div className="flex items-center justify-between pt-1.5 border-t border-border">
               <span className="text-sm font-bold">المطلوب</span>
               <span className="text-lg font-extrabold nums text-brand">{formatSDG(total)}</span>

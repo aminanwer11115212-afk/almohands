@@ -21,6 +21,7 @@ import {
   Activity,
   XCircle,
   ScanLine,
+  ClipboardList,
 
 
 } from "lucide-react";
@@ -43,6 +44,7 @@ const SECONDARY: NavItem[] = [
   { to: "/customers", label: "العملاء", icon: Users, perm: "customers.view" },
   { to: "/suppliers", label: "الموردين", icon: Truck, perm: "suppliers.view" },
   { to: "/expenses", label: "المصروفات", icon: Wallet, perm: "expenses.view" },
+  { to: "/special-orders", label: "طلبات النظام", icon: ClipboardList, perm: "special_orders.view" },
   { to: "/prices", label: "الأسعار", icon: Tags, perm: "products.write" },
   { to: "/returns", label: "المرتجعات", icon: RotateCcw, perm: "returns.view" },
   { to: "/reports", label: "التقارير", icon: PieChart, perm: "reports.view" },

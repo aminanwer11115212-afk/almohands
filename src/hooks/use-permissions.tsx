@@ -27,7 +27,9 @@ export type Permission =
   | "accounts.view"
   | "settings.write"
   | "permissions.manage"
-  | "import_export";
+  | "import_export"
+  | "special_orders.view"
+  | "special_orders.write";
 
 // admin implicitly gets everything. Only "seller" (labelled as كاشير) is exposed to admins.
 // Legacy roles (accountant, warehouse) are still recognised for existing accounts but not offered in the UI.
@@ -38,6 +40,7 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
     "invoices.view",             // view own invoices (no write/delete)
     "customers.view", "customers.write",
     "payment_methods.view",
+    "special_orders.view", "special_orders.write",
   ],
   accountant: [
     "products.view",
@@ -49,12 +52,14 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
     "returns.view",
     "reports.view",
     "accounts.view",
+    "special_orders.view",
   ],
   warehouse: [
     "products.view", "products.write",
     "suppliers.view", "suppliers.write",
     "returns.view", "returns.write",
     "invoices.view",
+    "special_orders.view",
   ],
 };
 

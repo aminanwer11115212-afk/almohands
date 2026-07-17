@@ -358,14 +358,55 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 function LocalBackupSection() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<BackupEntry[]>(() => readBackupHistory());
+  const [folderName, setFolderName] = useState<string | null>(null);
+  const [folderOk, setFolderOk] = useState<boolean>(false);
+  const supported = isFolderApiSupported();
 
   function refresh() { setHistory(readBackupHistory()); }
+
+  useEffect(() => {
+    (async () => {
+      const h = await getStoredBackupFolder();
+      if (!h) { setFolderName(null); setFolderOk(false); return; }
+      setFolderName(h.name);
+      // Do not prompt on mount — only query current permission state.
+      const ok = await ensureFolderPermission(h, false);
+      setFolderOk(ok);
+    })();
+  }, []);
+
+  async function chooseFolder() {
+    try {
+      const h = await pickBackupFolder();
+      if (h) {
+        setFolderName(h.name);
+        setFolderOk(true);
+        toast.success(`سيتم الحفظ تلقائياً داخل: ${h.name}`);
+      }
+    } catch (err) {
+      // User cancelled the dialog — silent.
+      if ((err as any)?.name !== "AbortError") {
+        toast.error(getErrorMessage(err, "تعذّر اختيار المجلد"));
+      }
+    }
+  }
+
+  async function forgetFolder() {
+    await forgetBackupFolder();
+    setFolderName(null);
+    setFolderOk(false);
+    toast.info("تمت إزالة المجلد — سيعود الحفظ إلى مجلد التنزيلات");
+  }
 
   async function runNow() {
     setBusy(true);
     try {
-      await runLocalBackup("manual");
-      toast.success("تم حفظ النسخة المحلية في مجلد التنزيلات");
+      const entry = await runLocalBackup("manual");
+      toast.success(
+        entry.target === "folder"
+          ? `تم الحفظ في المجلد: ${entry.folderName}`
+          : "تم حفظ النسخة في مجلد التنزيلات",
+      );
     } catch (err) {
       toast.error(getErrorMessage(err, "تعذّر إنشاء النسخة المحلية"));
     } finally {
@@ -381,13 +422,59 @@ function LocalBackupSection() {
         <HardDrive className="size-4 text-primary" />
         النسخ الاحتياطي المحلي التلقائي
       </h2>
-      <p className="text-xs text-muted-foreground">
-        يحفظ النظام نسخة محلية (JSON + Excel) في مجلد التنزيلات تلقائياً عند فتح التطبيق أول مرة يومياً وعند إغلاقه، ويحتفظ بسجل آخر 30 يوم.
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        يحفظ النظام نسخة كاملة (JSON + Excel) لكل بيانات النظام: المنتجات، الفواتير، العملاء، الموردين، المصروفات، المشتريات، الإرجاعات، سجل الأسعار، الإشعارات، إعدادات المحل.
+        الحفظ يتم <b>بدون أي رسالة</b> عند فتح البرنامج وعند إغلاقه، مرة واحدة يومياً لكل حالة.
       </p>
+
+      {/* Backup folder picker */}
+      <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/30">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <FolderOpen className="size-4 text-primary shrink-0" />
+            <div className="text-xs min-w-0">
+              <div className="font-semibold text-foreground">مجلد الحفظ على الجهاز</div>
+              <div className="text-muted-foreground truncate">
+                {folderName
+                  ? (folderOk
+                      ? `مفعّل: ${folderName}`
+                      : `${folderName} — يحتاج إذناً عند الحفظ التالي`)
+                  : "غير محدد — سيُحفظ في مجلد التنزيلات الافتراضي"}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {supported ? (
+              <>
+                <button onClick={chooseFolder} className="btn-secondary inline-flex items-center gap-1 text-xs">
+                  <FolderOpen className="size-3.5" />
+                  {folderName ? "تغيير المجلد" : "اختيار مجلد"}
+                </button>
+                {folderName && (
+                  <button onClick={forgetFolder} className="btn-secondary inline-flex items-center gap-1 text-xs">
+                    <FolderX className="size-3.5" /> إزالة
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                المتصفح لا يدعم اختيار مجلد — سيُحفظ في التنزيلات
+              </span>
+            )}
+          </div>
+        </div>
+        {supported && (
+          <p className="text-[11px] text-muted-foreground">
+            بمجرد اختيار المجلد مرة واحدة، تُكتب الملفات صامتاً بدون نافذة "حفظ باسم".
+          </p>
+        )}
+      </div>
+
       <button onClick={runNow} disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2">
         {busy ? <Loader2 className="size-4 animate-spin" /> : <HardDrive className="size-4" />}
         إنشاء نسخة الآن
       </button>
+
       {recent.length > 0 && (
         <div className="border border-border rounded-lg divide-y divide-border text-xs">
           {recent.map((e, i) => (
@@ -400,6 +487,7 @@ function LocalBackupSection() {
                   {e.kind === "open" ? "بداية اليوم" : e.kind === "close" ? "نهاية الجلسة" : "يدوي"}
                   {" — "}
                   {new Date(e.ts).toLocaleString("ar")}
+                  {e.target === "folder" && e.folderName ? ` — 📁 ${e.folderName}` : ""}
                 </span>
               </div>
               <span className="text-muted-foreground shrink-0">
@@ -412,4 +500,5 @@ function LocalBackupSection() {
     </section>
   );
 }
+
 

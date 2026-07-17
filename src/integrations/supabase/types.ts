@@ -491,7 +491,7 @@ export type Database = {
           invoice_id: string | null
           method: string | null
           notes: string | null
-          party_id: string
+          party_id: string | null
           party_type: string
           purchase_id: string | null
           user_id: string
@@ -504,7 +504,7 @@ export type Database = {
           invoice_id?: string | null
           method?: string | null
           notes?: string | null
-          party_id: string
+          party_id?: string | null
           party_type: string
           purchase_id?: string | null
           user_id: string
@@ -517,7 +517,7 @@ export type Database = {
           invoice_id?: string | null
           method?: string | null
           notes?: string | null
-          party_id?: string
+          party_id?: string | null
           party_type?: string
           purchase_id?: string | null
           user_id?: string

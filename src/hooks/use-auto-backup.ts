@@ -22,13 +22,13 @@ export function useAutoLocalBackup() {
         const { data } = await supabase.auth.getSession();
         if (cancelled || !data.session) return;
         if (hasBackupForToday("open")) return;
+        // Silent open backup — no toast. The history log tracks status.
         await runLocalBackup("open");
-        toast.success("تم حفظ نسخة احتياطية محلية (بداية اليوم)");
       } catch (err) {
-        // Silent — full detail lives in the backup history.
         console.warn("[auto-backup:open]", err);
       }
     }
+
 
     // Delay slightly so the app hydrates and the auth session is ready.
     const t = window.setTimeout(maybeOpenBackup, 2500);

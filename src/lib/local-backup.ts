@@ -22,6 +22,8 @@ const loadXlsx = () => (_xlsx ??= import("xlsx"));
 
 export type BackupKind = "open" | "close" | "manual";
 
+export type BackupTarget = "folder" | "download";
+
 export type BackupEntry = {
   kind: BackupKind;
   ts: string;      // ISO
@@ -29,8 +31,11 @@ export type BackupEntry = {
   filename: string;
   bytes: number;
   ok: boolean;
+  target?: BackupTarget;
+  folderName?: string;
   error?: string;
 };
+
 
 const HISTORY_KEY = "almohands.backupHistory.v1";
 const KEEP_DAYS = 30;

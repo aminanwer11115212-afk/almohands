@@ -116,7 +116,10 @@ async function renderElementToPdf(
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const isThermal = format === "thermal";
-  const pageWidth = isThermal ? 80 : 210;
+  // A4 invoices print in landscape (297mm × 210mm) on both mobile and desktop
+  // so wide item tables aren't squashed and match what the browser prints.
+  const pageWidth = isThermal ? 80 : 297;
+  const pageHeight = isThermal ? Math.max(297, 0) : 210;
   const marginX = isThermal ? 2 : 8;
   const marginY = isThermal ? 2 : 8;
   const contentWidth = pageWidth - marginX * 2;
@@ -125,14 +128,13 @@ async function renderElementToPdf(
   const pdf = new jsPDF({
     unit: "mm",
     format: isThermal ? [pageWidth, Math.max(297, imgHeight + marginY * 2)] : "a4",
-    orientation: "portrait",
+    orientation: isThermal ? "portrait" : "landscape",
   });
 
   if (isThermal) {
     pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, imgHeight);
   } else {
-    // Multi-page slicing for long A4 documents.
-    const pageHeight = 297;
+    // Multi-page slicing for long A4-landscape documents.
     const contentHeight = pageHeight - marginY * 2;
     let heightLeft = imgHeight;
     let position = marginY;
@@ -145,6 +147,7 @@ async function renderElementToPdf(
       heightLeft -= contentHeight;
     }
   }
+
 
   const blob = pdf.output("blob");
   return { blob, save: () => pdf.save(filename) };

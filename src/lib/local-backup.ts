@@ -139,7 +139,7 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
       catch (e) { data[t] = []; console.warn(`[backup] table ${t} skipped`, e); }
     }
 
-    // 3) JSON file.
+    // 3) Build JSON + XLSX blobs.
     const jsonPayload = {
       app: "almohands",
       version: 3,
@@ -152,14 +152,11 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
       type: "application/json",
     });
     const jsonName = `${base}.json`;
-    triggerDownload(jsonBlob, jsonName);
 
-    // 4) XLSX file (one sheet per table).
     const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     for (const [name, rows] of Object.entries(data)) {
       const ws = XLSX.utils.json_to_sheet((rows as any[]).length ? (rows as any[]) : [{}]);
-      // Sheet names are limited to 31 chars.
       XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
     }
     const xlsxAb = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
@@ -167,13 +164,36 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const xlsxName = `${base}.xlsx`;
-    triggerDownload(xlsxBlob, xlsxName);
+
+    // 4) Prefer silent write into the user-selected backup folder.
+    let target: BackupTarget = "download";
+    let folderName: string | undefined;
+    const dir = await getStoredBackupFolder();
+    if (dir) {
+      const ok = await ensureFolderPermission(dir, kind === "manual");
+      if (ok) {
+        try {
+          await writeBlobToFolder(dir, jsonName, jsonBlob);
+          await writeBlobToFolder(dir, xlsxName, xlsxBlob);
+          target = "folder";
+          folderName = dir.name;
+        } catch (e) {
+          console.warn("[backup] folder write failed, falling back to download", e);
+        }
+      }
+    }
+    if (target === "download") {
+      triggerDownload(jsonBlob, jsonName);
+      triggerDownload(xlsxBlob, xlsxName);
+    }
 
     const entry: BackupEntry = {
       kind, ts: now.toISOString(), day,
       filename: `${jsonName} + ${xlsxName}`,
       bytes: jsonBlob.size + xlsxBlob.size,
       ok: true,
+      target,
+      folderName,
     };
     writeHistory([...readBackupHistory(), entry]);
     return entry;
@@ -187,3 +207,4 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
     throw err;
   }
 }
+

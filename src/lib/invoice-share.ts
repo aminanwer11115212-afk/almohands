@@ -90,105 +90,74 @@ export function openWhatsAppShare(phone: string | null | undefined, text: string
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-async function loadHtml2pdf() {
-  const mod = await import("html2pdf.js");
-  return (mod as any).default ?? (mod as any);
-}
-
 /**
- * html2canvas (used by html2pdf.js) cannot parse modern CSS color functions
- * like oklch(). Convert every oklch(...) occurrence on the cloned document's
- * CSS custom properties to sRGB (hex/rgb) via a canvas 2D context, so the
- * captured element resolves colors that html2canvas understands.
+ * Render an element to a PDF using html2canvas-pro (which natively supports
+ * modern CSS color functions such as oklch() — the previous html2pdf.js path
+ * threw "Attempting to parse an unsupported color function \"oklch\"" on
+ * Tailwind v4 themes). Multi-page A4 output; thermal single-page 80mm.
  */
-function neutralizeOklchInClone(clonedDoc: Document) {
-  try {
-    const ctx = document.createElement("canvas").getContext("2d");
-    if (!ctx) return;
-    const toRgb = (val: string): string =>
-      val.replace(/oklch\([^()]*(?:\([^()]*\)[^()]*)*\)/gi, (m) => {
-        try {
-          ctx.fillStyle = "#000";
-          ctx.fillStyle = m;
-          return typeof ctx.fillStyle === "string" ? ctx.fillStyle : m;
-        } catch {
-          return m;
-        }
-      });
+async function renderElementToPdf(
+  el: HTMLElement,
+  filename: string,
+  format: "a4" | "thermal",
+): Promise<{ blob: Blob; save: () => void }> {
+  const [{ default: html2canvas }, jspdfMod] = await Promise.all([
+    import("html2canvas-pro"),
+    import("jspdf"),
+  ]);
+  const { jsPDF } = jspdfMod as typeof import("jspdf");
 
-    // Collect all CSS custom property names declared on :root / .dark / html.
-    const names = new Set<string>();
-    for (const sheet of Array.from(document.styleSheets)) {
-      let rules: CSSRuleList | null = null;
-      try { rules = sheet.cssRules; } catch { continue; }
-      if (!rules) continue;
-      for (const rule of Array.from(rules)) {
-        const r = rule as CSSStyleRule;
-        if (!r.selectorText) continue;
-        if (!/^(:root|html|\.dark)\b/.test(r.selectorText)) continue;
-        for (const p of Array.from(r.style)) {
-          if (p.startsWith("--")) names.add(p);
-        }
-      }
-    }
-
-    const rootCS = getComputedStyle(document.documentElement);
-    const overrides: string[] = [];
-    for (const name of names) {
-      const raw = rootCS.getPropertyValue(name).trim();
-      if (!raw || !/oklch\(/i.test(raw)) continue;
-      overrides.push(`${name}: ${toRgb(raw)};`);
-    }
-
-    const style = clonedDoc.createElement("style");
-    style.setAttribute("data-oklch-shim", "");
-    style.textContent = `:root, html, .dark { ${overrides.join(" ")} }`;
-    clonedDoc.head.appendChild(style);
-
-    // Also inline oklch found on element style attributes.
-    const walk = (node: Element) => {
-      const s = node.getAttribute("style");
-      if (s && /oklch\(/i.test(s)) node.setAttribute("style", toRgb(s));
-      for (const child of Array.from(node.children)) walk(child);
-    };
-    if (clonedDoc.body) walk(clonedDoc.body);
-  } catch {
-    /* ignore — better to attempt export than to block on shim failure */
-  }
-}
-
-function pdfOptions(filename: string, format: "a4" | "thermal") {
-  const html2canvas = {
+  const canvas = await html2canvas(el, {
     scale: 2,
     useCORS: true,
     backgroundColor: "#ffffff",
-    onclone: (doc: Document) => neutralizeOklchInClone(doc),
-  };
-  return format === "thermal"
-    ? {
-        margin: 2,
-        filename,
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas,
-        jsPDF: { unit: "mm", format: [80, 297], orientation: "portrait" as const },
-      }
-    : {
-        margin: 8,
-        filename,
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas,
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" as const },
-      };
+    logging: false,
+  });
+
+  const imgData = canvas.toDataURL("image/jpeg", 0.95);
+  const isThermal = format === "thermal";
+  const pageWidth = isThermal ? 80 : 210;
+  const marginX = isThermal ? 2 : 8;
+  const marginY = isThermal ? 2 : 8;
+  const contentWidth = pageWidth - marginX * 2;
+  const imgHeight = (canvas.height * contentWidth) / canvas.width;
+
+  const pdf = new jsPDF({
+    unit: "mm",
+    format: isThermal ? [pageWidth, Math.max(297, imgHeight + marginY * 2)] : "a4",
+    orientation: "portrait",
+  });
+
+  if (isThermal) {
+    pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, imgHeight);
+  } else {
+    // Multi-page slicing for long A4 documents.
+    const pageHeight = 297;
+    const contentHeight = pageHeight - marginY * 2;
+    let heightLeft = imgHeight;
+    let position = marginY;
+    pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
+    heightLeft -= contentHeight;
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = marginY - (imgHeight - heightLeft);
+      pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
+      heightLeft -= contentHeight;
+    }
+  }
+
+  const blob = pdf.output("blob");
+  return { blob, save: () => pdf.save(filename) };
 }
 
-/** Download an HTMLElement as a PDF using html2pdf.js. */
+/** Download an HTMLElement as a PDF. */
 export async function downloadElementAsPdf(
   el: HTMLElement,
   filename: string,
   format: "a4" | "thermal" = "a4",
 ) {
-  const html2pdf = await loadHtml2pdf();
-  await html2pdf().set(pdfOptions(filename, format)).from(el).save();
+  const { save } = await renderElementToPdf(el, filename, format);
+  save();
 }
 
 /** Generate a PDF Blob from an HTMLElement (for sharing/attaching). */
@@ -197,10 +166,10 @@ export async function elementToPdfBlob(
   filename: string,
   format: "a4" | "thermal" = "a4",
 ): Promise<Blob> {
-  const html2pdf = await loadHtml2pdf();
-  const blob: Blob = await html2pdf().set(pdfOptions(filename, format)).from(el).output("blob");
+  const { blob } = await renderElementToPdf(el, filename, format);
   return blob;
 }
+
 
 /**
  * Share invoice as PDF via WhatsApp.

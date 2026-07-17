@@ -150,14 +150,23 @@ export function useSpecialOrderHistory(orderId: string | null | undefined) {
     queryKey: ["special-order-history", orderId],
     enabled: !!orderId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("special_order_history" as never)
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (c: string, v: string) => {
+              order: (c: string, o: { ascending: boolean }) => Promise<{ data: SpecialOrderHistoryEntry[] | null; error: Error | null }>;
+            };
+          };
+        };
+      })
+        .from("special_order_history")
         .select("*")
         .eq("order_id", orderId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as SpecialOrderHistoryEntry[];
+      return data ?? [];
     },
+
     staleTime: 5_000,
   });
 }

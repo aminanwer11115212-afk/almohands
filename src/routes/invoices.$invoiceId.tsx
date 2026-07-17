@@ -95,6 +95,8 @@ function InvoiceDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewFitMode, setPreviewFitMode] = useState<"fit" | "100">("fit");
+  const [showGuides, setShowGuides] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);

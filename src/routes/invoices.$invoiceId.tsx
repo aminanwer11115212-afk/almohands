@@ -1103,16 +1103,21 @@ function InvoiceDetailPage() {
                     <th className="p-2 w-24">الكمية</th>
                     <th className="p-2 w-32">سعر الوحدة</th>
                     <th className="p-2 w-32">الإجمالي</th>
+                    <th className="p-2 w-12"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-100">
-                  {editRows.map((row, i) => {
+                  {visibleEditRows.map((row) => {
+                    const i = editRows.findIndex((r) => r.id === row.id);
                     const err = rowErrors[row.id] ?? {};
                     const max = maxAllowedFor(row);
                     const over = max !== null && row.quantity > max;
                     return (
-                    <tr key={row.id}>
-                      <td className="p-2 align-top">{row.product_name}</td>
+                    <tr key={row.id} className={row._isNew ? "bg-emerald-50/70" : undefined}>
+                      <td className="p-2 align-top">
+                        {row.product_name}
+                        {row._isNew && <span className="ms-2 text-[10px] rounded bg-emerald-600 text-white px-1.5 py-0.5">جديد</span>}
+                      </td>
                       <td className="p-2 align-top">
                         <input
                           type="number"
@@ -1183,12 +1188,85 @@ function InvoiceDetailPage() {
                       <td className="p-2 text-center font-semibold nums align-top">
                         {formatSDG(row.quantity * row.unit_price)}
                       </td>
+                      <td className="p-2 align-top text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (row._isNew) {
+                              setEditRows((rows) => rows.filter((r) => r.id !== row.id));
+                            } else {
+                              setDeletedRowIds((s) => new Set(s).add(row.id));
+                            }
+                          }}
+                          className="text-red-600 hover:bg-red-50 rounded p-1"
+                          title="حذف هذا الصنف من الفاتورة"
+                          aria-label="حذف الصنف"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </td>
                     </tr>
                     );
                   })}
+                  {visibleEditRows.length === 0 && (
+                    <tr><td colSpan={5} className="p-4 text-center text-muted-foreground text-sm">لا توجد أصناف — أضف صنفاً من الأسفل.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* Deleted rows summary + undo */}
+            {deletedRowIds.size > 0 && (
+              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-800 flex items-center justify-between">
+                <span>سيتم حذف {deletedRowIds.size} صنف عند الحفظ (تُعاد الكميات إلى المخزون).</span>
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setDeletedRowIds(new Set())}
+                >تراجع</button>
+              </div>
+            )}
+
+            {/* Add-item search box */}
+            <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
+              <label className="text-xs font-semibold text-emerald-900 flex items-center gap-1 mb-2">
+                <Plus className="size-3.5" /> إضافة صنف جديد إلى الفاتورة
+              </label>
+              <div className="relative">
+                <Search className="size-4 absolute top-1/2 -translate-y-1/2 start-2 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={addQuery}
+                  onChange={(e) => { setAddQuery(e.target.value); setAddPickerOpen(true); }}
+                  onFocus={() => setAddPickerOpen(true)}
+                  placeholder="ابحث بالاسم أو الباركود..."
+                  className="w-full h-10 rounded-md border border-input bg-background ps-8 pe-3 text-sm"
+                />
+                {addPickerOpen && productMatches.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-input bg-popover shadow-lg">
+                    {productMatches.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => addProductToInvoice(p)}
+                        className="w-full text-right px-3 py-2 hover:bg-muted text-sm flex items-center justify-between gap-2 border-b last:border-b-0"
+                      >
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-xs text-muted-foreground nums">
+                          {formatSDG(p.salePrice)} — المتاح {p.quantity}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {addPickerOpen && addQuery.trim() && productMatches.length === 0 && (
+                  <div className="absolute z-20 mt-1 w-full rounded-lg border border-input bg-popover shadow-lg p-3 text-xs text-muted-foreground">
+                    لا توجد نتائج مطابقة.
+                  </div>
+                )}
+              </div>
+            </div>
+
             {hasFieldErrors && (
               <div className="mt-2 text-sm text-destructive flex items-center gap-1">
                 <AlertTriangle className="size-4" /> يوجد قيم غير صالحة — صحّحها قبل الحفظ.

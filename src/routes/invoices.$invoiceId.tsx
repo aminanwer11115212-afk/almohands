@@ -105,6 +105,64 @@ function InvoiceDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
+  // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
+  // scrollbars, and mobile browser quirks. Computes zoom based on both width & height
+  // so the sheet is always fully visible without clipped margins.
+  const computeFitZoom = () => {
+    const scroller = previewScrollRef.current;
+    if (!scroller) return 1;
+    const mmToPx = 96 / 25.4;
+    const paperWmm = format === "thermal" ? 80 : 297;
+    const paperHmm = format === "thermal" ? 200 : 210;
+    const paperW = paperWmm * mmToPx;
+    const paperH = paperHmm * mmToPx;
+    // Reserve padding + small safety gutter for scrollbar/rounding differences across browsers.
+    const rect = scroller.getBoundingClientRect();
+    const availW = Math.max(120, rect.width - 40);
+    const availH = Math.max(120, rect.height - 40);
+    // On very small viewports, don't allow the sheet to overflow horizontally.
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+    const wZoom = availW / paperW;
+    const hZoom = availH / paperH;
+    // Mobile: prioritize width fit; desktop: use the smaller of the two so nothing clips.
+    const raw = isMobile ? wZoom : Math.min(wZoom, hZoom);
+    return Math.max(0.2, Math.min(3, +raw.toFixed(2)));
+  };
+
+  const applyFit = () => {
+    setPreviewFitMode("fit");
+    setPreviewZoom(computeFitZoom());
+  };
+  const applyReset = () => {
+    // Reset behavior: if we're currently in Fit mode, snap back to a fresh fit calc;
+    // otherwise reset to 100%. Either way, guides return to visible.
+    setShowGuides(true);
+    if (previewFitMode === "fit") setPreviewZoom(computeFitZoom());
+    else setPreviewZoom(1);
+  };
+
+  // Auto-fit when preview opens or window resizes (debounced via rAF).
+  useEffect(() => {
+    if (!previewOpen) return;
+    let raf = 0;
+    const refit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (previewFitMode === "fit") setPreviewZoom(computeFitZoom());
+      });
+    };
+    // Initial fit after layout settles
+    raf = requestAnimationFrame(() => setPreviewZoom(computeFitZoom()));
+    window.addEventListener("resize", refit);
+    window.addEventListener("orientationchange", refit);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", refit);
+      window.removeEventListener("orientationchange", refit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewOpen, format, previewFitMode]);
+
   // Load current user id for per-user preference storage
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, Loader2, Pencil, Trash2, Search, MoreVertical, Check } from "lucide-react";
+import { Plus, Loader2, Pencil, Trash2, Search, MoreVertical, Check, FileDown, FileSpreadsheet, Receipt, History } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { toast } from "sonner";
@@ -9,16 +9,20 @@ import { formatSDG } from "@/lib/format";
 import { useMyRole } from "@/hooks/use-permissions";
 import { useCustomers } from "@/hooks/use-customers";
 import { useSuppliers } from "@/hooks/use-suppliers";
+import { exportPdfFromRows } from "@/lib/pdf-html-export";
+import { buildCsvBlob, saveBlob } from "@/lib/csv-export";
 import {
   useSpecialOrders,
   useAddSpecialOrder,
   useUpdateSpecialOrder,
   useUpdateSpecialOrderStatus,
   useDeleteSpecialOrder,
+  useSpecialOrderHistory,
   type SpecialOrder,
   type SpecialOrderPriority,
   type SpecialOrderStatus,
 } from "@/hooks/use-special-orders";
+
 import {
   Dialog,
   DialogContent,

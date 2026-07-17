@@ -40,12 +40,13 @@ export function useAutoLocalBackup() {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
         closeFiredRef.current = true;
+        // Silent close backup — no toast (pagehide won't render one anyway).
         await runLocalBackup("close");
-        toast.success("تم حفظ نسخة احتياطية محلية (نهاية الجلسة)");
       } catch (err) {
         console.warn("[auto-backup:close]", err);
       }
     }
+
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") void maybeCloseBackup();

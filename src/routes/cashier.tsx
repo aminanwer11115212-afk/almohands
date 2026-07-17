@@ -179,7 +179,19 @@ function CashierPage() {
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
     [cart],
   );
-  const markupNum = Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+  // Validate the raw markup input separately so we can surface a clear message
+  // and block checkout on out-of-range values (negative, non-numeric, > 100).
+  const markupError = useMemo(() => {
+    const raw = markupPct.trim();
+    if (raw === "") return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return "نسبة الزيادة يجب أن تكون رقماً";
+    if (n < 0) return "نسبة الزيادة لا يمكن أن تكون سالبة";
+    if (n > 100) return "نسبة الزيادة لا يمكن أن تتجاوز 100%";
+    return null;
+  }, [markupPct]);
+  const markupNum = markupError ? 0 : Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+
   const markupMultiplier = 1 + markupNum / 100;
   const subtotalAfterMarkup = subtotal * markupMultiplier;
   const markupAmount = subtotalAfterMarkup - subtotal;

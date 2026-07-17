@@ -267,8 +267,9 @@ function InvoiceDetailPage() {
                 setEditRows(
                   data.items.map((it: any) => ({
                     id: it.id, product_id: it.product_id, product_name: it.product_name,
+                    unit: it.unit ?? "قطعة",
                     quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0,
-                    _origQty: Number(it.quantity) || 0,
+                    _origQty: Number(it.quantity) || 0, _isNew: false,
                   })),
                 );
               },

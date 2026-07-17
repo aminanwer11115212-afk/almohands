@@ -815,6 +815,47 @@ export type Database = {
           },
         ]
       }
+      special_order_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          order_id: string
+          reason: string | null
+          to_status: string
+          user_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          order_id: string
+          reason?: string | null
+          to_status: string
+          user_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          order_id?: string
+          reason?: string | null
+          to_status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_order_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "special_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       special_orders: {
         Row: {
           cancellation_reason: string | null
@@ -825,6 +866,7 @@ export type Database = {
           description: string | null
           expected_at: string | null
           id: string
+          invoice_id: string | null
           item_name: string
           notes: string | null
           priority: string
@@ -845,6 +887,7 @@ export type Database = {
           description?: string | null
           expected_at?: string | null
           id?: string
+          invoice_id?: string | null
           item_name: string
           notes?: string | null
           priority?: string
@@ -865,6 +908,7 @@ export type Database = {
           description?: string | null
           expected_at?: string | null
           id?: string
+          invoice_id?: string | null
           item_name?: string
           notes?: string | null
           priority?: string
@@ -882,6 +926,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_orders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {

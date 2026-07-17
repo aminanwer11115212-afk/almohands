@@ -560,12 +560,13 @@ function InvoiceDetailPage() {
    * Files / Telegram / AirDrop). On desktop or unsupported browsers it
    * gracefully falls back to a local download.
    */
-  async function handleSharePdfNative() {
+  async function handleSharePdfNative(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);
     const reqId = newRequestId("pdf-share");
+    const loadingId = toast.loading("جارٍ تجهيز ملف PDF للمشاركة…");
     try {
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       const text = buildInvoiceText(inv, items, storeName, {
@@ -577,18 +578,39 @@ function InvoiceDetailPage() {
         title: `فاتورة #${inv.invoice_number}`,
         text,
       });
-      if (result === "shared") toast.success("تمت المشاركة");
-      else if (result === "downloaded") toast.info("تم تنزيل الـ PDF (المشاركة المباشرة غير مدعومة على هذا الجهاز)");
-      logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result } });
+      toast.dismiss(loadingId);
+      if (result === "shared") {
+        toast.success("✅ تمت مشاركة ملف PDF بنجاح");
+      } else if (result === "downloaded") {
+        toast.info("📥 تم تنزيل الملف — جهازك لا يدعم المشاركة المباشرة", {
+          description: "يمكنك الآن رفع الملف يدوياً في أي تطبيق.",
+        });
+      } else {
+        toast("تم إلغاء المشاركة");
+      }
+      logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result, attempt } });
     } catch (e) {
-      handleError(e, "تعذّرت مشاركة الـ PDF", {
+      toast.dismiss(loadingId);
+      handleError(e, attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
         event: "pdf_share_native_failed",
-        context: { reqId, invoiceId: inv.id },
-        action: { label: "تنزيل بدلاً من ذلك", onClick: () => handleDownloadPdf() },
+        context: { reqId, invoiceId: inv.id, attempt },
+        action: attempt < 2
+          ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
+          : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
       });
     } finally {
       setPdfBusy(false);
     }
+  }
+
+  /** Show a quick confirmation toast before opening the print dialog. */
+  function confirmAndPrint() {
+    toast("إرسال الفاتورة إلى الطابعة؟", {
+      description: format === "thermal" ? "الحجم: 80mm حراري" : "الحجم: A4",
+      action: { label: "تأكيد الطباعة", onClick: () => tryPrint() },
+      cancel: { label: "إلغاء", onClick: () => {} },
+      duration: 6000,
+    });
   }
 
   function sendWhatsAppText(phone: string | null) {

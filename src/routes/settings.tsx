@@ -291,6 +291,9 @@ function SettingsPage() {
           </div>
         </Section>
 
+        <LocalBackupSection />
+
+
         <p className="text-center text-[11px] text-muted-foreground py-2">المهندس — إصدار 1.1</p>
       </div>
 

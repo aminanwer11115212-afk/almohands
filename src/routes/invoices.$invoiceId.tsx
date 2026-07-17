@@ -1191,12 +1191,14 @@ function InvoiceDetailPage() {
         @media print {
           body { background: white !important; }
           .print\\:hidden { display: none !important; }
-          .print-a4 { width: 210mm; min-height: 297mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
+          /* A4 landscape = 297mm wide × 210mm tall */
+          .print-a4 { width: 297mm; min-height: 210mm; margin: 0 auto; box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-thermal { width: 80mm; margin: 0 auto; box-shadow: none !important; border: none !important; }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: A4; margin: 8mm; }"}
+            : "@page { size: A4 landscape; margin: 8mm; }"}
         }
+
       `}</style>
     </div>
   );

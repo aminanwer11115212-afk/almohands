@@ -338,6 +338,13 @@ function CashierPage() {
       toast.error("اختر حساباً بنكياً");
       return;
     }
+    if (markupError) {
+      setError(markupError);
+      toast.error(markupError);
+      return;
+    }
+
+
 
     setError(null);
     setSaving(true);

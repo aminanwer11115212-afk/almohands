@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2, HardDrive } from "lucide-react";
+import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2, HardDrive, FolderOpen, FolderX } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";

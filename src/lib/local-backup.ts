@@ -1,12 +1,19 @@
 /**
  * Local automatic backup.
  * Fetches all business tables via the browser supabase client (RLS applies),
- * packages them as JSON + XLSX and triggers a download to the device's
- * default Downloads folder. Tracks completion in localStorage so we only
- * back up once per session boundary (open / close) per day, keeping a
- * 30-day rolling history.
+ * packages them as JSON + XLSX and writes them either silently into the
+ * user-selected backup folder (File System Access API) or, as a fallback,
+ * triggers a normal browser download. Tracks completion in localStorage so
+ * we only back up once per session boundary (open / close) per day, and
+ * keeps a 30-day rolling history.
  */
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getStoredBackupFolder,
+  ensureFolderPermission,
+  writeBlobToFolder,
+} from "@/lib/backup-folder";
+
 
 // Lazy-loaded XLSX to keep the initial bundle light.
 type XlsxMod = typeof import("xlsx");

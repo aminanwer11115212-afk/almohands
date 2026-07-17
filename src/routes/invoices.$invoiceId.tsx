@@ -537,6 +537,109 @@ function InvoiceDetailPage() {
     }),
   });
 
+  // ============ Product search for "Add item" in edit mode ============
+  const { data: allProducts = [] } = useProducts({ q: addQuery, sort: "name", asc: true });
+  const productMatches = useMemo(() => {
+    if (!addQuery.trim()) return [] as typeof allProducts;
+    return allProducts.slice(0, 10);
+  }, [allProducts, addQuery]);
+
+  function addProductToInvoice(p: (typeof allProducts)[number]) {
+    setEditRows((rows) => [
+      ...rows,
+      {
+        id: (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
+        product_id: p.id,
+        product_name: p.name,
+        unit: p.unit || "قطعة",
+        quantity: 1,
+        unit_price: p.salePrice,
+        _origQty: 0,
+        _isNew: true,
+      },
+    ]);
+    setAddQuery("");
+    setAddPickerOpen(false);
+  }
+
+  // ============ Add-payment dialog ============
+  const { data: paymentMethods = [] } = usePaymentMethods(true);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payMethodId, setPayMethodId] = useState<string>("");
+  const [payReference, setPayReference] = useState<string>("");
+  const [payNotes, setPayNotes] = useState<string>("");
+
+  useEffect(() => {
+    if (!payDialogOpen) return;
+    // Prefill with the remaining amount and default method.
+    const remaining = Math.max(0, Number(data?.inv?.remaining) || 0);
+    setPayAmount(remaining > 0 ? String(remaining) : "");
+    if (!payMethodId && paymentMethods.length > 0) {
+      const def = paymentMethods.find((m) => m.is_default) ?? paymentMethods[0];
+      setPayMethodId(def.id);
+    }
+    setPayReference("");
+    setPayNotes("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payDialogOpen]);
+
+  const addPaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
+      const inv = data.inv;
+      const amount = Number(payAmount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("أدخل مبلغاً صحيحاً");
+      const remaining = Math.max(0, Number(inv.remaining) || 0);
+      if (amount > remaining) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
+      const method = paymentMethods.find((m) => m.id === payMethodId);
+      if (!method) throw new Error("اختر حساب الدفع");
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id;
+      if (!uid) throw new Error("يجب تسجيل الدخول");
+
+      const notesParts: string[] = [];
+      if (method.type === "bank" && payReference.trim()) notesParts.push(`رقم العملية: ${payReference.trim()}`);
+      if (payNotes.trim()) notesParts.push(payNotes.trim());
+
+      const { error: payErr } = await supabase.from("payments").insert({
+        user_id: uid,
+        party_type: inv.customer_id ? "customer" : null,
+        party_id: inv.customer_id ?? null,
+        amount,
+        method: method.type,
+        account_id: method.id,
+        invoice_id: inv.id,
+        notes: notesParts.join(" — ") || null,
+      } as never);
+      if (payErr) throw payErr;
+
+      const newPaid = (Number(inv.paid) || 0) + amount;
+      const newRemaining = Math.max(0, (Number(inv.total) || 0) - newPaid);
+      const newStatus: "paid" | "partial" | "pending" =
+        newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+      const { error: invErr } = await supabase
+        .from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status: newStatus })
+        .eq("id", inv.id);
+      if (invErr) throw invErr;
+      return { amount, newRemaining };
+    },
+    onSuccess: (res) => {
+      toast.success("تم تسجيل الدفعة", {
+        description: `المتبقي: ${formatSDG(res.newRemaining)}`,
+      });
+      setPayDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+    },
+    onError: (e) => handleError(e, "تعذّر تسجيل الدفعة"),
+  });
+
+
+
   const cancelMutation = useMutation({
     mutationFn: async (reason: string) => {
       const trimmed = reason.trim();

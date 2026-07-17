@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
@@ -560,12 +560,13 @@ function InvoiceDetailPage() {
    * Files / Telegram / AirDrop). On desktop or unsupported browsers it
    * gracefully falls back to a local download.
    */
-  async function handleSharePdfNative() {
+  async function handleSharePdfNative(attempt = 1) {
     const el = previewRef.current ?? printRef.current;
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);
     const reqId = newRequestId("pdf-share");
+    const loadingId = toast.loading("جارٍ تجهيز ملف PDF للمشاركة…");
     try {
       const filename = `فاتورة-${inv.invoice_number}.pdf`;
       const text = buildInvoiceText(inv, items, storeName, {
@@ -577,18 +578,39 @@ function InvoiceDetailPage() {
         title: `فاتورة #${inv.invoice_number}`,
         text,
       });
-      if (result === "shared") toast.success("تمت المشاركة");
-      else if (result === "downloaded") toast.info("تم تنزيل الـ PDF (المشاركة المباشرة غير مدعومة على هذا الجهاز)");
-      logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result } });
+      toast.dismiss(loadingId);
+      if (result === "shared") {
+        toast.success("✅ تمت مشاركة ملف PDF بنجاح");
+      } else if (result === "downloaded") {
+        toast.info("📥 تم تنزيل الملف — جهازك لا يدعم المشاركة المباشرة", {
+          description: "يمكنك الآن رفع الملف يدوياً في أي تطبيق.",
+        });
+      } else {
+        toast("تم إلغاء المشاركة");
+      }
+      logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result, attempt } });
     } catch (e) {
-      handleError(e, "تعذّرت مشاركة الـ PDF", {
+      toast.dismiss(loadingId);
+      handleError(e, attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
         event: "pdf_share_native_failed",
-        context: { reqId, invoiceId: inv.id },
-        action: { label: "تنزيل بدلاً من ذلك", onClick: () => handleDownloadPdf() },
+        context: { reqId, invoiceId: inv.id, attempt },
+        action: attempt < 2
+          ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
+          : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
       });
     } finally {
       setPdfBusy(false);
     }
+  }
+
+  /** Show a quick confirmation toast before opening the print dialog. */
+  function confirmAndPrint() {
+    toast("إرسال الفاتورة إلى الطابعة؟", {
+      description: format === "thermal" ? "الحجم: 80mm حراري" : "الحجم: A4",
+      action: { label: "تأكيد الطباعة", onClick: () => tryPrint() },
+      cancel: { label: "إلغاء", onClick: () => {} },
+      duration: 6000,
+    });
   }
 
   function sendWhatsAppText(phone: string | null) {
@@ -651,76 +673,70 @@ function InvoiceDetailPage() {
 
           <button
             onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
-            title="معاينة قبل الإرسال"
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            title="معاينة قبل الطباعة أو المشاركة"
+            aria-label="معاينة"
           >
-            <Eye className="size-4" /> معاينة
-          </button>
-
-          <button
-            onClick={() => handleDownloadPdf()}
-            disabled={pdfBusy}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
-            title="حفظ ملف PDF على الجهاز"
-          >
-            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            حفظ PDF
+            <Eye className="size-4" /> <span className="hidden sm:inline">معاينة</span>
           </button>
 
           <button
             onClick={() => handleSharePdfNative()}
             disabled={pdfBusy}
-            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
             title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
+            aria-label="مشاركة PDF"
           >
             {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            مشاركة PDF
+            <span className="hidden sm:inline">مشاركة PDF</span>
+          </button>
+
+          <button
+            onClick={confirmAndPrint}
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
+            aria-label="طباعة"
+          >
+            <Printer className="size-4" /> <span className="hidden sm:inline">طباعة</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
             title={inv.customer_phone ? "إرسال نص الفاتورة إلى رقم العميل" : "إرسال نص الفاتورة — اختر جهة الاتصال"}
+            aria-label="واتساب"
           >
             {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            واتساب
+            <span className="hidden sm:inline">واتساب</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare({ pickContact: true })}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="hidden sm:flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
             title="اختر جهة اتصال من واتساب وأرسل نص الفاتورة"
           >
             <Share2 className="size-4" /> اختر جهة اتصال
           </button>
 
-
-          <button
-            onClick={tryPrint}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
-          >
-            <Printer className="size-4" /> طباعة
-          </button>
-
-
           <button
             onClick={() => setEditMode((v) => !v)}
-            className={`flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
+            className={`flex items-center gap-1 text-sm rounded-lg px-2.5 sm:px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
             title={editMode ? "إلغاء التعديل" : "تعديل بنود الفاتورة"}
+            aria-label={editMode ? "إلغاء" : "تعديل"}
           >
             {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
-            {editMode ? "إلغاء" : "تعديل"}
+            <span className="hidden sm:inline">{editMode ? "إلغاء" : "تعديل"}</span>
           </button>
 
           {inv.status !== "cancelled" && (
             <button
               onClick={() => setCancelOpen(true)}
-              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-3 py-1.5"
+              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
               title="إلغاء الفاتورة مع إدخال سبب"
             >
-              <X className="size-4" /> إلغاء الفاتورة
+              <X className="size-4" /> <span className="hidden sm:inline">إلغاء الفاتورة</span>
             </button>
           )}
         </div>
@@ -1008,7 +1024,7 @@ function InvoiceDetailPage() {
               )}
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <button
               onClick={() => setPreviewOpen(false)}
               className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
@@ -1016,12 +1032,10 @@ function InvoiceDetailPage() {
               إغلاق
             </button>
             <button
-              onClick={() => handleDownloadPdf()}
-              disabled={pdfBusy}
-              className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              onClick={confirmAndPrint}
+              className="px-4 h-9 rounded-md bg-white/10 border border-input text-sm font-bold flex items-center gap-1 hover:bg-muted"
             >
-              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              حفظ PDF
+              <Printer className="size-4" /> طباعة
             </button>
             <button
               onClick={() => handleSharePdfNative()}

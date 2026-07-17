@@ -697,3 +697,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function StatusHistoryTimeline({ orderId }: { orderId: string }) {
+  const { data: history = [], isLoading } = useSpecialOrderHistory(orderId);
+  if (isLoading) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" /> جارٍ تحميل السجل…
+      </div>
+    );
+  }
+  if (history.length === 0) {
+    return (
+      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
+        <History className="size-3.5" /> لا يوجد سجل تغييرات بعد
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground mb-2">
+        <History className="size-3.5" /> سجل تغييرات الحالة
+      </div>
+      <ul className="space-y-2">
+        {history.map((h) => (
+          <li key={h.id} className="text-xs flex items-start gap-2 border-r-2 border-brand/40 pr-2">
+            <div className="flex-1">
+              <div>
+                {h.from_status ? (
+                  <>
+                    من <span className="font-semibold">{STATUS_LABELS[h.from_status]}</span> إلى{" "}
+                  </>
+                ) : (
+                  "بدأ بالحالة "
+                )}
+                <span className="font-bold text-brand">{STATUS_LABELS[h.to_status]}</span>
+              </div>
+              {h.reason && <div className="text-muted-foreground mt-0.5">السبب: {h.reason}</div>}
+              <div className="text-[10px] text-muted-foreground nums mt-0.5">
+                {new Date(h.created_at).toLocaleString("ar-EG")}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+

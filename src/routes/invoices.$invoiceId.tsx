@@ -1021,7 +1021,15 @@ function InvoiceDetailPage() {
               className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
               {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              تنزيل PDF
+              حفظ PDF
+            </button>
+            <button
+              onClick={() => handleSharePdfNative()}
+              disabled={pdfBusy}
+              className="px-4 h-9 rounded-md bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+              مشاركة PDF
             </button>
             <button
               onClick={() => handleWhatsAppShare()}

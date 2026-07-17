@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2, HardDrive } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
 import { useStoreProfile, useSaveStoreProfile, type StoreProfile } from "@/hooks/use-store-profile";
+import { runLocalBackup, readBackupHistory, type BackupEntry } from "@/lib/local-backup";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),

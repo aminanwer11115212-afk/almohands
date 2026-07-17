@@ -220,13 +220,30 @@ function SpecialOrdersPage() {
       title="طلبات النظام"
       showBack
       rightAction={
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold hover:opacity-95 transition"
-        >
-          <Plus className="size-4" /> طلب جديد
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportRows("csv")}
+            title="تصدير إلى Excel/CSV"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted"
+          >
+            <FileSpreadsheet className="size-4" /> Excel
+          </button>
+          <button
+            onClick={() => exportRows("pdf")}
+            title="تصدير إلى PDF"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted"
+          >
+            <FileDown className="size-4" /> PDF
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold hover:opacity-95 transition"
+          >
+            <Plus className="size-4" /> طلب جديد
+          </button>
+        </div>
       }
+
     >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">

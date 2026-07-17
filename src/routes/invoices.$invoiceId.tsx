@@ -8,7 +8,7 @@ import { formatSDG, formatSDGShort } from "@/lib/format";
 import { Printer, ArrowRight, FileText, Receipt, Download, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
-import { buildInvoiceText, downloadElementAsPdf, shareInvoicePdfViaWhatsApp, openWhatsAppShare } from "@/lib/invoice-share";
+import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { WhatsAppCustomerPickerDialog } from "@/components/WhatsAppCustomerPickerDialog";
 import { toast } from "sonner";
@@ -554,6 +554,43 @@ function InvoiceDetailPage() {
     }
   }
 
+  /**
+   * Native OS share for the PDF file itself. On iOS/Android this opens the
+   * system share sheet so the user picks the target app (WhatsApp / Mail /
+   * Files / Telegram / AirDrop). On desktop or unsupported browsers it
+   * gracefully falls back to a local download.
+   */
+  async function handleSharePdfNative() {
+    const el = previewRef.current ?? printRef.current;
+    if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    const reqId = newRequestId("pdf-share");
+    try {
+      const filename = `فاتورة-${inv.invoice_number}.pdf`;
+      const text = buildInvoiceText(inv, items, storeName, {
+        includeItems: false,
+        footer: invoiceFooter || undefined,
+        storePhone,
+      });
+      const result = await sharePdfFileNative(el, filename, format, {
+        title: `فاتورة #${inv.invoice_number}`,
+        text,
+      });
+      if (result === "shared") toast.success("تمت المشاركة");
+      else if (result === "downloaded") toast.info("تم تنزيل الـ PDF (المشاركة المباشرة غير مدعومة على هذا الجهاز)");
+      logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result } });
+    } catch (e) {
+      handleError(e, "تعذّرت مشاركة الـ PDF", {
+        event: "pdf_share_native_failed",
+        context: { reqId, invoiceId: inv.id },
+        action: { label: "تنزيل بدلاً من ذلك", onClick: () => handleDownloadPdf() },
+      });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function sendWhatsAppText(phone: string | null) {
     if (shareBusy) return;
     setShareBusy(true);
@@ -624,10 +661,20 @@ function InvoiceDetailPage() {
             onClick={() => handleDownloadPdf()}
             disabled={pdfBusy}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
-            title="تنزيل PDF"
+            title="حفظ ملف PDF على الجهاز"
           >
             {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            PDF
+            حفظ PDF
+          </button>
+
+          <button
+            onClick={() => handleSharePdfNative()}
+            disabled={pdfBusy}
+            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
+          >
+            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            مشاركة PDF
           </button>
 
           <button
@@ -974,7 +1021,15 @@ function InvoiceDetailPage() {
               className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
               {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              تنزيل PDF
+              حفظ PDF
+            </button>
+            <button
+              onClick={() => handleSharePdfNative()}
+              disabled={pdfBusy}
+              className="px-4 h-9 rounded-md bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+              مشاركة PDF
             </button>
             <button
               onClick={() => handleWhatsAppShare()}

@@ -736,7 +736,7 @@ function InvoiceDetailPage() {
               className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
               title="إلغاء الفاتورة مع إدخال سبب"
             >
-              <X className="size-4" /> إلغاء الفاتورة
+              <X className="size-4" /> <span className="hidden sm:inline">إلغاء الفاتورة</span>
             </button>
           )}
         </div>

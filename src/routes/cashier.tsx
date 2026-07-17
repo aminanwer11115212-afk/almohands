@@ -78,6 +78,7 @@ function CashierPage() {
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [referenceNumber, setReferenceNumber] = useState<string>("");
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -91,6 +92,49 @@ function CashierPage() {
   useEffect(() => {
     searchRef.current?.focus();
   }, []);
+
+  // Consume a "pending_special_order" handoff from the Special Orders page:
+  // prefill customer, push the requested item as a custom cart line, and remember
+  // the source order id so we can link it to the invoice on save.
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("pending_special_order") : null;
+      if (!raw) return;
+      localStorage.removeItem("pending_special_order");
+      const p = JSON.parse(raw) as {
+        order_id?: string;
+        item_name?: string;
+        customer_id?: string | null;
+        customer_name?: string | null;
+        customer_phone?: string | null;
+        quantity?: number;
+        target_price?: number | null;
+      };
+      if (!p.item_name) return;
+      if (p.order_id) setPendingOrderId(p.order_id);
+      if (p.customer_id) setSelectedCustomerId(p.customer_id);
+      if (p.customer_name) setCustomerName(p.customer_name);
+      if (p.customer_phone) setCustomerPhone(p.customer_phone);
+      const qty = Math.max(1, Math.floor(Number(p.quantity) || 1));
+      const price = Math.max(0, Number(p.target_price) || 0);
+      setCart((prev) => [
+        ...prev,
+        {
+          productId: `custom-${Date.now()}`,
+          name: p.item_name!,
+          unit: "قطعة",
+          unitPrice: price,
+          costPrice: 0,
+          quantity: qty,
+          maxQty: Number.MAX_SAFE_INTEGER,
+        },
+      ]);
+      toast.info(`تم تحميل طلب النظام «${p.item_name}» — راجع السعر والكمية ثم احفظ الفاتورة`);
+    } catch {
+      // ignore malformed handoff
+    }
+  }, []);
+
 
   // Auto-select default payment method
   useEffect(() => {

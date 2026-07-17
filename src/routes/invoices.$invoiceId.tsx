@@ -544,6 +544,7 @@ function InvoiceDetailPage() {
     }
     if (pdfBusy) return;
     setPdfBusy(true);
+    setBusyPhase("جارٍ توليد الـ PDF…");
     const reqId = newRequestId("pdf");
     logger.info("pdf_download_start", { context: { reqId, invoiceId: inv.id, format, attempt } });
     try {
@@ -567,6 +568,7 @@ function InvoiceDetailPage() {
         });
       }
     } finally {
+      setBusyPhase("");
       setPdfBusy(false);
     }
   }

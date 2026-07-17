@@ -461,8 +461,23 @@ function CashierPage() {
 
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Link the newly-saved invoice back to the originating special order (if any).
+      if (savedInvoice && pendingOrderId) {
+        const linkedOrderId = pendingOrderId;
+        setPendingOrderId(null);
+        try {
+          await supabase
+            .from("special_orders")
+            .update({ invoice_id: savedInvoice.id, status: "delivered" })
+            .eq("id", linkedOrderId);
+          queryClient.invalidateQueries({ queryKey: ["special-orders"] });
+        } catch {
+          // non-fatal: invoice is saved, only the link failed
+        }
+      }
       if (savedInvoice) {
         toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+
         // Auto-print: navigate directly to preview with autoprint flag
         if (storeProfile?.auto_print) {
           navigate({

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+// toast import removed — auto-backup is silent by design.
 import { supabase } from "@/integrations/supabase/client";
 import { hasBackupForToday, runLocalBackup } from "@/lib/local-backup";
 
@@ -22,13 +22,13 @@ export function useAutoLocalBackup() {
         const { data } = await supabase.auth.getSession();
         if (cancelled || !data.session) return;
         if (hasBackupForToday("open")) return;
+        // Silent open backup — no toast. The history log tracks status.
         await runLocalBackup("open");
-        toast.success("تم حفظ نسخة احتياطية محلية (بداية اليوم)");
       } catch (err) {
-        // Silent — full detail lives in the backup history.
         console.warn("[auto-backup:open]", err);
       }
     }
+
 
     // Delay slightly so the app hydrates and the auth session is ready.
     const t = window.setTimeout(maybeOpenBackup, 2500);
@@ -40,12 +40,13 @@ export function useAutoLocalBackup() {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
         closeFiredRef.current = true;
+        // Silent close backup — no toast (pagehide won't render one anyway).
         await runLocalBackup("close");
-        toast.success("تم حفظ نسخة احتياطية محلية (نهاية الجلسة)");
       } catch (err) {
         console.warn("[auto-backup:close]", err);
       }
     }
+
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") void maybeCloseBackup();

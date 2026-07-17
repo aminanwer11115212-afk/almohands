@@ -222,8 +222,11 @@ function InvoiceDetailPage() {
   });
 
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
-  type EditRow = { id: string; product_id: string | null; product_name: string; quantity: number; unit_price: number; _origQty: number };
+  type EditRow = { id: string; product_id: string | null; product_name: string; unit: string; quantity: number; unit_price: number; _origQty: number; _isNew?: boolean };
   const [editRows, setEditRows] = useState<EditRow[]>([]);
+  const [deletedRowIds, setDeletedRowIds] = useState<Set<string>>(new Set());
+  const [addQuery, setAddQuery] = useState("");
+  const [addPickerOpen, setAddPickerOpen] = useState(false);
   const draftKey = `invoice-edit-draft:${invoiceId}`;
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -235,11 +238,14 @@ function InvoiceDetailPage() {
           id: it.id,
           product_id: it.product_id,
           product_name: it.product_name,
+          unit: it.unit ?? "قطعة",
           quantity: Number(it.quantity) || 0,
           unit_price: Number(it.unit_price) || 0,
           _origQty: Number(it.quantity) || 0,
+          _isNew: false,
         })),
       );
+      setDeletedRowIds(new Set());
     }
   }, [data?.items, editMode]);
 

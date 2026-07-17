@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
+import { Route as SpecialOrdersRouteImport } from './routes/special-orders'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReturnsRouteImport } from './routes/returns'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -49,6 +50,11 @@ import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.
 const SuppliersRoute = SuppliersRouteImport.update({
   id: '/suppliers',
   path: '/suppliers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpecialOrdersRoute = SpecialOrdersRouteImport.update({
+  id: '/special-orders',
+  path: '/special-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
+  '/special-orders': typeof SpecialOrdersRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -288,6 +295,7 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
+  '/special-orders': typeof SpecialOrdersRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/returns': typeof ReturnsRoute
   '/settings': typeof SettingsRoute
+  '/special-orders': typeof SpecialOrdersRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/returns'
     | '/settings'
+    | '/special-orders'
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/returns'
     | '/settings'
+    | '/special-orders'
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/returns'
     | '/settings'
+    | '/special-orders'
     | '/suppliers'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -482,6 +494,7 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ReturnsRoute: typeof ReturnsRoute
   SettingsRoute: typeof SettingsRoute
+  SpecialOrdersRoute: typeof SpecialOrdersRoute
   SuppliersRoute: typeof SuppliersRouteWithChildren
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -507,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/suppliers'
       fullPath: '/suppliers'
       preLoaderRoute: typeof SuppliersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/special-orders': {
+      id: '/special-orders'
+      path: '/special-orders'
+      fullPath: '/special-orders'
+      preLoaderRoute: typeof SpecialOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -789,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ReturnsRoute: ReturnsRoute,
   SettingsRoute: SettingsRoute,
+  SpecialOrdersRoute: SpecialOrdersRoute,
   SuppliersRoute: SuppliersRouteWithChildren,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:

@@ -215,3 +215,52 @@ export async function shareInvoicePdfViaWhatsApp(
   openWhatsAppShare(phone, text);
   return "fallback";
 }
+
+/**
+ * Share a PDF file using the OS native share sheet (iOS/Android show WhatsApp,
+ * Mail, Files, AirDrop, Telegram, etc.). Requires Web Share Level 2.
+ *
+ * Fallbacks:
+ * - If the browser can't share files (most desktops, older Android), downloads
+ *   the PDF locally so the user still gets the file.
+ * - Returns "shared" | "downloaded" | "cancelled".
+ */
+export async function sharePdfFileNative(
+  el: HTMLElement,
+  filename: string,
+  format: "a4" | "thermal" = "a4",
+  opts: { title?: string; text?: string } = {},
+): Promise<"shared" | "downloaded" | "cancelled"> {
+  const blob = await elementToPdfBlob(el, filename, format);
+  const file = new File([blob], filename, { type: "application/pdf" });
+
+  const nav = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { canShare?: (d: ShareData) => boolean })
+    : null;
+  const canShareFiles = !!(nav?.canShare && nav.canShare({ files: [file] }) && nav.share);
+
+  if (canShareFiles) {
+    try {
+      await nav!.share({
+        files: [file],
+        title: opts.title || filename,
+        text: opts.text || filename,
+      });
+      return "shared";
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === "AbortError") return "cancelled";
+      // fall through to download
+    }
+  }
+
+  // Fallback: download the PDF
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return "downloaded";
+}

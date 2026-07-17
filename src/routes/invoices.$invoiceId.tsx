@@ -351,12 +351,14 @@ function InvoiceDetailPage() {
       if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
       const inv = data.inv;
       const reqId = newRequestId("inv");
+      const visible = editRows.filter((r) => !deletedRowIds.has(r.id));
+      const deletedRows = (data.items ?? []).filter((it: any) => deletedRowIds.has(it.id));
       logger.info("invoice_edit_save_start", {
-        context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: editRows.length, reqId },
+        context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: visible.length, added: visible.filter((r) => r._isNew).length, deleted: deletedRows.length, reqId },
       });
 
-      // ---------- 1) Zod validation of ALL rows ----------
-      const parsed = invoiceEditRowsSchema.safeParse(editRows);
+      // ---------- 1) Zod validation of visible rows ----------
+      const parsed = invoiceEditRowsSchema.safeParse(visible);
       if (!parsed.success) {
         const firstIssue = parsed.error.issues[0];
         const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
@@ -369,10 +371,15 @@ function InvoiceDetailPage() {
         throw new Error(msg);
       }
 
-      // ---------- 2) Pre-flight stock check for INCREASED quantities ----------
-      // For each row where qty went up and there's a linked product, ensure
-      // the delta doesn't push stock below zero. Fail fast BEFORE any write.
-      const increases = parsed.data.filter((r) => r.product_id && r.quantity > r._origQty);
+      // Map validated rows back to _isNew / unit info (schema strips them).
+      const rowsWithFlags = parsed.data.map((r, i) => ({
+        ...r,
+        _isNew: !!visible[i]._isNew,
+        unit: visible[i].unit ?? "قطعة",
+      }));
+
+      // ---------- 2) Pre-flight stock check for INCREASED quantities (incl. new rows) ----------
+      const increases = rowsWithFlags.filter((r) => r.product_id && r.quantity > r._origQty);
       if (increases.length > 0) {
         const productIds = Array.from(new Set(increases.map((r) => r.product_id!) as string[]));
         const { data: prods, error: prodsErr } = await supabase
@@ -380,10 +387,10 @@ function InvoiceDetailPage() {
           .select("id, name, quantity")
           .in("id", productIds);
         if (prodsErr) throw prodsErr;
-        const stockMap = new Map((prods ?? []).map((p) => [p.id, p]));
+        const stockMapLocal = new Map((prods ?? []).map((p) => [p.id, p]));
         for (const r of increases) {
-          const p = stockMap.get(r.product_id!);
-          if (!p) continue; // product deleted — skip stock adjustment silently
+          const p = stockMapLocal.get(r.product_id!);
+          if (!p) continue;
           const delta = r.quantity - r._origQty;
           const available = Number(p.quantity) || 0;
           if (available < delta) {
@@ -398,8 +405,32 @@ function InvoiceDetailPage() {
         }
       }
 
-      // ---------- 3) Persist item rows (updated_at added) ----------
-      for (const row of parsed.data) {
+      // Ensure user id (needed for inserts).
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id;
+      if (!uid) throw new Error("يجب تسجيل الدخول");
+
+      // ---------- 3a) Insert NEW rows ----------
+      for (const row of rowsWithFlags) {
+        if (!row._isNew) continue;
+        const lineTotal = row.quantity * row.unit_price;
+        const { error: insErr } = await supabase.from("invoice_items").insert({
+          invoice_id: inv.id,
+          user_id: uid,
+          product_id: row.product_id,
+          product_name: row.product_name,
+          unit: row.unit ?? "قطعة",
+          quantity: row.quantity,
+          unit_price: row.unit_price,
+          cost_price: 0,
+          line_total: lineTotal,
+        });
+        if (insErr) throw insErr;
+      }
+
+      // ---------- 3b) UPDATE existing rows ----------
+      for (const row of rowsWithFlags) {
+        if (row._isNew) continue;
         const lineTotal = row.quantity * row.unit_price;
         const { error: upErr } = await supabase
           .from("invoice_items")
@@ -408,8 +439,22 @@ function InvoiceDetailPage() {
         if (upErr) throw upErr;
       }
 
-      // ---------- 4) Apply stock deltas (bounded to >=0 as safety net) ----------
-      for (const row of parsed.data) {
+      // ---------- 3c) DELETE removed rows + restore their stock ----------
+      for (const it of deletedRows) {
+        const { error: delErr } = await supabase.from("invoice_items").delete().eq("id", it.id);
+        if (delErr) throw delErr;
+        if (it.product_id) {
+          const { data: prod } = await supabase
+            .from("products").select("quantity").eq("id", it.product_id).maybeSingle();
+          if (prod) {
+            const restored = (Number(prod.quantity) || 0) + (Number(it.quantity) || 0);
+            await supabase.from("products").update({ quantity: restored }).eq("id", it.product_id);
+          }
+        }
+      }
+
+      // ---------- 4) Apply stock deltas for kept rows (bounded to >=0) ----------
+      for (const row of rowsWithFlags) {
         const delta = row.quantity - row._origQty;
         if (delta === 0 || !row.product_id) continue;
         const { data: prod, error: prodErr } = await supabase
@@ -419,7 +464,6 @@ function InvoiceDetailPage() {
         const currentQty = Number(prod.quantity) || 0;
         const newQty = currentQty - delta;
         if (newQty < 0) {
-          // Race between pre-flight and now: stock changed under us.
           const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
           logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: row.product_id, currentQty, delta } });
           throw new Error(msg);
@@ -430,8 +474,8 @@ function InvoiceDetailPage() {
       }
 
       // ---------- 5) Recompute invoice totals from validated data ----------
-      const newTotal = parsed.data.reduce((s, r) => s + r.quantity * r.unit_price, 0);
-      const paid = Math.min(Number(inv.paid) || 0, newTotal); // never exceed total
+      const newTotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+      const paid = Math.min(Number(inv.paid) || 0, newTotal);
       const remaining = Math.max(0, newTotal - paid);
       const status: "paid" | "partial" | "pending" =
         newTotal === 0 ? "paid" : remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
@@ -441,36 +485,28 @@ function InvoiceDetailPage() {
         .eq("id", inv.id);
       if (invErr) throw invErr;
 
-      // ---------- 6) Best-effort audit log (never fails the save) ----------
+      // ---------- 6) Best-effort audit log ----------
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id;
-        if (uid) {
-          const changes = parsed.data.map((r) => ({
-            item_id: r.id,
-            product_id: r.product_id,
-            product_name: r.product_name,
-            qty_from: r._origQty,
-            qty_to: r.quantity,
-            unit_price: r.unit_price,
-            stock_delta: r._origQty - r.quantity, // + = stock returned, − = stock deducted
-          }));
-          await supabase.from("audit_logs").insert({
-            user_id: uid,
-            action: "invoice.items.updated",
-            table_name: "invoices",
-            record_id: inv.id,
-            details: {
-              req_id: reqId,
-              invoice_number: inv.invoice_number,
-              changes,
-              new_total: newTotal,
-              paid,
-              remaining,
-              status,
-            },
-          });
-        }
+        const changes = rowsWithFlags.map((r) => ({
+          item_id: r._isNew ? null : r.id,
+          product_id: r.product_id,
+          product_name: r.product_name,
+          qty_from: r._origQty,
+          qty_to: r.quantity,
+          unit_price: r.unit_price,
+          added: !!r._isNew,
+        }));
+        const deletions = deletedRows.map((it: any) => ({
+          item_id: it.id, product_id: it.product_id, product_name: it.product_name,
+          qty_removed: Number(it.quantity) || 0,
+        }));
+        await supabase.from("audit_logs").insert({
+          user_id: uid,
+          action: "invoice.items.updated",
+          table_name: "invoices",
+          record_id: inv.id,
+          details: { req_id: reqId, invoice_number: inv.invoice_number, changes, deletions, new_total: newTotal, paid, remaining, status },
+        });
       } catch (auditErr) {
         logger.warn("audit_log_write_failed", { message: (auditErr as Error)?.message, context: { reqId } });
       }
@@ -487,10 +523,12 @@ function InvoiceDetailPage() {
       setEditMode(false);
       setRowErrors({});
       setDraftRestored(false);
+      setDeletedRowIds(new Set());
       try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
     },
     onError: (e) => handleError(e, "تعذّر حفظ التعديلات", {
       event: "invoice_edit_save_failed",

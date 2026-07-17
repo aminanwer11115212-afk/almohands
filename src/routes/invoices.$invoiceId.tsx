@@ -1139,12 +1139,12 @@ function InvoiceDetailPage() {
         <DialogContent className="max-w-5xl w-full max-h-[95vh] h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3 border-b border-border bg-[#F0F2F5]">
             <DialogTitle className="text-base sm:text-lg font-semibold text-[#050505]">معاينة الطباعة</DialogTitle>
-            <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm">
+            <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm flex-wrap">
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(2))); }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
-                disabled={previewZoom <= 0.3}
+                disabled={previewZoom <= 0.2}
                 aria-label="تصغير"
                 title="تصغير"
               >
@@ -1153,7 +1153,7 @@ function InvoiceDetailPage() {
               <span className="text-xs tabular-nums w-10 text-center font-mono text-[#050505]">{Math.round(previewZoom * 100)}%</span>
               <button
                 type="button"
-                onClick={() => setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2))); }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
                 disabled={previewZoom >= 3}
                 aria-label="تكبير"
@@ -1163,29 +1163,38 @@ function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const scroller = previewScrollRef.current;
-                  if (!scroller) return;
-                  // Fit-to-page: compute zoom so the sheet fills the container while keeping safe margins.
-                  const paperMm = format === "thermal" ? 80 : 297; // landscape A4 width
-                  const mmToPx = 96 / 25.4;
-                  const paperPx = paperMm * mmToPx;
-                  const avail = scroller.clientWidth - 32;
-                  const z = Math.max(0.3, Math.min(3, +(avail / paperPx).toFixed(2)));
-                  setPreviewZoom(z);
-                }}
-                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 font-semibold text-[#1877F2]"
+                onClick={applyFit}
+                className={`text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 font-semibold ${previewFitMode === "fit" ? "bg-[#E7F3FF] text-[#1877F2]" : "text-[#1877F2]"}`}
                 title="ملاءمة للصفحة"
               >
                 <Maximize2 className="size-3.5" /> ملاءمة
               </button>
               <button
                 type="button"
-                onClick={() => setPreviewZoom(1)}
+                onClick={() => { setPreviewFitMode("100"); setPreviewZoom(1); }}
                 className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B]"
                 title="حجم طبيعي"
               >
                 100%
+              </button>
+              <button
+                type="button"
+                onClick={applyReset}
+                className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B] flex items-center gap-1"
+                title="إعادة ضبط المعاينة"
+                aria-label="إعادة ضبط"
+              >
+                <RotateCcw className="size-3.5" /> إعادة ضبط
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGuides((v) => !v)}
+                className={`text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] flex items-center gap-1 ${showGuides ? "text-[#1877F2]" : "text-[#65676B]"}`}
+                title={showGuides ? "إخفاء خطوط الهوامش" : "إظهار خطوط الهوامش"}
+                aria-pressed={showGuides}
+              >
+                {showGuides ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                {showGuides ? "الهوامش" : "الهوامش"}
               </button>
             </div>
           </DialogHeader>

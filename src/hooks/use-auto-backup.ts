@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+// toast import removed — auto-backup is silent by design.
 import { supabase } from "@/integrations/supabase/client";
 import { hasBackupForToday, runLocalBackup } from "@/lib/local-backup";
 

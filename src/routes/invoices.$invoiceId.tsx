@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, Edit3, Save, X, AlertTriangle, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
@@ -90,25 +90,42 @@ function InvoiceDetailPage() {
   const [formatReady, setFormatReady] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [busyPhase, setBusyPhase] = useState<string>("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [userId, setUserId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
+  // Load current user id for per-user preference storage
   useEffect(() => {
-    if (storeProfile?.print_size) {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
+
+  // Resolve print format: per-user localStorage overrides store profile default.
+  useEffect(() => {
+    const userKey = userId ? `invoice_print_format:${userId}` : null;
+    const personal = userKey ? localStorage.getItem(userKey) : null;
+    if (personal === "a4" || personal === "thermal") {
+      setFormat(personal);
+    } else if (storeProfile?.print_size) {
       const size = String(storeProfile.print_size).toLowerCase();
       setFormat(size.includes("mm") ? "thermal" : "a4");
     }
     setFormatReady(true);
-  }, [storeProfile?.print_size]);
+  }, [storeProfile?.print_size, userId]);
 
   const changeFormat = (next: PrintFormat) => {
     setFormat(next);
+    // Save per-user preference immediately
+    if (userId) {
+      try { localStorage.setItem(`invoice_print_format:${userId}`, next); } catch { /* quota */ }
+    }
     const nextSize = next === "thermal" ? "80mm" : "A4";
     if (storeProfile && storeProfile.print_size !== nextSize) {
       saveProfile.mutate({ print_size: nextSize });
@@ -527,6 +544,7 @@ function InvoiceDetailPage() {
     }
     if (pdfBusy) return;
     setPdfBusy(true);
+    setBusyPhase("جارٍ توليد الـ PDF…");
     const reqId = newRequestId("pdf");
     logger.info("pdf_download_start", { context: { reqId, invoiceId: inv.id, format, attempt } });
     try {
@@ -550,6 +568,7 @@ function InvoiceDetailPage() {
         });
       }
     } finally {
+      setBusyPhase("");
       setPdfBusy(false);
     }
   }
@@ -565,6 +584,7 @@ function InvoiceDetailPage() {
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);
+    setBusyPhase("جارٍ توليد ملف PDF…");
     const reqId = newRequestId("pdf-share");
     const loadingId = toast.loading("جارٍ تجهيز ملف PDF للمشاركة…");
     try {
@@ -574,6 +594,7 @@ function InvoiceDetailPage() {
         footer: invoiceFooter || undefined,
         storePhone,
       });
+      setBusyPhase("جارٍ فتح نافذة المشاركة…");
       const result = await sharePdfFileNative(el, filename, format, {
         title: `فاتورة #${inv.invoice_number}`,
         text,
@@ -591,14 +612,33 @@ function InvoiceDetailPage() {
       logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result, attempt } });
     } catch (e) {
       toast.dismiss(loadingId);
-      handleError(e, attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
-        event: "pdf_share_native_failed",
-        context: { reqId, invoiceId: inv.id, attempt },
+      const err = e as { name?: string; message?: string; code?: string | number };
+      const errName = err?.name || "Error";
+      const errCode = err?.code ?? errName;
+      const errMsg = err?.message || String(e);
+      const errText = `[${reqId}] ${errName}(${errCode}): ${errMsg}`.slice(0, 500);
+      const description = `السبب: ${errMsg.slice(0, 140)} — رمز: ${errCode}`;
+      toast.error(attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
+        description,
+        duration: 12000,
         action: attempt < 2
           ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
           : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
+        cancel: {
+          label: "نسخ الخطأ",
+          onClick: () => {
+            try {
+              navigator.clipboard.writeText(errText);
+              toast.success("تم نسخ رسالة الخطأ — أرسلها للدعم");
+            } catch {
+              toast.error("تعذّر النسخ التلقائي");
+            }
+          },
+        },
       });
+      logger.error("pdf_share_native_failed", { context: { reqId, invoiceId: inv.id, attempt, errName, errCode, errMsg } });
     } finally {
+      setBusyPhase("");
       setPdfBusy(false);
     }
   }
@@ -648,6 +688,19 @@ function InvoiceDetailPage() {
 
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">
+      {/* Global progress bar while generating/sharing PDF */}
+      {(pdfBusy || shareBusy) && (
+        <div className="fixed top-0 inset-x-0 z-50 print:hidden" role="progressbar" aria-label="جارٍ المعالجة">
+          <div className="h-1 bg-primary/20 overflow-hidden">
+            <div className="h-full w-1/3 bg-primary animate-[progress_1.2s_ease-in-out_infinite]" />
+          </div>
+          {busyPhase && (
+            <div className="mx-auto max-w-4xl text-xs text-center py-1 bg-primary/10 text-primary font-medium">
+              {busyPhase}
+            </div>
+          )}
+        </div>
+      )}
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
         <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-2 flex-wrap">
@@ -988,14 +1041,87 @@ function InvoiceDetailPage() {
         </div>
       </main>
 
+      {/* Mobile-only floating action bar: prominent Print + Share buttons.
+          Only shown once print format is resolved (i.e. we know target printer size). */}
+      {formatReady && (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 print:hidden bg-background/95 backdrop-blur border-t border-border p-2 flex gap-2 shadow-lg">
+          <button
+            onClick={confirmAndPrint}
+            disabled={pdfBusy || shareBusy}
+            className="flex-1 h-12 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow disabled:opacity-60"
+            aria-label="طباعة الفاتورة"
+          >
+            <Printer className="size-5" />
+            طباعة ({format === "thermal" ? "حراري" : "A4"})
+          </button>
+          <button
+            onClick={() => handleSharePdfNative()}
+            disabled={pdfBusy}
+            className="h-12 px-4 rounded-lg bg-sky-500 text-white font-bold text-sm flex items-center justify-center gap-1 shadow disabled:opacity-60"
+            aria-label="مشاركة PDF"
+          >
+            {pdfBusy ? <Loader2 className="size-5 animate-spin" /> : <Share2 className="size-5" />}
+          </button>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            disabled={pdfBusy}
+            className="h-12 px-4 rounded-lg bg-muted text-foreground border border-input font-bold text-sm flex items-center justify-center disabled:opacity-60"
+            aria-label="معاينة"
+          >
+            <Eye className="size-5" />
+          </button>
+        </div>
+      )}
+      {/* Spacer so content isn't hidden behind FAB */}
+      {formatReady && <div className="sm:hidden h-16 print:hidden" aria-hidden />}
+
       {/* Preview dialog — shows exact PDF render before download/send */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>معاينة الفاتورة قبل الإرسال</DialogTitle>
+      <Dialog open={previewOpen} onOpenChange={(o) => { setPreviewOpen(o); if (!o) setPreviewZoom(1); }}>
+        <DialogContent className="max-w-4xl w-full max-h-[95vh] h-[95vh] sm:h-auto overflow-hidden flex flex-col p-3 sm:p-6">
+          <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+            <DialogTitle className="text-base sm:text-lg">معاينة قبل الطباعة</DialogTitle>
+            <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-1 py-0.5">
+              <button
+                type="button"
+                onClick={() => setPreviewZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
+                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
+                disabled={previewZoom <= 0.5}
+                aria-label="تصغير المعاينة"
+                title="تصغير"
+              >
+                <ZoomOut className="size-4" />
+              </button>
+              <span className="text-xs tabular-nums w-10 text-center font-mono">{Math.round(previewZoom * 100)}%</span>
+              <button
+                type="button"
+                onClick={() => setPreviewZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))}
+                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
+                disabled={previewZoom >= 2}
+                aria-label="تكبير المعاينة"
+                title="تكبير"
+              >
+                <ZoomIn className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewZoom(1)}
+                className="text-xs px-2 py-1 rounded hover:bg-muted"
+                title="إعادة الحجم الطبيعي"
+              >
+                100%
+              </button>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto bg-muted/40 p-4 -mx-6">
-            <div ref={previewRef} className="mx-auto" style={{ maxWidth: format === "thermal" ? "80mm" : "210mm" }}>
+          <div className="flex-1 overflow-auto bg-muted/40 p-2 sm:p-4 -mx-3 sm:-mx-6">
+            <div
+              ref={previewRef}
+              className="mx-auto bg-white shadow-sm origin-top transition-transform"
+              style={{
+                maxWidth: format === "thermal" ? "80mm" : "210mm",
+                transform: `scale(${previewZoom})`,
+                transformOrigin: "top center",
+              }}
+            >
               {format === "a4" ? (
                 <A4Invoice
                   inv={inv}
@@ -1058,6 +1184,10 @@ function InvoiceDetailPage() {
       </Dialog>
 
       <style>{`
+        @keyframes progress {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
         @media print {
           body { background: white !important; }
           .print\\:hidden { display: none !important; }

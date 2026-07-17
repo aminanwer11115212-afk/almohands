@@ -673,73 +673,67 @@ function InvoiceDetailPage() {
 
           <button
             onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
-            title="معاينة قبل الإرسال"
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            title="معاينة قبل الطباعة أو المشاركة"
+            aria-label="معاينة"
           >
-            <Eye className="size-4" /> معاينة
-          </button>
-
-          <button
-            onClick={() => handleDownloadPdf()}
-            disabled={pdfBusy}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
-            title="حفظ ملف PDF على الجهاز"
-          >
-            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            حفظ PDF
+            <Eye className="size-4" /> <span className="hidden sm:inline">معاينة</span>
           </button>
 
           <button
             onClick={() => handleSharePdfNative()}
             disabled={pdfBusy}
-            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
             title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
+            aria-label="مشاركة PDF"
           >
             {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            مشاركة PDF
+            <span className="hidden sm:inline">مشاركة PDF</span>
+          </button>
+
+          <button
+            onClick={confirmAndPrint}
+            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
+            aria-label="طباعة"
+          >
+            <Printer className="size-4" /> <span className="hidden sm:inline">طباعة</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
             title={inv.customer_phone ? "إرسال نص الفاتورة إلى رقم العميل" : "إرسال نص الفاتورة — اختر جهة الاتصال"}
+            aria-label="واتساب"
           >
             {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            واتساب
+            <span className="hidden sm:inline">واتساب</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare({ pickContact: true })}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="hidden sm:flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
             title="اختر جهة اتصال من واتساب وأرسل نص الفاتورة"
           >
             <Share2 className="size-4" /> اختر جهة اتصال
           </button>
 
-
-          <button
-            onClick={tryPrint}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5"
-          >
-            <Printer className="size-4" /> طباعة
-          </button>
-
-
           <button
             onClick={() => setEditMode((v) => !v)}
-            className={`flex items-center gap-1 text-sm rounded-lg px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
+            className={`flex items-center gap-1 text-sm rounded-lg px-2.5 sm:px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
             title={editMode ? "إلغاء التعديل" : "تعديل بنود الفاتورة"}
+            aria-label={editMode ? "إلغاء" : "تعديل"}
           >
             {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
-            {editMode ? "إلغاء" : "تعديل"}
+            <span className="hidden sm:inline">{editMode ? "إلغاء" : "تعديل"}</span>
           </button>
 
           {inv.status !== "cancelled" && (
             <button
               onClick={() => setCancelOpen(true)}
-              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-3 py-1.5"
+              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
               title="إلغاء الفاتورة مع إدخال سبب"
             >
               <X className="size-4" /> إلغاء الفاتورة

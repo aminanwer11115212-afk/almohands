@@ -1040,13 +1040,52 @@ function InvoiceDetailPage() {
       </main>
 
       {/* Preview dialog — shows exact PDF render before download/send */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>معاينة الفاتورة قبل الإرسال</DialogTitle>
+      <Dialog open={previewOpen} onOpenChange={(o) => { setPreviewOpen(o); if (!o) setPreviewZoom(1); }}>
+        <DialogContent className="max-w-4xl w-full max-h-[95vh] h-[95vh] sm:h-auto overflow-hidden flex flex-col p-3 sm:p-6">
+          <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+            <DialogTitle className="text-base sm:text-lg">معاينة قبل الطباعة</DialogTitle>
+            <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-1 py-0.5">
+              <button
+                type="button"
+                onClick={() => setPreviewZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
+                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
+                disabled={previewZoom <= 0.5}
+                aria-label="تصغير المعاينة"
+                title="تصغير"
+              >
+                <ZoomOut className="size-4" />
+              </button>
+              <span className="text-xs tabular-nums w-10 text-center font-mono">{Math.round(previewZoom * 100)}%</span>
+              <button
+                type="button"
+                onClick={() => setPreviewZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))}
+                className="p-1.5 rounded hover:bg-muted disabled:opacity-40"
+                disabled={previewZoom >= 2}
+                aria-label="تكبير المعاينة"
+                title="تكبير"
+              >
+                <ZoomIn className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewZoom(1)}
+                className="text-xs px-2 py-1 rounded hover:bg-muted"
+                title="إعادة الحجم الطبيعي"
+              >
+                100%
+              </button>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto bg-muted/40 p-4 -mx-6">
-            <div ref={previewRef} className="mx-auto" style={{ maxWidth: format === "thermal" ? "80mm" : "210mm" }}>
+          <div className="flex-1 overflow-auto bg-muted/40 p-2 sm:p-4 -mx-3 sm:-mx-6">
+            <div
+              ref={previewRef}
+              className="mx-auto bg-white shadow-sm origin-top transition-transform"
+              style={{
+                maxWidth: format === "thermal" ? "80mm" : "210mm",
+                transform: `scale(${previewZoom})`,
+                transformOrigin: "top center",
+              }}
+            >
               {format === "a4" ? (
                 <A4Invoice
                   inv={inv}

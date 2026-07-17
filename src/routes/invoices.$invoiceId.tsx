@@ -1039,6 +1039,40 @@ function InvoiceDetailPage() {
         </div>
       </main>
 
+      {/* Mobile-only floating action bar: prominent Print + Share buttons.
+          Only shown once print format is resolved (i.e. we know target printer size). */}
+      {formatReady && (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 print:hidden bg-background/95 backdrop-blur border-t border-border p-2 flex gap-2 shadow-lg">
+          <button
+            onClick={confirmAndPrint}
+            disabled={pdfBusy || shareBusy}
+            className="flex-1 h-12 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow disabled:opacity-60"
+            aria-label="طباعة الفاتورة"
+          >
+            <Printer className="size-5" />
+            طباعة ({format === "thermal" ? "حراري" : "A4"})
+          </button>
+          <button
+            onClick={() => handleSharePdfNative()}
+            disabled={pdfBusy}
+            className="h-12 px-4 rounded-lg bg-sky-500 text-white font-bold text-sm flex items-center justify-center gap-1 shadow disabled:opacity-60"
+            aria-label="مشاركة PDF"
+          >
+            {pdfBusy ? <Loader2 className="size-5 animate-spin" /> : <Share2 className="size-5" />}
+          </button>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            disabled={pdfBusy}
+            className="h-12 px-4 rounded-lg bg-muted text-foreground border border-input font-bold text-sm flex items-center justify-center disabled:opacity-60"
+            aria-label="معاينة"
+          >
+            <Eye className="size-5" />
+          </button>
+        </div>
+      )}
+      {/* Spacer so content isn't hidden behind FAB */}
+      {formatReady && <div className="sm:hidden h-16 print:hidden" aria-hidden />}
+
       {/* Preview dialog — shows exact PDF render before download/send */}
       <Dialog open={previewOpen} onOpenChange={(o) => { setPreviewOpen(o); if (!o) setPreviewZoom(1); }}>
         <DialogContent className="max-w-4xl w-full max-h-[95vh] h-[95vh] sm:h-auto overflow-hidden flex flex-col p-3 sm:p-6">

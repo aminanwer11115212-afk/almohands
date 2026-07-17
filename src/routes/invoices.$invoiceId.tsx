@@ -661,10 +661,20 @@ function InvoiceDetailPage() {
             onClick={() => handleDownloadPdf()}
             disabled={pdfBusy}
             className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 disabled:opacity-60 rounded-lg px-3 py-1.5"
-            title="تنزيل PDF"
+            title="حفظ ملف PDF على الجهاز"
           >
             {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            PDF
+            حفظ PDF
+          </button>
+
+          <button
+            onClick={() => handleSharePdfNative()}
+            disabled={pdfBusy}
+            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
+          >
+            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            مشاركة PDF
           </button>
 
           <button

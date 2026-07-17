@@ -1182,6 +1182,10 @@ function InvoiceDetailPage() {
       </Dialog>
 
       <style>{`
+        @keyframes progress {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
         @media print {
           body { background: white !important; }
           .print\\:hidden { display: none !important; }

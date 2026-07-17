@@ -1024,7 +1024,7 @@ function InvoiceDetailPage() {
               )}
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <button
               onClick={() => setPreviewOpen(false)}
               className="px-4 h-9 rounded-md border border-input bg-background text-sm hover:bg-muted"
@@ -1032,12 +1032,10 @@ function InvoiceDetailPage() {
               إغلاق
             </button>
             <button
-              onClick={() => handleDownloadPdf()}
-              disabled={pdfBusy}
-              className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              onClick={confirmAndPrint}
+              className="px-4 h-9 rounded-md bg-white/10 border border-input text-sm font-bold flex items-center gap-1 hover:bg-muted"
             >
-              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              حفظ PDF
+              <Printer className="size-4" /> طباعة
             </button>
             <button
               onClick={() => handleSharePdfNative()}

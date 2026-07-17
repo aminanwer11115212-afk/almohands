@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, Loader2, Pencil, Trash2, Search, MoreVertical, Check } from "lucide-react";
+import { Plus, Loader2, Pencil, Trash2, Search, MoreVertical, Check, FileDown, FileSpreadsheet, Receipt, History } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { toast } from "sonner";
@@ -9,16 +9,20 @@ import { formatSDG } from "@/lib/format";
 import { useMyRole } from "@/hooks/use-permissions";
 import { useCustomers } from "@/hooks/use-customers";
 import { useSuppliers } from "@/hooks/use-suppliers";
+import { exportPdfFromRows } from "@/lib/pdf-html-export";
+import { buildCsvBlob, saveBlob } from "@/lib/csv-export";
 import {
   useSpecialOrders,
   useAddSpecialOrder,
   useUpdateSpecialOrder,
   useUpdateSpecialOrderStatus,
   useDeleteSpecialOrder,
+  useSpecialOrderHistory,
   type SpecialOrder,
   type SpecialOrderPriority,
   type SpecialOrderStatus,
 } from "@/hooks/use-special-orders";
+
 import {
   Dialog,
   DialogContent,
@@ -146,19 +150,7 @@ function SpecialOrdersPage() {
             toast("هل تريد إنشاء فاتورة لهذا الطلب؟", {
               action: {
                 label: "إنشاء فاتورة",
-                onClick: () => {
-                  localStorage.setItem(
-                    "pending_special_order",
-                    JSON.stringify({
-                      item_name: order.item_name,
-                      customer_name: order.customer_name,
-                      customer_phone: order.customer_phone,
-                      quantity: order.quantity,
-                      target_price: order.target_price,
-                    })
-                  );
-                  navigate({ to: "/cashier" });
-                },
+                onClick: () => convertToInvoice(order),
               },
             });
           }
@@ -168,18 +160,90 @@ function SpecialOrdersPage() {
     );
   }
 
+  function convertToInvoice(order: SpecialOrder) {
+    localStorage.setItem(
+      "pending_special_order",
+      JSON.stringify({
+        order_id: order.id,
+        item_name: order.item_name,
+        customer_id: order.customer_id,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        quantity: order.quantity,
+        target_price: order.target_price,
+      })
+    );
+    navigate({ to: "/cashier" });
+  }
+
+  function exportRows(kind: "csv" | "pdf") {
+    const headers = ["التاريخ", "العميل", "الهاتف", "الصنف", "الوصف", "الكمية", "السعر المستهدف", "المورد", "الأولوية", "الحالة", "التاريخ المتوقع", "سبب الإلغاء"];
+    const rows = filtered.map((o) => [
+      new Date(o.created_at).toLocaleDateString("en-GB"),
+      o.customer_name ?? "",
+      o.customer_phone ?? "",
+      o.item_name,
+      o.description ?? "",
+      o.quantity,
+      o.target_price ?? "",
+      o.supplier_name ?? "",
+      PRIORITY_LABELS[o.priority],
+      STATUS_LABELS[o.status],
+      o.expected_at ?? "",
+      o.cancellation_reason ?? "",
+    ]);
+    if (rows.length === 0) {
+      toast.warning("لا توجد بيانات للتصدير بعد تطبيق الفلاتر");
+      return;
+    }
+    try {
+      if (kind === "csv") {
+        const stamp = new Date().toISOString().slice(0, 10);
+        saveBlob(`special-orders-${stamp}.csv`, buildCsvBlob(headers, rows));
+        toast.success("تم تصدير CSV");
+      } else {
+        exportPdfFromRows({
+          title: "طلبات النظام",
+          subtitle: `عدد الطلبات: ${rows.length} — ${new Date().toLocaleString("ar-EG")}`,
+          headers,
+          rows: rows as (string | number)[][],
+        });
+      }
+    } catch (err) {
+      handleError(err, "تعذّر التصدير");
+    }
+  }
+
+
   return (
     <AppShell
       title="طلبات النظام"
       showBack
       rightAction={
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold hover:opacity-95 transition"
-        >
-          <Plus className="size-4" /> طلب جديد
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportRows("csv")}
+            title="تصدير إلى Excel/CSV"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted"
+          >
+            <FileSpreadsheet className="size-4" /> Excel
+          </button>
+          <button
+            onClick={() => exportRows("pdf")}
+            title="تصدير إلى PDF"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted"
+          >
+            <FileDown className="size-4" /> PDF
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold hover:opacity-95 transition"
+          >
+            <Plus className="size-4" /> طلب جديد
+          </button>
+        </div>
       }
+
     >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
@@ -287,6 +351,25 @@ function SpecialOrdersPage() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      {o.status !== "cancelled" && !o.invoice_id && (
+                        <button
+                          onClick={() => convertToInvoice(o)}
+                          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-emerald-600 hover:text-white text-muted-foreground"
+                          title="تحويل إلى فاتورة في الكاشير"
+                        >
+                          <Receipt className="size-4" />
+                        </button>
+                      )}
+                      {o.invoice_id && (
+                        <button
+                          onClick={() => navigate({ to: "/invoices/$invoiceId", params: { invoiceId: o.invoice_id! } })}
+                          className="grid place-items-center size-8 rounded-lg bg-emerald-500/10 text-emerald-700 hover:bg-emerald-600 hover:text-white"
+                          title="عرض الفاتورة المرتبطة"
+                        >
+                          <Receipt className="size-4" />
+                        </button>
+                      )}
+
                       <button
                         onClick={() => setEditing(o)}
                         className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground"
@@ -522,6 +605,9 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
           </Field>
 
+          {isEdit && order && <StatusHistoryTimeline orderId={order.id} />}
+
+
           <DialogFooter className="pt-2">
             <button type="submit" disabled={busy}
               className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
@@ -611,3 +697,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function StatusHistoryTimeline({ orderId }: { orderId: string }) {
+  const { data: history = [], isLoading } = useSpecialOrderHistory(orderId);
+  if (isLoading) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" /> جارٍ تحميل السجل…
+      </div>
+    );
+  }
+  if (history.length === 0) {
+    return (
+      <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
+        <History className="size-3.5" /> لا يوجد سجل تغييرات بعد
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground mb-2">
+        <History className="size-3.5" /> سجل تغييرات الحالة
+      </div>
+      <ul className="space-y-2">
+        {history.map((h) => (
+          <li key={h.id} className="text-xs flex items-start gap-2 border-r-2 border-brand/40 pr-2">
+            <div className="flex-1">
+              <div>
+                {h.from_status ? (
+                  <>
+                    من <span className="font-semibold">{STATUS_LABELS[h.from_status]}</span> إلى{" "}
+                  </>
+                ) : (
+                  "بدأ بالحالة "
+                )}
+                <span className="font-bold text-brand">{STATUS_LABELS[h.to_status]}</span>
+              </div>
+              {h.reason && <div className="text-muted-foreground mt-0.5">السبب: {h.reason}</div>}
+              <div className="text-[10px] text-muted-foreground nums mt-0.5">
+                {new Date(h.created_at).toLocaleString("ar-EG")}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+

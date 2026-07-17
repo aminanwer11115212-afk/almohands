@@ -21,9 +21,21 @@ export interface SpecialOrder {
   status: SpecialOrderStatus;
   cancellation_reason: string | null;
   expected_at: string | null;
+  invoice_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface SpecialOrderHistoryEntry {
+  id: string;
+  order_id: string;
+  changed_by: string | null;
+  from_status: SpecialOrderStatus | null;
+  to_status: SpecialOrderStatus;
+  reason: string | null;
+  created_at: string;
+}
+
 
 export interface SpecialOrderInput {
   customer_id?: string | null;
@@ -131,3 +143,46 @@ export function useDeleteSpecialOrder() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
   });
 }
+
+/** Read chronological status history (newest first) for one order. */
+export function useSpecialOrderHistory(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["special-order-history", orderId],
+    enabled: !!orderId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (c: string, v: string) => {
+              order: (c: string, o: { ascending: boolean }) => Promise<{ data: SpecialOrderHistoryEntry[] | null; error: Error | null }>;
+            };
+          };
+        };
+      })
+        .from("special_order_history")
+        .select("*")
+        .eq("order_id", orderId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+
+    staleTime: 5_000,
+  });
+}
+
+/** Attach a saved invoice id to a special order (idempotent). */
+export function useLinkSpecialOrderInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { orderId: string; invoiceId: string }) => {
+      const { error } = await supabase
+        .from("special_orders")
+        .update({ invoice_id: input.invoiceId, status: "delivered" } as never)
+        .eq("id", input.orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
+  });
+}
+

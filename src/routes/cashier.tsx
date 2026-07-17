@@ -78,6 +78,7 @@ function CashierPage() {
   const [paymentType, setPaymentType] = useState<PaymentMethodType>("cash");
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [referenceNumber, setReferenceNumber] = useState<string>("");
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -91,6 +92,49 @@ function CashierPage() {
   useEffect(() => {
     searchRef.current?.focus();
   }, []);
+
+  // Consume a "pending_special_order" handoff from the Special Orders page:
+  // prefill customer, push the requested item as a custom cart line, and remember
+  // the source order id so we can link it to the invoice on save.
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("pending_special_order") : null;
+      if (!raw) return;
+      localStorage.removeItem("pending_special_order");
+      const p = JSON.parse(raw) as {
+        order_id?: string;
+        item_name?: string;
+        customer_id?: string | null;
+        customer_name?: string | null;
+        customer_phone?: string | null;
+        quantity?: number;
+        target_price?: number | null;
+      };
+      if (!p.item_name) return;
+      if (p.order_id) setPendingOrderId(p.order_id);
+      if (p.customer_id) setSelectedCustomerId(p.customer_id);
+      if (p.customer_name) setCustomerName(p.customer_name);
+      if (p.customer_phone) setCustomerPhone(p.customer_phone);
+      const qty = Math.max(1, Math.floor(Number(p.quantity) || 1));
+      const price = Math.max(0, Number(p.target_price) || 0);
+      setCart((prev) => [
+        ...prev,
+        {
+          productId: `custom-${Date.now()}`,
+          name: p.item_name!,
+          unit: "قطعة",
+          unitPrice: price,
+          costPrice: 0,
+          quantity: qty,
+          maxQty: Number.MAX_SAFE_INTEGER,
+        },
+      ]);
+      toast.info(`تم تحميل طلب النظام «${p.item_name}» — راجع السعر والكمية ثم احفظ الفاتورة`);
+    } catch {
+      // ignore malformed handoff
+    }
+  }, []);
+
 
   // Auto-select default payment method
   useEffect(() => {
@@ -135,7 +179,19 @@ function CashierPage() {
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
     [cart],
   );
-  const markupNum = Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+  // Validate the raw markup input separately so we can surface a clear message
+  // and block checkout on out-of-range values (negative, non-numeric, > 100).
+  const markupError = useMemo(() => {
+    const raw = markupPct.trim();
+    if (raw === "") return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return "نسبة الزيادة يجب أن تكون رقماً";
+    if (n < 0) return "نسبة الزيادة لا يمكن أن تكون سالبة";
+    if (n > 100) return "نسبة الزيادة لا يمكن أن تتجاوز 100%";
+    return null;
+  }, [markupPct]);
+  const markupNum = markupError ? 0 : Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+
   const markupMultiplier = 1 + markupNum / 100;
   const subtotalAfterMarkup = subtotal * markupMultiplier;
   const markupAmount = subtotalAfterMarkup - subtotal;
@@ -282,6 +338,13 @@ function CashierPage() {
       toast.error("اختر حساباً بنكياً");
       return;
     }
+    if (markupError) {
+      setError(markupError);
+      toast.error(markupError);
+      return;
+    }
+
+
 
     setError(null);
     setSaving(true);
@@ -398,8 +461,23 @@ function CashierPage() {
 
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Link the newly-saved invoice back to the originating special order (if any).
+      if (savedInvoice && pendingOrderId) {
+        const linkedOrderId = pendingOrderId;
+        setPendingOrderId(null);
+        try {
+          await supabase
+            .from("special_orders")
+            .update({ invoice_id: savedInvoice.id, status: "delivered" })
+            .eq("id", linkedOrderId);
+          queryClient.invalidateQueries({ queryKey: ["special-orders"] });
+        } catch {
+          // non-fatal: invoice is saved, only the link failed
+        }
+      }
       if (savedInvoice) {
         toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+
         // Auto-print: navigate directly to preview with autoprint flag
         if (storeProfile?.auto_print) {
           navigate({
@@ -965,11 +1043,15 @@ function CashierPage() {
                   min={0}
                   max={100}
                   inputMode="decimal"
-                  className="w-full h-7 rounded border border-border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none focus:border-brand"
+                  className={`w-full h-7 rounded border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none ${markupError ? "border-destructive focus:border-destructive" : "border-border focus:border-brand"}`}
                 />
                 <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
               </div>
             </div>
+            {markupError && (
+              <p className="text-[10px] text-destructive text-end">{markupError}</p>
+            )}
+
             {markupNum > 0 && (
               <Row label={`+ زيادة ${formatNumber(markupNum)}%`} value={formatSDG(markupAmount)} highlight="emerald" />
             )}

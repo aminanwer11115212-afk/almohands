@@ -335,7 +335,7 @@ function InvoiceDetailPage() {
 
   // Overstock rows (quantity exceeds available). Blocks save with clear message.
   const overstockRows = useMemo(() => {
-    return editRows
+    return visibleEditRows
       .map((r) => {
         const max = maxAllowedFor(r);
         if (max === null) return null;
@@ -343,7 +343,7 @@ function InvoiceDetailPage() {
         return null;
       })
       .filter((x): x is { row: EditRow; max: number } => !!x);
-  }, [editRows, stockMap]);
+  }, [visibleEditRows, stockMap]);
   const hasOverstock = overstockRows.length > 0;
 
   const saveMutation = useMutation({

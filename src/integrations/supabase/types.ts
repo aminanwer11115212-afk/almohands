@@ -815,6 +815,84 @@ export type Database = {
           },
         ]
       }
+      special_orders: {
+        Row: {
+          cancellation_reason: string | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          description: string | null
+          expected_at: string | null
+          id: string
+          item_name: string
+          notes: string | null
+          priority: string
+          quantity: number
+          status: string
+          supplier_id: string | null
+          supplier_name: string | null
+          target_price: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          expected_at?: string | null
+          id?: string
+          item_name: string
+          notes?: string | null
+          priority?: string
+          quantity?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          target_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancellation_reason?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          expected_at?: string | null
+          id?: string
+          item_name?: string
+          notes?: string | null
+          priority?: string
+          quantity?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          target_price?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_profile: {
         Row: {
           address: string

@@ -1216,16 +1216,16 @@ function InvoiceDetailPage() {
                   minHeight: format === "thermal" ? "auto" : "210mm",
                 }}
               >
-                {/* Margin guide (dashed inner box shows printable safe area) */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 print:hidden"
-                  style={{
-                    padding: format === "thermal" ? "2mm" : "8mm",
-                  }}
-                >
-                  <div className="w-full h-full border border-dashed border-[#1877F2]/40 rounded-[1px]" />
-                </div>
+                {/* Margin guide (dashed inner box shows printable safe area) — toggleable */}
+                {showGuides && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 print:hidden"
+                    style={{ padding: format === "thermal" ? "2mm" : "8mm" }}
+                  >
+                    <div className="w-full h-full border border-dashed border-[#1877F2]/50 rounded-[1px]" />
+                  </div>
+                )}
                 {format === "a4" ? (
                   <A4Invoice
                     inv={inv}

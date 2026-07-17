@@ -150,19 +150,7 @@ function SpecialOrdersPage() {
             toast("هل تريد إنشاء فاتورة لهذا الطلب؟", {
               action: {
                 label: "إنشاء فاتورة",
-                onClick: () => {
-                  localStorage.setItem(
-                    "pending_special_order",
-                    JSON.stringify({
-                      item_name: order.item_name,
-                      customer_name: order.customer_name,
-                      customer_phone: order.customer_phone,
-                      quantity: order.quantity,
-                      target_price: order.target_price,
-                    })
-                  );
-                  navigate({ to: "/cashier" });
-                },
+                onClick: () => convertToInvoice(order),
               },
             });
           }
@@ -171,6 +159,61 @@ function SpecialOrdersPage() {
       }
     );
   }
+
+  function convertToInvoice(order: SpecialOrder) {
+    localStorage.setItem(
+      "pending_special_order",
+      JSON.stringify({
+        order_id: order.id,
+        item_name: order.item_name,
+        customer_id: order.customer_id,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        quantity: order.quantity,
+        target_price: order.target_price,
+      })
+    );
+    navigate({ to: "/cashier" });
+  }
+
+  function exportRows(kind: "csv" | "pdf") {
+    const headers = ["التاريخ", "العميل", "الهاتف", "الصنف", "الوصف", "الكمية", "السعر المستهدف", "المورد", "الأولوية", "الحالة", "التاريخ المتوقع", "سبب الإلغاء"];
+    const rows = filtered.map((o) => [
+      new Date(o.created_at).toLocaleDateString("en-GB"),
+      o.customer_name ?? "",
+      o.customer_phone ?? "",
+      o.item_name,
+      o.description ?? "",
+      o.quantity,
+      o.target_price ?? "",
+      o.supplier_name ?? "",
+      PRIORITY_LABELS[o.priority],
+      STATUS_LABELS[o.status],
+      o.expected_at ?? "",
+      o.cancellation_reason ?? "",
+    ]);
+    if (rows.length === 0) {
+      toast.warning("لا توجد بيانات للتصدير بعد تطبيق الفلاتر");
+      return;
+    }
+    try {
+      if (kind === "csv") {
+        const stamp = new Date().toISOString().slice(0, 10);
+        saveBlob(`special-orders-${stamp}.csv`, buildCsvBlob(headers, rows));
+        toast.success("تم تصدير CSV");
+      } else {
+        exportPdfFromRows({
+          title: "طلبات النظام",
+          subtitle: `عدد الطلبات: ${rows.length} — ${new Date().toLocaleString("ar-EG")}`,
+          headers,
+          rows: rows as (string | number)[][],
+        });
+      }
+    } catch (err) {
+      handleError(err, "تعذّر التصدير");
+    }
+  }
+
 
   return (
     <AppShell

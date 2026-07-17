@@ -582,6 +582,7 @@ function InvoiceDetailPage() {
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);
+    setBusyPhase("جارٍ توليد ملف PDF…");
     const reqId = newRequestId("pdf-share");
     const loadingId = toast.loading("جارٍ تجهيز ملف PDF للمشاركة…");
     try {
@@ -591,6 +592,7 @@ function InvoiceDetailPage() {
         footer: invoiceFooter || undefined,
         storePhone,
       });
+      setBusyPhase("جارٍ فتح نافذة المشاركة…");
       const result = await sharePdfFileNative(el, filename, format, {
         title: `فاتورة #${inv.invoice_number}`,
         text,
@@ -608,14 +610,33 @@ function InvoiceDetailPage() {
       logger.info("pdf_share_native", { context: { reqId, invoiceId: inv.id, result, attempt } });
     } catch (e) {
       toast.dismiss(loadingId);
-      handleError(e, attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
-        event: "pdf_share_native_failed",
-        context: { reqId, invoiceId: inv.id, attempt },
+      const err = e as { name?: string; message?: string; code?: string | number };
+      const errName = err?.name || "Error";
+      const errCode = err?.code ?? errName;
+      const errMsg = err?.message || String(e);
+      const errText = `[${reqId}] ${errName}(${errCode}): ${errMsg}`.slice(0, 500);
+      const description = `السبب: ${errMsg.slice(0, 140)} — رمز: ${errCode}`;
+      toast.error(attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
+        description,
+        duration: 12000,
         action: attempt < 2
           ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
           : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
+        cancel: {
+          label: "نسخ الخطأ",
+          onClick: () => {
+            try {
+              navigator.clipboard.writeText(errText);
+              toast.success("تم نسخ رسالة الخطأ — أرسلها للدعم");
+            } catch {
+              toast.error("تعذّر النسخ التلقائي");
+            }
+          },
+        },
       });
+      logger.error("pdf_share_native_failed", { context: { reqId, invoiceId: inv.id, attempt, errName, errCode, errMsg } });
     } finally {
+      setBusyPhase("");
       setPdfBusy(false);
     }
   }

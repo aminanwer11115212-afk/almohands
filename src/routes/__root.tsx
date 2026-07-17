@@ -133,6 +133,8 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useAutoLocalBackup();
+
   useEffect(() => {
     registerPwa();
     const onUnhandled = (e: PromiseRejectionEvent) => {

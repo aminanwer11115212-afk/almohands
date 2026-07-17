@@ -605,6 +605,9 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
           </Field>
 
+          {isEdit && order && <StatusHistoryTimeline orderId={order.id} />}
+
+
           <DialogFooter className="pt-2">
             <button type="submit" disabled={busy}
               className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">

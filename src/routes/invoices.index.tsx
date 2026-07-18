@@ -74,7 +74,7 @@ function InvoicesPage() {
     queryFn: async () => {
       let req = supabase
         .from("invoices")
-        .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, created_at")
+        .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at")
         .order("created_at", { ascending: false })
         .limit(200);
 

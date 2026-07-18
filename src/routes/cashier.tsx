@@ -788,7 +788,7 @@ function CashierPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                {visibleProducts.slice(0, 60).map((p) => {
+                {pagedProducts.map((p) => {
                   const outOfStock = p.quantity <= 0;
                   const inCart = cart.find((c) => c.productId === p.id);
                   const low = p.quantity > 0 && p.quantity <= (p.minQuantity || 0);

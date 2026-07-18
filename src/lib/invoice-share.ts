@@ -107,6 +107,13 @@ async function renderElementToPdf(
   ]);
   const { jsPDF } = jspdfMod as typeof import("jspdf");
 
+  // Ensure custom fonts (Cairo/Tajawal + Arabic system fallbacks) are fully
+  // loaded before html2canvas snapshots the DOM, otherwise the exported PDF
+  // renders with fallback metrics and Arabic text can overlap or misalign.
+  if (typeof document !== "undefined" && (document as Document & { fonts?: FontFaceSet }).fonts?.ready) {
+    try { await (document as Document & { fonts: FontFaceSet }).fonts.ready; } catch { /* ignore */ }
+  }
+
   const canvas = await html2canvas(el, {
     scale: 2,
     useCORS: true,

@@ -233,11 +233,14 @@ function InvoicesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}>
           <SummaryCard label="فواتير" value={String(totals.count)} />
           <SummaryCard label="الإجمالي" value={formatSDG(totals.total)} />
           <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="emerald" />
           <SummaryCard label="المتبقي" value={formatSDG(totals.remaining)} tone="rose" />
+          {isAdmin && (
+            <SummaryCard label="صافي الربح" value={formatSDG(totals.profit)} tone={totals.profit >= 0 ? "emerald" : "rose"} />
+          )}
         </div>
 
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">

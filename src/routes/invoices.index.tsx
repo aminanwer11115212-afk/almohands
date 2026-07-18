@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
+import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
 

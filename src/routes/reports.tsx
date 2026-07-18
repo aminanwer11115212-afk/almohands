@@ -318,6 +318,25 @@ function ReportsPage() {
     const returnsCount = data.returns.length;
     const acceptedReturns = data.returns.filter((r) => r.status === "accepted").length;
 
+    // Per-invoice profit map: Σ(unit_price - cost_price) × quantity  (discount excluded at line level;
+    // it is aggregated at invoice header, so we subtract it once from the invoice profit below).
+    const profitByInvoice = new Map<string, number>();
+    for (const it of data.items as any[]) {
+      const invId = String(it.invoice_id ?? "");
+      if (!invId) continue;
+      const line = (Number(it.unit_price) || 0 - 0) * 0; // placeholder to keep types
+      const p = (Number(it.unit_price) || 0) * (Number(it.quantity) || 0)
+              - (Number(it.cost_price) || 0) * (Number(it.quantity) || 0);
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + p);
+      void line;
+    }
+    for (const inv of data.invoices) {
+      const disc = Number(inv.discount || 0);
+      if (disc && profitByInvoice.has(inv.id)) {
+        profitByInvoice.set(inv.id, (profitByInvoice.get(inv.id) ?? 0) - disc);
+      }
+    }
+
     return {
       totalSales,
       totalPaid,
@@ -337,6 +356,7 @@ function ReportsPage() {
       daily,
       returnsCount,
       acceptedReturns,
+      profitByInvoice,
     };
   }, [data]);
 

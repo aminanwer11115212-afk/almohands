@@ -12,12 +12,14 @@ import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
+const sortEnum = z.enum(["date_desc", "date_asc", "profit_desc", "profit_asc", "total_desc", "total_asc"]);
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
   status: fallback(statusEnum, "all").default("all"),
   from: fallback(z.string(), "").default(""),
   to: fallback(z.string(), "").default(""),
+  sort: fallback(sortEnum, "date_desc").default("date_desc"),
 });
 
 type InvoicesSearch = z.infer<typeof searchSchema>;
@@ -32,6 +34,7 @@ type InvoiceRow = {
   paid: number;
   remaining: number;
   status: string;
+  discount: number;
   created_at: string;
 };
 

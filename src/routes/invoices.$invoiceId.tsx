@@ -17,6 +17,7 @@ import { logger, newRequestId } from "@/lib/logger";
 import { invoiceEditRowsSchema, validateItemField } from "@/lib/schemas";
 import { useProducts } from "@/hooks/use-products";
 import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
+import { useMyRole } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),

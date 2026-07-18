@@ -182,7 +182,7 @@ function useReportBundle(period: Period) {
       // Returns
       let qRet = supabase
         .from("returns")
-        .select("user_id, invoice_id, product_id, quantity, status, created_at");
+        .select("user_id, invoice_id, product_id, product_name, quantity, status, created_at");
       if (from) qRet = qRet.gte("created_at", from);
       if (to) qRet = qRet.lt("created_at", to);
 

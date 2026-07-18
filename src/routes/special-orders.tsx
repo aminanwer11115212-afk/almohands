@@ -492,121 +492,134 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg text-end" dir="rtl">
+      <DialogContent className="max-w-4xl w-[95vw] text-end" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-end">{isEdit ? "تعديل طلب" : "طلب جديد"}</DialogTitle>
+          <DialogTitle className="text-end">{isEdit ? "تعديل طلب" : "طلب جديد — منتج غير متوفر / PreOrder"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
-          <Field label="اسم الصنف *">
-            <input value={itemName} onChange={(e) => setItemName(e.target.value)} required
-              className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end" />
-          </Field>
-          <Field label="الوصف">
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="الكمية *">
-              <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)}
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
+          {/* Section 1 — Item details (independent block) */}
+          <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
+            <h4 className="text-xs font-bold text-muted-foreground">① تفاصيل الصنف المطلوب</h4>
+            <Field label="اسم الصنف *">
+              <input value={itemName} onChange={(e) => setItemName(e.target.value)} required
+                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end" />
             </Field>
-            <Field label="السعر المستهدف">
-              <input inputMode="decimal" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
+            <Field label="الوصف">
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
             </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="الكمية *">
+                <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
+              </Field>
+              <Field label="السعر المستهدف">
+                <input inputMode="decimal" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
+              </Field>
+            </div>
+          </section>
+
+          {/* Sections 2 & 3 — Customer and Supplier side-by-side, independent */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
+              <h4 className="text-xs font-bold text-muted-foreground">② العميل صاحب الطلب</h4>
+              <Field label="اسم العميل">
+                <div className="relative">
+                  <input
+                    value={customerQuery}
+                    onChange={(e) => { setCustomerQuery(e.target.value); setCustomerId(null); setShowCustomerList(true); }}
+                    onFocus={() => setShowCustomerList(true)}
+                    onBlur={() => setTimeout(() => setShowCustomerList(false), 150)}
+                    placeholder="اكتب اسم العميل أو اختر من القائمة"
+                    className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end"
+                  />
+                  {showCustomerList && customerQuery.trim() && customers.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
+                      {customers.map((c) => (
+                        <button
+                          type="button"
+                          key={c.id}
+                          onMouseDown={() => {
+                            setCustomerId(c.id);
+                            setCustomerQuery(c.name);
+                            setCustomerPhone(c.phone ?? "");
+                            setShowCustomerList(false);
+                          }}
+                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
+                        >
+                          {c.name} {c.phone ? `— ${c.phone}` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Field>
+              <Field label="هاتف العميل">
+                <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} dir="ltr"
+                  className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-left" />
+              </Field>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
+              <h4 className="text-xs font-bold text-muted-foreground">③ المورد المقترح</h4>
+              <Field label="اسم المورد">
+                <div className="relative">
+                  <input
+                    value={supplierQuery}
+                    onChange={(e) => { setSupplierQuery(e.target.value); setSupplierId(null); setShowSupplierList(true); }}
+                    onFocus={() => setShowSupplierList(true)}
+                    onBlur={() => setTimeout(() => setShowSupplierList(false), 150)}
+                    placeholder="اكتب اسم المورد أو اختر من القائمة"
+                    className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end"
+                  />
+                  {showSupplierList && supplierQuery.trim() && suppliers.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
+                      {suppliers.map((s) => (
+                        <button
+                          type="button"
+                          key={s.id}
+                          onMouseDown={() => {
+                            setSupplierId(s.id);
+                            setSupplierQuery(s.name);
+                            setShowSupplierList(false);
+                          }}
+                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Field>
+            </section>
           </div>
 
-          {/* Customer combobox-like */}
-          <Field label="العميل">
-            <div className="relative">
-              <input
-                value={customerQuery}
-                onChange={(e) => { setCustomerQuery(e.target.value); setCustomerId(null); setShowCustomerList(true); }}
-                onFocus={() => setShowCustomerList(true)}
-                onBlur={() => setTimeout(() => setShowCustomerList(false), 150)}
-                placeholder="اكتب اسم العميل أو اختر من القائمة"
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end"
-              />
-              {showCustomerList && customerQuery.trim() && customers.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
-                  {customers.map((c) => (
-                    <button
-                      type="button"
-                      key={c.id}
-                      onMouseDown={() => {
-                        setCustomerId(c.id);
-                        setCustomerQuery(c.name);
-                        setCustomerPhone(c.phone ?? "");
-                        setShowCustomerList(false);
-                      }}
-                      className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
-                    >
-                      {c.name} {c.phone ? `— ${c.phone}` : ""}
-                    </button>
+          {/* Section 4 — Scheduling & notes */}
+          <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
+            <h4 className="text-xs font-bold text-muted-foreground">④ الأولوية والجدولة</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="الأولوية">
+                <select value={priority} onChange={(e) => setPriority(e.target.value as SpecialOrderPriority)}
+                  className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end">
+                  {(Object.keys(PRIORITY_LABELS) as SpecialOrderPriority[]).map((p) => (
+                    <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
                   ))}
-                </div>
-              )}
+                </select>
+              </Field>
+              <Field label="التاريخ المتوقع">
+                <input type="date" value={expectedAt ?? ""} onChange={(e) => setExpectedAt(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
+              </Field>
             </div>
-          </Field>
-          <Field label="هاتف العميل">
-            <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} dir="ltr"
-              className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-left" />
-          </Field>
-
-          {/* Supplier combobox-like */}
-          <Field label="المورد المقترح">
-            <div className="relative">
-              <input
-                value={supplierQuery}
-                onChange={(e) => { setSupplierQuery(e.target.value); setSupplierId(null); setShowSupplierList(true); }}
-                onFocus={() => setShowSupplierList(true)}
-                onBlur={() => setTimeout(() => setShowSupplierList(false), 150)}
-                placeholder="اكتب اسم المورد أو اختر من القائمة"
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end"
-              />
-              {showSupplierList && supplierQuery.trim() && suppliers.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
-                  {suppliers.map((s) => (
-                    <button
-                      type="button"
-                      key={s.id}
-                      onMouseDown={() => {
-                        setSupplierId(s.id);
-                        setSupplierQuery(s.name);
-                        setShowSupplierList(false);
-                      }}
-                      className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Field>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="الأولوية">
-              <select value={priority} onChange={(e) => setPriority(e.target.value as SpecialOrderPriority)}
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end">
-                {(Object.keys(PRIORITY_LABELS) as SpecialOrderPriority[]).map((p) => (
-                  <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
-                ))}
-              </select>
+            <Field label="ملاحظات">
+              <textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
             </Field>
-            <Field label="التاريخ المتوقع">
-              <input type="date" value={expectedAt ?? ""} onChange={(e) => setExpectedAt(e.target.value)}
-                className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
-            </Field>
-          </div>
-
-          <Field label="ملاحظات">
-            <textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
-          </Field>
+          </section>
 
           {isEdit && order && <StatusHistoryTimeline orderId={order.id} />}
-
 
           <DialogFooter className="pt-2">
             <button type="submit" disabled={busy}
@@ -618,6 +631,7 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
       </DialogContent>
     </Dialog>
   );
+
 }
 
 function CancelDialog({ order, onClose }: { order: SpecialOrder; onClose: () => void }) {

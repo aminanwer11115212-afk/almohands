@@ -1819,7 +1819,7 @@ function InvoiceDetailPage() {
 
 
       <main className="py-6 px-4 print:p-0">
-        <div ref={printRef}>
+        <div ref={printRef} id="invoice-print-root">
         {format === "a4" ? (
           <A4Invoice
             inv={inv}

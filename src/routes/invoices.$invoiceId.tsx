@@ -2051,10 +2051,14 @@ function InvoiceDetailPage() {
           .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-a4 {
             width: 281mm; /* A4 landscape 297mm - 2×8mm margins */
-            min-height: 194mm;
             margin: 0 auto !important;
-            page-break-inside: avoid;
+            /* NO page-break-inside on the whole invoice — large invoices must paginate cleanly */
           }
+          /* Keep atomic blocks intact across page breaks */
+          .keep-together, tr, thead, tfoot { break-inside: avoid !important; page-break-inside: avoid !important; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+          .a4-summary { break-before: auto; break-inside: avoid !important; page-break-inside: avoid !important; }
           .print-thermal { width: 76mm; margin: 0 auto !important; }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"

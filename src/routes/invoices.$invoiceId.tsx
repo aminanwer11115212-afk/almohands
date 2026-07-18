@@ -1930,45 +1930,7 @@ function InvoiceDetailPage() {
             paymentLabel={paymentLabel}
           />
         )}
-        {isAdmin && includeProfitInPdf && profitInfo && format === "a4" && (
-          <div className="mt-4 mx-auto max-w-[190mm] break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
-            <div className="rounded border border-black/20" style={{ padding: "8px 12px" }}>
-              <div className="flex items-center justify-between mb-2" style={{ borderBottom: "1px solid #0002", paddingBottom: 4 }}>
-                <strong style={{ fontSize: 13 }}>تحليل ربح الفاتورة (خاص بالإدارة)</strong>
-                <span style={{ fontSize: 10, color: "#555" }}>مبني على التكلفة وقت البيع</span>
-              </div>
-              <div className="grid grid-cols-5 gap-2 text-center" style={{ fontSize: 11 }}>
-                <div><div style={{ color: "#666" }}>الإيراد</div><div className="nums font-bold">{formatSDG(profitInfo.revenue)}</div></div>
-                <div><div style={{ color: "#666" }}>التكلفة</div><div className="nums font-bold">{formatSDG(profitInfo.cost)}</div></div>
-                <div><div style={{ color: "#666" }}>مجمل الربح</div><div className="nums font-bold">{formatSDG(profitInfo.grossProfit)}</div></div>
-                <div><div style={{ color: "#666" }}>الخصم</div><div className="nums font-bold">{formatSDG(profitInfo.discount)}</div></div>
-                <div><div style={{ color: "#666" }}>صافي الربح ({profitInfo.margin.toFixed(1)}%)</div><div className="nums font-bold">{formatSDG(profitInfo.netProfit)}</div></div>
-              </div>
-              <table className="w-full mt-2" style={{ fontSize: 10, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #0002" }}>
-                    <th className="text-right p-1">الصنف</th>
-                    <th className="text-end p-1">الكمية</th>
-                    <th className="text-end p-1">سعر البيع</th>
-                    <th className="text-end p-1">التكلفة</th>
-                    <th className="text-end p-1">الربح</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profitInfo.perLine.map((r) => (
-                    <tr key={r.id} style={{ borderBottom: "1px dashed #0001" }}>
-                      <td className="p-1">{r.name}</td>
-                      <td className="p-1 text-end nums">{r.qty}</td>
-                      <td className="p-1 text-end nums">{formatSDG(r.unit)}</td>
-                      <td className="p-1 text-end nums">{formatSDG(r.cost)}</td>
-                      <td className="p-1 text-end nums font-bold">{formatSDG(r.profit)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
         </div>
       </main>
 

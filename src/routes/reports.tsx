@@ -697,7 +697,7 @@ function DetailedTab({
                   <th className="text-right px-2 py-1.5">العميل</th>
                   <th className="text-center px-2 py-1.5">الدفع</th>
                   <th className="text-end px-2 py-1.5">المبلغ</th>
-                  <th className="text-end px-2 py-1.5">الربح</th>
+                  {isAdmin && <th className="text-end px-2 py-1.5">الربح</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

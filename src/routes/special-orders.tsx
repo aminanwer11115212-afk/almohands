@@ -446,20 +446,45 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
 
   const busy = addOrder.isPending || updateOrder.isPending;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!itemName.trim()) {
-      toast.error("اسم الصنف مطلوب");
-      return;
-    }
-    const qty = parseInt(quantity, 10);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      toast.error("الكمية يجب أن تكون رقمًا أكبر من صفر");
-      return;
-    }
-    const price = targetPrice.trim() ? parseFloat(targetPrice) : null;
-    if (targetPrice.trim() && (!Number.isFinite(price as number) || (price as number) < 0)) {
-      toast.error("السعر المستهدف غير صالح");
+  // ============= Per-section validation =============
+  // Each section validates independently so the user sees errors right below
+  // the section that owns them — not one toast for the whole form.
+  const qtyNum = parseInt(quantity, 10);
+  const priceNum = targetPrice.trim() ? parseFloat(targetPrice) : null;
+
+  const errItem =
+    !itemName.trim()
+      ? "اسم الصنف مطلوب"
+      : !Number.isFinite(qtyNum) || qtyNum <= 0
+      ? "الكمية يجب أن تكون رقماً أكبر من صفر"
+      : targetPrice.trim() && (!Number.isFinite(priceNum as number) || (priceNum as number) < 0)
+      ? "السعر المستهدف غير صالح"
+      : null;
+
+  const errCustomer =
+    customerPhone.trim() && !/^[0-9+\-\s]{6,}$/.test(customerPhone.trim())
+      ? "رقم الهاتف غير صالح"
+      : null;
+
+  const errSupplier: string | null = null; // supplier fully optional
+
+  const errSchedule =
+    expectedAt && new Date(expectedAt).toString() === "Invalid Date"
+      ? "التاريخ غير صالح"
+      : null;
+
+  const sectionOk = {
+    item: !errItem,
+    customer: !errCustomer,
+    supplier: !errSupplier,
+    schedule: !errSchedule,
+  };
+  const allOk = Object.values(sectionOk).every(Boolean);
+
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!allOk) {
+      toast.error("يوجد قسم أو أكثر يحتاج تصحيحاً — راجع الأقسام المُعلَّمة بالأحمر");
       return;
     }
     const payload = {
@@ -468,8 +493,8 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
       customer_phone: customerPhone.trim() || null,
       item_name: itemName.trim(),
       description: description.trim() || null,
-      quantity: qty,
-      target_price: price,
+      quantity: qtyNum,
+      target_price: priceNum,
       supplier_id: supplierId,
       supplier_name: supplierQuery.trim() || null,
       notes: notes.trim() || null,
@@ -492,14 +517,18 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl w-[95vw] text-end" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="text-end">{isEdit ? "تعديل طلب" : "طلب جديد — منتج غير متوفر / PreOrder"}</DialogTitle>
+      <DialogContent className="max-w-4xl w-[95vw] text-end p-0 overflow-hidden" dir="rtl">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border bg-muted/30">
+          <DialogTitle className="text-end text-base sm:text-lg">
+            {isEdit ? "تعديل طلب" : "طلب جديد — منتج غير متوفر / PreOrder"}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground text-end mt-1">
+            الأقسام الأربعة مستقلة — كل قسم يتحقق من بياناته منفصلاً قبل التأكيد النهائي.
+          </p>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
-          {/* Section 1 — Item details (independent block) */}
-          <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
-            <h4 className="text-xs font-bold text-muted-foreground">① تفاصيل الصنف المطلوب</h4>
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto p-5 bg-muted/10">
+          {/* ============= Section 1 — Item ============= */}
+          <SectionCard index={1} title="تفاصيل الصنف المطلوب" tone="amber" required ok={sectionOk.item} error={errItem}>
             <Field label="اسم الصنف *">
               <input value={itemName} onChange={(e) => setItemName(e.target.value)} required
                 className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-end" />
@@ -518,12 +547,11 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
                   className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand nums" />
               </Field>
             </div>
-          </section>
+          </SectionCard>
 
-          {/* Sections 2 & 3 — Customer and Supplier side-by-side, independent */}
+          {/* ============= Sections 2 & 3 — Customer / Supplier ============= */}
           <div className="grid md:grid-cols-2 gap-4">
-            <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
-              <h4 className="text-xs font-bold text-muted-foreground">② العميل صاحب الطلب</h4>
+            <SectionCard index={2} title="العميل صاحب الطلب" tone="sky" ok={sectionOk.customer} error={errCustomer}>
               <Field label="اسم العميل">
                 <div className="relative">
                   <input
@@ -537,17 +565,9 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
                   {showCustomerList && customerQuery.trim() && customers.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
                       {customers.map((c) => (
-                        <button
-                          type="button"
-                          key={c.id}
-                          onMouseDown={() => {
-                            setCustomerId(c.id);
-                            setCustomerQuery(c.name);
-                            setCustomerPhone(c.phone ?? "");
-                            setShowCustomerList(false);
-                          }}
-                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
-                        >
+                        <button type="button" key={c.id}
+                          onMouseDown={() => { setCustomerId(c.id); setCustomerQuery(c.name); setCustomerPhone(c.phone ?? ""); setShowCustomerList(false); }}
+                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent">
                           {c.name} {c.phone ? `— ${c.phone}` : ""}
                         </button>
                       ))}
@@ -559,10 +579,9 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
                 <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} dir="ltr"
                   className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-brand text-left" />
               </Field>
-            </section>
+            </SectionCard>
 
-            <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
-              <h4 className="text-xs font-bold text-muted-foreground">③ المورد المقترح</h4>
+            <SectionCard index={3} title="المورد المقترح" tone="violet" ok={sectionOk.supplier} error={errSupplier}>
               <Field label="اسم المورد">
                 <div className="relative">
                   <input
@@ -576,16 +595,9 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
                   {showSupplierList && supplierQuery.trim() && suppliers.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-md">
                       {suppliers.map((s) => (
-                        <button
-                          type="button"
-                          key={s.id}
-                          onMouseDown={() => {
-                            setSupplierId(s.id);
-                            setSupplierQuery(s.name);
-                            setShowSupplierList(false);
-                          }}
-                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent"
-                        >
+                        <button type="button" key={s.id}
+                          onMouseDown={() => { setSupplierId(s.id); setSupplierQuery(s.name); setShowSupplierList(false); }}
+                          className="block w-full text-end px-3 py-2 text-sm hover:bg-accent">
                           {s.name}
                         </button>
                       ))}
@@ -593,12 +605,11 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
                   )}
                 </div>
               </Field>
-            </section>
+            </SectionCard>
           </div>
 
-          {/* Section 4 — Scheduling & notes */}
-          <section className="rounded-2xl border border-border bg-card/50 p-3 space-y-3">
-            <h4 className="text-xs font-bold text-muted-foreground">④ الأولوية والجدولة</h4>
+          {/* ============= Section 4 — Scheduling ============= */}
+          <SectionCard index={4} title="الأولوية والجدولة" tone="emerald" ok={sectionOk.schedule} error={errSchedule}>
             <div className="grid grid-cols-2 gap-2">
               <Field label="الأولوية">
                 <select value={priority} onChange={(e) => setPriority(e.target.value as SpecialOrderPriority)}
@@ -617,22 +628,85 @@ function OrderFormDialog({ order, onClose }: { order: SpecialOrder | null; onClo
               <textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={2}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand resize-none text-end" />
             </Field>
-          </section>
+          </SectionCard>
 
           {isEdit && order && <StatusHistoryTimeline orderId={order.id} />}
-
-          <DialogFooter className="pt-2">
-            <button type="submit" disabled={busy}
-              className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
-              {busy ? <Loader2 className="size-5 animate-spin" /> : isEdit ? "حفظ التعديلات" : "حفظ الطلب"}
-            </button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="border-t border-border bg-muted/30 px-5 py-3 gap-2 sm:justify-between flex-col sm:flex-row">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+            <SectionChip idx={1} ok={sectionOk.item} label="الصنف" />
+            <SectionChip idx={2} ok={sectionOk.customer} label="العميل" />
+            <SectionChip idx={3} ok={sectionOk.supplier} label="المورد" />
+            <SectionChip idx={4} ok={sectionOk.schedule} label="الجدولة" />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSubmit()}
+            disabled={busy || !allOk}
+            className="h-12 px-6 rounded-xl bg-brand text-brand-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy ? <Loader2 className="size-5 animate-spin" /> : null}
+            {allOk ? (isEdit ? "✓ تأكيد وحفظ التعديلات" : "✓ تأكيد وإرسال الطلب") : "أكمل الأقسام لتفعيل الإرسال"}
+          </button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-
 }
+
+/** Visually-independent section card with tone, status badge, and inline error. */
+function SectionCard({
+  index, title, tone, required, ok, error, children,
+}: {
+  index: number;
+  title: string;
+  tone: "amber" | "sky" | "violet" | "emerald";
+  required?: boolean;
+  ok: boolean;
+  error: string | null;
+  children: React.ReactNode;
+}) {
+  const tones = {
+    amber:   { bar: "bg-amber-500",   head: "text-amber-900 bg-amber-50",     ring: "ring-amber-200" },
+    sky:     { bar: "bg-sky-500",     head: "text-sky-900 bg-sky-50",         ring: "ring-sky-200" },
+    violet:  { bar: "bg-violet-500",  head: "text-violet-900 bg-violet-50",   ring: "ring-violet-200" },
+    emerald: { bar: "bg-emerald-500", head: "text-emerald-900 bg-emerald-50", ring: "ring-emerald-200" },
+  } as const;
+  const t = tones[tone];
+  return (
+    <section
+      className={`rounded-2xl border-2 bg-card shadow-sm overflow-hidden transition ${
+        error ? "border-rose-400 ring-2 ring-rose-100" : `border-border ring-1 ${t.ring}`
+      }`}
+    >
+      <div className={`flex items-center gap-2 px-3 py-2 ${t.head}`}>
+        <span className={`inline-flex items-center justify-center size-6 rounded-full text-white text-xs font-bold ${t.bar}`}>
+          {index}
+        </span>
+        <h4 className="text-xs sm:text-sm font-bold flex-1">
+          {title}{required && <span className="text-rose-600 ms-1">*</span>}
+        </h4>
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+          {ok ? "✓ صالح" : "يحتاج تصحيح"}
+        </span>
+      </div>
+      <div className="p-3 space-y-3">{children}</div>
+      {error && (
+        <div className="px-3 pb-2 -mt-1 text-[11px] text-rose-700 font-semibold text-end">⚠ {error}</div>
+      )}
+    </section>
+  );
+}
+
+function SectionChip({ idx, ok, label }: { idx: number; ok: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full ${ok ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+      {ok ? "✓" : "✗"} {idx}. {label}
+    </span>
+  );
+}
+
 
 function CancelDialog({ order, onClose }: { order: SpecialOrder; onClose: () => void }) {
   const [reason, setReason] = useState("");

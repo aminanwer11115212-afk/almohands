@@ -141,79 +141,47 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       0,
     );
 
-    const ok = window.confirm(
-      `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً\n\n` +
-        `- ستُعاد كل الأصناف إلى المخزن\n` +
-        `- ستُخصم من إجمالي المبيعات\n` +
-        (paysCount > 0
-          ? `- سيتم حذف ${paysCount} دفعة مرتبطة (بقيمة ${paysTotal}) وخصمها من رصيد الحسابات\n`
-          : "") +
-        `- لا يمكن التراجع عن هذا الإجراء\n\nمتابعة؟`,
-    );
-    if (!ok) return;
+    const reason =
+      window.prompt(
+        `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً (عملية ذرية موحّدة)\n\n` +
+          `- سيتم إرجاع ${items.length} صنف/أصناف إلى المخزون\n` +
+          `- خصم الفاتورة من إجمالي المبيعات\n` +
+          (paysCount > 0
+            ? `- حذف ${paysCount} دفعة (بقيمة ${formatSDG(paysTotal)}) من الحسابات\n`
+            : "") +
+          `- تسجيل عملية الحذف كاملة في سجل التدقيق\n` +
+          `- لا يمكن التراجع\n\nاكتب سبب الحذف (اختياري) واضغط موافق للمتابعة، أو إلغاء:`,
+        "",
+      );
+    if (reason === null) return; // user pressed cancel
 
     setDeleting(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("غير مسجّل الدخول");
+      // One atomic DB call: locks the invoice, restores stock, deletes payments,
+      // deletes the invoice, writes a rich audit_logs row, then verifies.
+      // Any failure rolls the whole transaction back — no partial states.
+      const { data: verify, error } = await supabase.rpc("delete_invoice_atomic", {
+        _invoice_id: inv.id,
+        _reason: reason.trim() || undefined,
+      });
+      if (error) throw error;
 
-      // 1) Restore stock via returns (only for still-in-stock-linked items)
-      const eligibleItems = items.filter((i: any) => i.product_id);
-      if (eligibleItems.length > 0) {
-        // Skip items already fully returned to avoid double-restore
-        const { data: prev } = await supabase
-          .from("returns")
-          .select("product_id, quantity")
-          .eq("invoice_id", inv.id)
-          .eq("status", "accepted");
-        const returnedMap: Record<string, number> = {};
-        (prev ?? []).forEach((r: any) => {
-          if (!r.product_id) return;
-          returnedMap[r.product_id] = (returnedMap[r.product_id] ?? 0) + Number(r.quantity || 0);
-        });
-        const rows = eligibleItems
-          .map((it: any) => {
-            const already = returnedMap[it.product_id] ?? 0;
-            const qty = Math.max(0, Number(it.quantity) - already);
-            return qty > 0
-              ? {
-                  user_id: u.user!.id,
-                  invoice_id: inv.id,
-                  product_id: it.product_id,
-                  product_name: it.product_name,
-                  quantity: qty,
-                  reason: `حذف فاتورة #${inv.invoice_number}`,
-                  status: "accepted" as const,
-                }
-              : null;
-          })
-          .filter(Boolean) as any[];
-        if (rows.length > 0) {
-          const { error: retErr } = await supabase.from("returns").insert(rows);
-          if (retErr) throw retErr;
-        }
-      }
-
-      // 2) Delete linked payments first — payments.invoice_id has no FK,
-      //    so without this the account balances view keeps summing them
-      //    after the invoice is gone (orphaned money).
-      if (paysCount > 0) {
-        const { error: payErr } = await supabase
-          .from("payments")
-          .delete()
-          .eq("invoice_id", inv.id);
-        if (payErr) throw payErr;
-      }
-
-      // 3) Delete invoice (invoice_items cascade; returns.invoice_id set NULL)
-      const { error: delErr } = await supabase.from("invoices").delete().eq("id", inv.id);
-      if (delErr) throw delErr;
+      const v = (verify ?? {}) as {
+        payments_deleted?: number;
+        payments_total?: number;
+        stock_restored?: Array<{ product_name?: string; restored_qty?: number }>;
+      };
 
       invalidateAll();
       toast.success(
-        paysCount > 0
-          ? `تم حذف الفاتورة وإرجاع المخزون وحذف ${paysCount} دفعة من الحسابات`
-          : "تم حذف الفاتورة وإرجاع المخزون",
+        `تم حذف الفاتورة #${inv.invoice_number}` +
+          (v.payments_deleted
+            ? ` — حُذفت ${v.payments_deleted} دفعة (${formatSDG(Number(v.payments_total || 0))})`
+            : "") +
+          (v.stock_restored?.length
+            ? ` وأُرجع ${v.stock_restored.length} صنف/أصناف للمخزون`
+            : ""),
+        { duration: 6000 },
       );
       onOpenChange(false);
     } catch (err) {
@@ -222,6 +190,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       setDeleting(false);
     }
   }
+
 
 
   function invalidateAll() {

@@ -829,10 +829,28 @@ function CashierPage() {
                 })}
               </div>
             )}
-            {visibleProducts.length > 60 && (
-              <p className="text-center text-xs text-muted-foreground mt-2">
-                عرض 60 من {visibleProducts.length} — استخدم البحث للتصفية
-              </p>
+            {totalPages > 1 && (
+              <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="h-8 px-3 rounded-lg border border-border bg-background text-xs font-bold disabled:opacity-40 hover:bg-muted"
+                >
+                  السابق
+                </button>
+                <span className="text-xs text-muted-foreground nums">
+                  صفحة {formatNumber(currentPage)} من {formatNumber(totalPages)} · {formatNumber(visibleProducts.length)} منتج
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="h-8 px-3 rounded-lg border border-border bg-background text-xs font-bold disabled:opacity-40 hover:bg-muted"
+                >
+                  التالي
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -58,6 +58,8 @@ function CashierPage() {
   const [customCost, setCustomCost] = useState("0");
   const [customQty, setCustomQty] = useState("1");
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 60;
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -174,6 +176,16 @@ function CashierPage() {
     if (activeCategory === "__all__") return products;
     return products.filter((p) => (p.category ?? "").trim() === activeCategory);
   }, [products, activeCategory]);
+
+  // Reset paging when filter/search/category changes so the user always sees page 1.
+  useEffect(() => { setPage(1); }, [activeCategory, query]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedProducts = useMemo(
+    () => visibleProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [visibleProducts, currentPage],
+  );
 
   const subtotal = useMemo(
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
@@ -776,7 +788,7 @@ function CashierPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                {visibleProducts.slice(0, 60).map((p) => {
+                {pagedProducts.map((p) => {
                   const outOfStock = p.quantity <= 0;
                   const inCart = cart.find((c) => c.productId === p.id);
                   const low = p.quantity > 0 && p.quantity <= (p.minQuantity || 0);
@@ -817,10 +829,28 @@ function CashierPage() {
                 })}
               </div>
             )}
-            {visibleProducts.length > 60 && (
-              <p className="text-center text-xs text-muted-foreground mt-2">
-                عرض 60 من {visibleProducts.length} — استخدم البحث للتصفية
-              </p>
+            {totalPages > 1 && (
+              <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="h-8 px-3 rounded-lg border border-border bg-background text-xs font-bold disabled:opacity-40 hover:bg-muted"
+                >
+                  السابق
+                </button>
+                <span className="text-xs text-muted-foreground nums">
+                  صفحة {formatNumber(currentPage)} من {formatNumber(totalPages)} · {formatNumber(visibleProducts.length)} منتج
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="h-8 px-3 rounded-lg border border-border bg-background text-xs font-bold disabled:opacity-40 hover:bg-muted"
+                >
+                  التالي
+                </button>
+              </div>
             )}
           </div>
         </div>

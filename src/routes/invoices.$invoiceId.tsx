@@ -1728,6 +1728,82 @@ function InvoiceDetailPage() {
         </section>
       )}
 
+      {/* Payments history — visible on invoice page, hidden in print */}
+      <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <Wallet className="size-4 text-emerald-600" /> سجل الدفعات ({invoicePayments.length})
+            </h3>
+            <div className="text-xs text-muted-foreground">
+              المدفوع: <span className="nums font-bold text-emerald-700">{formatSDG(invPaidNum)}</span>
+              <span className="mx-2">•</span>
+              المتبقي: <span className="nums font-bold">{formatSDG(invRemainingNum)}</span>
+              <span className="mx-2">•</span>
+              <span className={`font-bold ${inv.status === "paid" ? "text-emerald-700" : inv.status === "partial" ? "text-amber-700" : inv.status === "cancelled" ? "text-red-600" : "text-muted-foreground"}`}>
+                {inv.status === "paid" ? "مدفوعة بالكامل" : inv.status === "partial" ? "مدفوعة جزئياً" : inv.status === "cancelled" ? "ملغاة" : "معلّقة"}
+              </span>
+            </div>
+          </div>
+          {invoicePayments.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              لا توجد دفعات مسجّلة على هذه الفاتورة بعد.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="p-2 text-right">التاريخ</th>
+                    <th className="p-2 text-right">طريقة الدفع</th>
+                    <th className="p-2 text-right">المبلغ</th>
+                    <th className="p-2 text-right">ملاحظات</th>
+                    <th className="p-2 w-28"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {invoicePayments.map((p) => (
+                    <tr key={p.id} className="hover:bg-muted/20">
+                      <td className="p-2 nums text-xs whitespace-nowrap">{new Date(p.created_at).toLocaleString("ar-EG")}</td>
+                      <td className="p-2">
+                        <span className="inline-flex items-center gap-1">
+                          {p.method === "bank" ? <Landmark className="size-3.5 text-blue-600" /> : <Wallet className="size-3.5 text-emerald-600" />}
+                          {paymentMethodLabel(p)}
+                        </span>
+                      </td>
+                      <td className="p-2 nums font-semibold text-emerald-700">{formatSDG(Number(p.amount))}</td>
+                      <td className="p-2 text-xs text-muted-foreground max-w-[240px] truncate" title={p.notes ?? ""}>{p.notes || "—"}</td>
+                      <td className="p-2 text-center">
+                        <div className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingPayment(p); setEditPayAmount(String(Number(p.amount))); }}
+                            className="p-1.5 rounded hover:bg-amber-50 text-amber-700"
+                            title="تعديل الدفعة"
+                            aria-label="تعديل الدفعة"
+                          >
+                            <Edit3 className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeletePayment(p)}
+                            className="p-1.5 rounded hover:bg-red-50 text-red-600"
+                            title="حذف الدفعة"
+                            aria-label="حذف الدفعة"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
 
       <main className="py-6 px-4 print:p-0">
         <div ref={printRef}>

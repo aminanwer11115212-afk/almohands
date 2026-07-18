@@ -297,6 +297,11 @@ function InvoicesPage() {
                           {Number(inv.remaining) > 0 && (
                             <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
                           )}
+                          {isAdmin && profitQuery.data?.has(inv.id) && (
+                            <div className={`text-[11px] nums font-semibold ${(profitQuery.data.get(inv.id) ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              ربح {formatSDG(profitQuery.data.get(inv.id) ?? 0)}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div

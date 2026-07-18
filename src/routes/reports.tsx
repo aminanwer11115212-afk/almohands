@@ -523,18 +523,22 @@ function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof 
           value={formatSDG(stats.totalExpenses)}
           trend="down"
         />
-        <StatCard
-          icon={TrendingUp}
-          label="صافي الربح"
-          value={formatSDG(stats.netProfit)}
-          trend={stats.netProfit >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="مجمل الربح"
-          value={formatSDG(stats.grossProfit)}
-          trend={stats.grossProfit >= 0 ? "up" : "down"}
-        />
+        {isAdmin && (
+          <>
+            <StatCard
+              icon={TrendingUp}
+              label="صافي الربح"
+              value={formatSDG(stats.netProfit)}
+              trend={stats.netProfit >= 0 ? "up" : "down"}
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="مجمل الربح"
+              value={formatSDG(stats.grossProfit)}
+              trend={stats.grossProfit >= 0 ? "up" : "down"}
+            />
+          </>
+        )}
         <StatCard icon={Receipt} label="عدد الفواتير" value={formatNumber(stats.invoiceCount)} />
         <StatCard icon={Receipt} label="متوسط الفاتورة" value={formatSDG(stats.avgTicket)} />
         <StatCard icon={CreditCard} label="مدفوع" value={formatSDG(stats.totalPaid)} />

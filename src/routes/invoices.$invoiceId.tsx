@@ -795,6 +795,11 @@ function InvoiceDetailPage() {
   // embedded browsers throw on window.print().
   const printedRef = useRef(false);
   const hasInv = Boolean(data?.inv);
+  // Reset one-shot auto-action guards when the invoice ID changes so a
+  // client-side navigation between invoices re-fires autoprint/autopdf/autoshare.
+  useEffect(() => {
+    printedRef.current = false;
+  }, [invoiceId]);
   useEffect(() => {
     if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
     printedRef.current = true;

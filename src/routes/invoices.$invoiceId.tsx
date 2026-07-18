@@ -107,6 +107,7 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [includeProfitInPdf, setIncludeProfitInPdf] = useState(false);
 
   // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
   // scrollbars, and mobile browser quirks. Computes zoom based on both width & height
@@ -222,6 +223,21 @@ function InvoiceDetailPage() {
     },
   });
 
+  // Accepted returns for this invoice — used to reverse profit of returned units.
+  const { data: acceptedReturns = [] } = useQuery({
+    queryKey: ["invoice-returns", invoiceId],
+    enabled: !!invoiceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("returns")
+        .select("product_id, product_name, quantity, status")
+        .eq("invoice_id", invoiceId)
+        .eq("status", "accepted");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
   type EditRow = { id: string; product_id: string | null; product_name: string; unit: string; quantity: number; unit_price: number; _origQty: number; _isNew?: boolean };
   const [editRows, setEditRows] = useState<EditRow[]>([]);
@@ -325,21 +341,32 @@ function InvoiceDetailPage() {
   const profitInfo = useMemo(() => {
     const items = (data?.items ?? []) as any[];
     if (items.length === 0) return null;
-    let revenue = 0, cost = 0;
+    // Aggregate accepted-return quantities by product_id (fallback: product_name).
+    const returnedQty = new Map<string, number>();
+    for (const r of acceptedReturns as any[]) {
+      const key = String(r.product_id ?? `name:${r.product_name ?? ""}`);
+      returnedQty.set(key, (returnedQty.get(key) ?? 0) + (Number(r.quantity) || 0));
+    }
+    let revenue = 0, cost = 0, returnedProfit = 0;
     const perLine = items.map((it) => {
       const qty = Number(it.quantity) || 0;
       const unit = Number(it.unit_price) || 0;
       const c = Number(it.cost_price) || 0;
-      const r = unit * qty, k = c * qty, p = r - k;
+      const key = String(it.product_id ?? `name:${it.product_name ?? ""}`);
+      const rq = Math.min(returnedQty.get(key) ?? 0, qty);
+      if (rq > 0) returnedQty.set(key, (returnedQty.get(key) ?? 0) - rq);
+      const netQty = qty - rq;
+      const r = unit * netQty, k = c * netQty, p = r - k;
       revenue += r; cost += k;
-      return { id: it.id, name: it.product_name as string, qty, unit, cost: c, profit: p };
+      returnedProfit += (unit - c) * rq;
+      return { id: it.id, name: it.product_name as string, qty: netQty, unit, cost: c, profit: p, returnedQty: rq };
     });
     const discount = Number(data?.inv?.discount) || 0;
     const grossProfit = revenue - cost;
     const netProfit = grossProfit - discount;
     const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
-    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin };
-  }, [data?.items, data?.inv?.discount]);
+    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin, returnedProfit };
+  }, [data?.items, data?.inv?.discount, acceptedReturns]);
 
 
   const maxAllowedFor = (row: EditRow): number | null => {
@@ -1777,12 +1804,23 @@ function InvoiceDetailPage() {
       {isAdmin && profitInfo && (
         <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40 gap-2 flex-wrap">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Wallet className="size-4 text-emerald-600" /> تحليل ربح الفاتورة
               </h3>
-              <div className="text-[11px] text-muted-foreground">
-                يعتمد على سعر التكلفة المسجّل وقت البيع (لا يتأثر بتغيير الأسعار لاحقاً)
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={includeProfitInPdf}
+                    onChange={(e) => setIncludeProfitInPdf(e.target.checked)}
+                    className="size-3.5"
+                  />
+                  <span>تضمين في الطباعة / PDF</span>
+                </label>
+                <div className="text-[11px] text-muted-foreground hidden sm:block">
+                  يعتمد على التكلفة المسجّلة وقت البيع
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
@@ -1926,6 +1964,45 @@ function InvoiceDetailPage() {
             showLogo={showLogo}
             paymentLabel={paymentLabel}
           />
+        )}
+        {isAdmin && includeProfitInPdf && profitInfo && format === "a4" && (
+          <div className="mt-4 mx-auto max-w-[190mm] break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
+            <div className="rounded border border-black/20" style={{ padding: "8px 12px" }}>
+              <div className="flex items-center justify-between mb-2" style={{ borderBottom: "1px solid #0002", paddingBottom: 4 }}>
+                <strong style={{ fontSize: 13 }}>تحليل ربح الفاتورة (خاص بالإدارة)</strong>
+                <span style={{ fontSize: 10, color: "#555" }}>مبني على التكلفة وقت البيع</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2 text-center" style={{ fontSize: 11 }}>
+                <div><div style={{ color: "#666" }}>الإيراد</div><div className="nums font-bold">{formatSDG(profitInfo.revenue)}</div></div>
+                <div><div style={{ color: "#666" }}>التكلفة</div><div className="nums font-bold">{formatSDG(profitInfo.cost)}</div></div>
+                <div><div style={{ color: "#666" }}>مجمل الربح</div><div className="nums font-bold">{formatSDG(profitInfo.grossProfit)}</div></div>
+                <div><div style={{ color: "#666" }}>الخصم</div><div className="nums font-bold">{formatSDG(profitInfo.discount)}</div></div>
+                <div><div style={{ color: "#666" }}>صافي الربح ({profitInfo.margin.toFixed(1)}%)</div><div className="nums font-bold">{formatSDG(profitInfo.netProfit)}</div></div>
+              </div>
+              <table className="w-full mt-2" style={{ fontSize: 10, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #0002" }}>
+                    <th className="text-right p-1">الصنف</th>
+                    <th className="text-end p-1">الكمية</th>
+                    <th className="text-end p-1">سعر البيع</th>
+                    <th className="text-end p-1">التكلفة</th>
+                    <th className="text-end p-1">الربح</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profitInfo.perLine.map((r) => (
+                    <tr key={r.id} style={{ borderBottom: "1px dashed #0001" }}>
+                      <td className="p-1">{r.name}</td>
+                      <td className="p-1 text-end nums">{r.qty}</td>
+                      <td className="p-1 text-end nums">{formatSDG(r.unit)}</td>
+                      <td className="p-1 text-end nums">{formatSDG(r.cost)}</td>
+                      <td className="p-1 text-end nums font-bold">{formatSDG(r.profit)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
         </div>
       </main>

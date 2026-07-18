@@ -182,7 +182,7 @@ function useReportBundle(period: Period) {
       // Returns
       let qRet = supabase
         .from("returns")
-        .select("user_id, quantity, status, created_at");
+        .select("user_id, invoice_id, product_id, product_name, quantity, status, created_at");
       if (from) qRet = qRet.gte("created_at", from);
       if (to) qRet = qRet.lt("created_at", to);
 
@@ -319,14 +319,26 @@ function ReportsPage() {
     const acceptedReturns = data.returns.filter((r) => r.status === "accepted").length;
 
     // Per-invoice profit map: Σ((unit_price - cost_price) × quantity); discount is
-    // aggregated on the invoice header, so subtract it once below.
+    // aggregated on the invoice header, so subtract it once below. Accepted returns
+    // reverse the sale for their (invoice, product) — subtract that portion of profit.
     const profitByInvoice = new Map<string, number>();
+    const marginByLine = new Map<string, { unit: number; cost: number }>();
     for (const it of data.items as any[]) {
       const invId = String(it.invoice_id ?? "");
       if (!invId) continue;
       const qty = Number(it.quantity) || 0;
-      const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
-      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + p);
+      const unit = Number(it.unit_price) || 0;
+      const cost = Number(it.cost_price) || 0;
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + (unit - cost) * qty);
+      marginByLine.set(`${invId}::${(it as any).product_name ?? ""}`, { unit, cost });
+    }
+    for (const r of data.returns as any[]) {
+      if (r.status !== "accepted" || !r.invoice_id) continue;
+      const invId = String(r.invoice_id);
+      const m = marginByLine.get(`${invId}::${r.product_name ?? ""}`);
+      if (!m) continue;
+      const rq = Number(r.quantity) || 0;
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) - (m.unit - m.cost) * rq);
     }
     for (const inv of data.invoices) {
       const disc = Number(inv.discount || 0);
@@ -488,9 +500,9 @@ function ReportsPage() {
       {isLoading || !stats ? (
         <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>
       ) : tab === "overview" ? (
-        <OverviewTab stats={stats} />
+        <OverviewTab stats={stats} isAdmin={isAdmin} />
       ) : tab === "detailed" ? (
-        <DetailedTab stats={stats} invoices={data!.invoices} />
+        <DetailedTab stats={stats} invoices={data!.invoices} isAdmin={isAdmin} />
       ) : (
         <ByUserTab perUser={perUser} directory={userDir.data ?? []} loading={userDir.isLoading} />
       )}
@@ -500,7 +512,7 @@ function ReportsPage() {
 
 /* ------------------------ Overview ------------------------ */
 
-function OverviewTab({ stats }: { stats: NonNullable<ReturnType<typeof useComputed>> }) {
+function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof useComputed>>; isAdmin: boolean }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
@@ -511,18 +523,22 @@ function OverviewTab({ stats }: { stats: NonNullable<ReturnType<typeof useComput
           value={formatSDG(stats.totalExpenses)}
           trend="down"
         />
-        <StatCard
-          icon={TrendingUp}
-          label="صافي الربح"
-          value={formatSDG(stats.netProfit)}
-          trend={stats.netProfit >= 0 ? "up" : "down"}
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="مجمل الربح"
-          value={formatSDG(stats.grossProfit)}
-          trend={stats.grossProfit >= 0 ? "up" : "down"}
-        />
+        {isAdmin && (
+          <>
+            <StatCard
+              icon={TrendingUp}
+              label="صافي الربح"
+              value={formatSDG(stats.netProfit)}
+              trend={stats.netProfit >= 0 ? "up" : "down"}
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="مجمل الربح"
+              value={formatSDG(stats.grossProfit)}
+              trend={stats.grossProfit >= 0 ? "up" : "down"}
+            />
+          </>
+        )}
         <StatCard icon={Receipt} label="عدد الفواتير" value={formatNumber(stats.invoiceCount)} />
         <StatCard icon={Receipt} label="متوسط الفاتورة" value={formatSDG(stats.avgTicket)} />
         <StatCard icon={CreditCard} label="مدفوع" value={formatSDG(stats.totalPaid)} />
@@ -593,9 +609,11 @@ function OverviewTab({ stats }: { stats: NonNullable<ReturnType<typeof useComput
 function DetailedTab({
   stats,
   invoices,
+  isAdmin,
 }: {
   stats: NonNullable<ReturnType<typeof useComputed>>;
   invoices: Row[];
+  isAdmin: boolean;
 }) {
   const [pmFilter, setPmFilter] = useState<string>("all");
   const filteredInvoices = useMemo(
@@ -679,7 +697,7 @@ function DetailedTab({
                   <th className="text-right px-2 py-1.5">العميل</th>
                   <th className="text-center px-2 py-1.5">الدفع</th>
                   <th className="text-end px-2 py-1.5">المبلغ</th>
-                  <th className="text-end px-2 py-1.5">الربح</th>
+                  {isAdmin && <th className="text-end px-2 py-1.5">الربح</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -713,12 +731,14 @@ function DetailedTab({
                     <td className="px-2 py-1.5 text-end nums font-bold">
                       {formatSDG(Number(inv.total || 0))}
                     </td>
-                    <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                      {formatSDG(profit)}
-                      <div className="text-[9px] text-muted-foreground font-normal">
-                        {margin.toFixed(1)}%
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                        {formatSDG(profit)}
+                        <div className="text-[9px] text-muted-foreground font-normal">
+                          {margin.toFixed(1)}%
+                        </div>
+                      </td>
+                    )}
                   </tr>
                   );
                 })}

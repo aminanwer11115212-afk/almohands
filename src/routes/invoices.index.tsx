@@ -12,12 +12,14 @@ import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
+const sortEnum = z.enum(["date_desc", "date_asc", "profit_desc", "profit_asc", "total_desc", "total_asc"]);
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
   status: fallback(statusEnum, "all").default("all"),
   from: fallback(z.string(), "").default(""),
   to: fallback(z.string(), "").default(""),
+  sort: fallback(sortEnum, "date_desc").default("date_desc"),
 });
 
 type InvoicesSearch = z.infer<typeof searchSchema>;
@@ -32,6 +34,7 @@ type InvoiceRow = {
   paid: number;
   remaining: number;
   status: string;
+  discount: number;
   created_at: string;
 };
 
@@ -62,7 +65,7 @@ export const Route = createFileRoute("/invoices/")({
 });
 
 function InvoicesPage() {
-  const { q, status, from, to } = Route.useSearch();
+  const { q, status, from, to, sort } = Route.useSearch();
   const navigate = useNavigate({ from: "/invoices" });
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 
@@ -71,7 +74,7 @@ function InvoicesPage() {
     queryFn: async () => {
       let req = supabase
         .from("invoices")
-        .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, created_at")
+        .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at")
         .order("created_at", { ascending: false })
         .limit(200);
 
@@ -143,6 +146,31 @@ function InvoicesPage() {
     };
      
   }, []);
+
+  const sortedInvoices = useMemo(() => {
+    const rows = [...(query.data ?? [])];
+    const p = (id: string) => profitQuery.data?.get(id) ?? 0;
+    switch (sort) {
+      case "date_asc":
+        rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        break;
+      case "total_desc":
+        rows.sort((a, b) => Number(b.total || 0) - Number(a.total || 0));
+        break;
+      case "total_asc":
+        rows.sort((a, b) => Number(a.total || 0) - Number(b.total || 0));
+        break;
+      case "profit_desc":
+        if (isAdmin) rows.sort((a, b) => p(b.id) - p(a.id));
+        break;
+      case "profit_asc":
+        if (isAdmin) rows.sort((a, b) => p(a.id) - p(b.id));
+        break;
+      default:
+        rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+    return rows;
+  }, [query.data, sort, isAdmin, profitQuery.data]);
 
   const totals = useMemo(() => {
     const rows = query.data ?? [];
@@ -223,14 +251,35 @@ function InvoicesPage() {
             </label>
           </div>
 
-          {(q || status !== "all" || from || to) && (
-            <button
-              onClick={() => navigate({ search: { q: "", status: "all", from: "", to: "" } })}
-              className="text-xs text-primary hover:underline"
-            >
-              مسح الفلاتر
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <label className="text-xs text-muted-foreground flex items-center gap-1">
+              <span>الترتيب:</span>
+              <select
+                value={sort}
+                onChange={(e) => {
+                  const value = e.target.value as InvoicesSearch["sort"];
+                  navigate({ search: (prev: InvoicesSearch) => ({ ...prev, sort: value }) });
+                }}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="date_desc">الأحدث أولاً</option>
+                <option value="date_asc">الأقدم أولاً</option>
+                <option value="total_desc">الأعلى مبلغاً</option>
+                <option value="total_asc">الأقل مبلغاً</option>
+                {isAdmin && <option value="profit_desc">الأعلى ربحاً</option>}
+                {isAdmin && <option value="profit_asc">الأقل ربحاً</option>}
+              </select>
+            </label>
+
+            {(q || status !== "all" || from || to || sort !== "date_desc") && (
+              <button
+                onClick={() => navigate({ search: { q: "", status: "all", from: "", to: "", sort: "date_desc" } })}
+                className="text-xs text-primary hover:underline"
+              >
+                مسح الفلاتر
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}>
@@ -248,14 +297,14 @@ function InvoicesPage() {
             <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>
           ) : query.isError ? (
             <div className="p-6 text-center text-sm text-destructive">تعذر تحميل الفواتير</div>
-          ) : (query.data ?? []).length === 0 ? (
+          ) : sortedInvoices.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
               <Receipt className="size-8 opacity-50" />
               لا توجد فواتير مطابقة
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {(query.data ?? []).map((inv) => {
+              {sortedInvoices.map((inv) => {
                 const goDetail = (autoprint: 0 | 1) =>
                   navigate({
                     to: "/invoices/$invoiceId",

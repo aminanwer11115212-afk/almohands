@@ -679,10 +679,15 @@ function DetailedTab({
                   <th className="text-right px-2 py-1.5">العميل</th>
                   <th className="text-center px-2 py-1.5">الدفع</th>
                   <th className="text-end px-2 py-1.5">المبلغ</th>
+                  <th className="text-end px-2 py-1.5">الربح</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredInvoices.slice(0, 200).map((inv) => (
+                {filteredInvoices.slice(0, 200).map((inv) => {
+                  const profit = stats.profitByInvoice.get(inv.id) ?? 0;
+                  const total = Number(inv.total || 0);
+                  const margin = total > 0 ? (profit / total) * 100 : 0;
+                  return (
                   <tr key={inv.id}>
                     <td className="px-2 py-1.5 nums">#{inv.invoice_number}</td>
                     <td className="px-2 py-1.5 text-muted-foreground">
@@ -708,8 +713,15 @@ function DetailedTab({
                     <td className="px-2 py-1.5 text-end nums font-bold">
                       {formatSDG(Number(inv.total || 0))}
                     </td>
+                    <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                      {formatSDG(profit)}
+                      <div className="text-[9px] text-muted-foreground font-normal">
+                        {margin.toFixed(1)}%
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {filteredInvoices.length > 200 && (

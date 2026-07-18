@@ -340,21 +340,32 @@ function InvoiceDetailPage() {
   const profitInfo = useMemo(() => {
     const items = (data?.items ?? []) as any[];
     if (items.length === 0) return null;
-    let revenue = 0, cost = 0;
+    // Aggregate accepted-return quantities by product_id (fallback: product_name).
+    const returnedQty = new Map<string, number>();
+    for (const r of acceptedReturns as any[]) {
+      const key = String(r.product_id ?? `name:${r.product_name ?? ""}`);
+      returnedQty.set(key, (returnedQty.get(key) ?? 0) + (Number(r.quantity) || 0));
+    }
+    let revenue = 0, cost = 0, returnedProfit = 0;
     const perLine = items.map((it) => {
       const qty = Number(it.quantity) || 0;
       const unit = Number(it.unit_price) || 0;
       const c = Number(it.cost_price) || 0;
-      const r = unit * qty, k = c * qty, p = r - k;
+      const key = String(it.product_id ?? `name:${it.product_name ?? ""}`);
+      const rq = Math.min(returnedQty.get(key) ?? 0, qty);
+      if (rq > 0) returnedQty.set(key, (returnedQty.get(key) ?? 0) - rq);
+      const netQty = qty - rq;
+      const r = unit * netQty, k = c * netQty, p = r - k;
       revenue += r; cost += k;
-      return { id: it.id, name: it.product_name as string, qty, unit, cost: c, profit: p };
+      returnedProfit += (unit - c) * rq;
+      return { id: it.id, name: it.product_name as string, qty: netQty, unit, cost: c, profit: p, returnedQty: rq };
     });
     const discount = Number(data?.inv?.discount) || 0;
     const grossProfit = revenue - cost;
     const netProfit = grossProfit - discount;
     const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
-    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin };
-  }, [data?.items, data?.inv?.discount]);
+    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin, returnedProfit };
+  }, [data?.items, data?.inv?.discount, acceptedReturns]);
 
 
   const maxAllowedFor = (row: EditRow): number | null => {

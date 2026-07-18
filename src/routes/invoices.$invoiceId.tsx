@@ -795,6 +795,11 @@ function InvoiceDetailPage() {
   // embedded browsers throw on window.print().
   const printedRef = useRef(false);
   const hasInv = Boolean(data?.inv);
+  // Reset one-shot auto-action guards when the invoice ID changes so a
+  // client-side navigation between invoices re-fires autoprint/autopdf/autoshare.
+  useEffect(() => {
+    printedRef.current = false;
+  }, [invoiceId]);
   useEffect(() => {
     if (!autoprint || !formatReady || !hasInv || printedRef.current) return;
     printedRef.current = true;
@@ -814,6 +819,10 @@ function InvoiceDetailPage() {
   // Auto-trigger PDF/WhatsApp actions if requested via search params (once).
   const pdfTriggeredRef = useRef(false);
   const shareTriggeredRef = useRef(false);
+  useEffect(() => {
+    pdfTriggeredRef.current = false;
+    shareTriggeredRef.current = false;
+  }, [invoiceId]);
   useEffect(() => {
     if (!formatReady || !hasInv) return;
     if (autopdf && !pdfTriggeredRef.current) {
@@ -864,7 +873,7 @@ function InvoiceDetailPage() {
   }
 
   async function handleDownloadPdf(attempt = 1) {
-    const el = previewRef.current ?? printRef.current;
+    const el = printRef.current ?? previewRef.current;
     if (!el) {
       toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
       return;
@@ -907,7 +916,7 @@ function InvoiceDetailPage() {
    * gracefully falls back to a local download.
    */
   async function handleSharePdfNative(attempt = 1) {
-    const el = previewRef.current ?? printRef.current;
+    const el = printRef.current ?? previewRef.current;
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);
@@ -1819,7 +1828,7 @@ function InvoiceDetailPage() {
 
 
       <main className="py-6 px-4 print:p-0">
-        <div ref={printRef}>
+        <div ref={printRef} id="invoice-print-root">
         {format === "a4" ? (
           <A4Invoice
             inv={inv}
@@ -2045,14 +2054,27 @@ function InvoiceDetailPage() {
           100% { transform: translateX(400%); }
         }
         @media print {
+          /* ---- ISOLATE the invoice from the rest of the app ---- */
+          /* Prevents duplicate copies (preview modal + main content), hides
+             app chrome, modal overlays/backdrops, toasts, sidebars, etc. */
           html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          #invoice-print-root, #invoice-print-root * { visibility: visible !important; }
+          #invoice-print-root {
+            position: absolute !important;
+            inset: 0 !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: none !important;
+          }
           .print\\:hidden { display: none !important; }
-          /* Fit-to-page: force content to shrink into printable area without clipping */
           .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-a4 {
             width: 281mm; /* A4 landscape 297mm - 2×8mm margins */
             margin: 0 auto !important;
-            /* NO page-break-inside on the whole invoice — large invoices must paginate cleanly */
           }
           /* Keep atomic blocks intact across page breaks */
           .keep-together, tr, thead, tfoot { break-inside: avoid !important; page-break-inside: avoid !important; }
@@ -2066,7 +2088,7 @@ function InvoiceDetailPage() {
         }
         /* Hard-lock A4 to landscape even if the browser is asked to switch to portrait. */
         @media print and (orientation: portrait) {
-          ${format === "a4" ? ".print-a4 { transform: rotate(-90deg) translateY(-100%); transform-origin: top left; width: 194mm; height: 281mm; }" : ""}
+          ${format === "a4" ? "#invoice-print-root .print-a4 { transform: rotate(-90deg) translateY(-100%); transform-origin: top left; width: 194mm; height: 281mm; }" : ""}
         }
       `}</style>
     </div>

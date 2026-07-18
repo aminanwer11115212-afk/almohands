@@ -251,14 +251,35 @@ function InvoicesPage() {
             </label>
           </div>
 
-          {(q || status !== "all" || from || to) && (
-            <button
-              onClick={() => navigate({ search: { q: "", status: "all", from: "", to: "" } })}
-              className="text-xs text-primary hover:underline"
-            >
-              مسح الفلاتر
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <label className="text-xs text-muted-foreground flex items-center gap-1">
+              <span>الترتيب:</span>
+              <select
+                value={sort}
+                onChange={(e) => {
+                  const value = e.target.value as InvoicesSearch["sort"];
+                  navigate({ search: (prev: InvoicesSearch) => ({ ...prev, sort: value }) });
+                }}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="date_desc">الأحدث أولاً</option>
+                <option value="date_asc">الأقدم أولاً</option>
+                <option value="total_desc">الأعلى مبلغاً</option>
+                <option value="total_asc">الأقل مبلغاً</option>
+                {isAdmin && <option value="profit_desc">الأعلى ربحاً</option>}
+                {isAdmin && <option value="profit_asc">الأقل ربحاً</option>}
+              </select>
+            </label>
+
+            {(q || status !== "all" || from || to || sort !== "date_desc") && (
+              <button
+                onClick={() => navigate({ search: { q: "", status: "all", from: "", to: "", sort: "date_desc" } })}
+                className="text-xs text-primary hover:underline"
+              >
+                مسح الفلاتر
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}>

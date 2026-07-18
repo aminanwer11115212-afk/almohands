@@ -512,7 +512,7 @@ function ReportsPage() {
 
 /* ------------------------ Overview ------------------------ */
 
-function OverviewTab({ stats }: { stats: NonNullable<ReturnType<typeof useComputed>> }) {
+function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof useComputed>>; isAdmin: boolean }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">

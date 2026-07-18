@@ -1773,6 +1773,55 @@ function InvoiceDetailPage() {
         </section>
       )}
 
+      {/* Profit summary — admin only, hidden in print */}
+      {isAdmin && profitInfo && (
+        <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Wallet className="size-4 text-emerald-600" /> تحليل ربح الفاتورة
+              </h3>
+              <div className="text-[11px] text-muted-foreground">
+                يعتمد على سعر التكلفة المسجّل وقت البيع (لا يتأثر بتغيير الأسعار لاحقاً)
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
+              <MiniKpi label="الإيراد" value={formatSDG(profitInfo.revenue)} />
+              <MiniKpi label="التكلفة" value={formatSDG(profitInfo.cost)} tone="muted" />
+              <MiniKpi label="مجمل الربح" value={formatSDG(profitInfo.grossProfit)} tone={profitInfo.grossProfit >= 0 ? "good" : "bad"} />
+              <MiniKpi label="الخصم" value={formatSDG(profitInfo.discount)} tone="muted" />
+              <MiniKpi label={`صافي الربح (${profitInfo.margin.toFixed(1)}%)`} value={formatSDG(profitInfo.netProfit)} tone={profitInfo.netProfit >= 0 ? "good" : "bad"} strong />
+            </div>
+            <div className="overflow-x-auto border-t border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/30 text-[11px] text-muted-foreground">
+                  <tr>
+                    <th className="p-2 text-right">الصنف</th>
+                    <th className="p-2 text-end">الكمية</th>
+                    <th className="p-2 text-end">سعر البيع</th>
+                    <th className="p-2 text-end">التكلفة</th>
+                    <th className="p-2 text-end">الربح</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {profitInfo.perLine.map((r) => (
+                    <tr key={r.id} className="hover:bg-muted/20">
+                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-end nums">{r.qty}</td>
+                      <td className="p-2 text-end nums">{formatSDG(r.unit)}</td>
+                      <td className="p-2 text-end nums text-muted-foreground">{formatSDG(r.cost)}</td>
+                      <td className={`p-2 text-end nums font-bold ${r.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                        {formatSDG(r.profit)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Payments history — visible on invoice page, hidden in print */}
       <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
         <div className="rounded-xl border border-border bg-card overflow-hidden">

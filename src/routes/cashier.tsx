@@ -58,6 +58,8 @@ function CashierPage() {
   const [customCost, setCustomCost] = useState("0");
   const [customQty, setCustomQty] = useState("1");
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 60;
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");

@@ -2230,59 +2230,77 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
 type ThermalProps = A4Props & { storeAddress: string };
 
 function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, storeAddress, invoiceFooter, showLogo, paymentLabel }: ThermalProps) {
+  const isPaid = Number(inv.remaining) <= 0;
   return (
     <div className="print-thermal mx-auto w-[80mm] bg-white text-black shadow-lg border p-3 text-[12px] leading-tight print:shadow-none print:border-0" dir="rtl">
-      <div className="text-center border-b border-dashed border-black pb-2">
+      {/* ===== HEADER — matches A4 tone ===== */}
+      <div className="text-center pb-2 border-b-2 border-black">
         {showLogo && <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />}
-        <div className="font-extrabold text-base mt-1">{storeName}</div>
-        <div className="text-[11px]">{storeSubtitle}</div>
-        {storeAddress && <div className="text-[11px]">{storeAddress}</div>}
-        <div className="text-[11px] nums" dir="ltr">{storePhone}</div>
+        <div className="font-extrabold text-base mt-1 tracking-wide">{storeName}</div>
+        {storeSubtitle && <div className="text-[11px] font-semibold text-black/80">{storeSubtitle}</div>}
+        {storeAddress && <div className="text-[10.5px] text-black/70">{storeAddress}</div>}
+        {storePhone && <div className="text-[11px] nums" dir="ltr">TEL: {storePhone}</div>}
       </div>
 
-      <div className="py-2 border-b border-dashed border-black text-[11px] space-y-0.5">
-        <div className="flex justify-between"><span>فاتورة #</span><span className="nums">{inv.invoice_number}</span></div>
+      {/* ===== INVOICE NUMBER (bordered, matches A4) ===== */}
+      <div className="mt-2 border-2 border-black rounded px-2 py-1 text-center">
+        <div className="text-[10px] font-semibold text-black/70">فاتورة رقم</div>
+        <div className="text-lg font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+      </div>
+
+      {/* ===== META ===== */}
+      <div className="py-2 mt-2 border-b border-dashed border-black text-[11px] space-y-0.5">
         <div className="flex justify-between">
-          <span>التاريخ</span>
+          <span className="text-black/70">التاريخ</span>
           <span className="nums">{new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}</span>
         </div>
-        {inv.customer_name && <div className="flex justify-between"><span>العميل</span><span>{inv.customer_name}</span></div>}
-        <div className="flex justify-between"><span>الدفع</span><span>{paymentLabel}</span></div>
+        {inv.customer_name && (
+          <div className="flex justify-between"><span className="text-black/70">العميل</span><span className="font-semibold">{inv.customer_name}</span></div>
+        )}
+        <div className="flex justify-between"><span className="text-black/70">الدفع</span><span className="font-semibold">{paymentLabel}</span></div>
       </div>
 
-      <table className="w-full my-2 text-[11px]">
+      {/* ===== ITEMS (long-name friendly) ===== */}
+      <table className="w-full my-2 text-[11px] table-fixed">
+        <colgroup>
+          <col />
+          <col style={{ width: "22mm" }} />
+        </colgroup>
         <thead>
-          <tr className="border-b border-dashed border-black">
-            <th className="text-right py-1">الصنف</th>
-            <th className="text-center py-1 w-8">كم</th>
-            <th className="text-left py-1 w-14">الإجمالي</th>
+          <tr className="bg-black text-white">
+            <th className="text-right py-1 px-1">الصنف</th>
+            <th className="text-left py-1 px-1">الإجمالي</th>
           </tr>
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="align-top">
-              <td className="py-0.5">
-                <div>{it.product_name}</div>
+            <tr key={it.id} className="align-top border-b border-dashed border-black/30 keep-together">
+              <td className="py-1 px-1 break-words whitespace-normal">
+                <div className="font-semibold leading-snug">{it.product_name}</div>
                 <div className="text-[10px] text-black/60 nums">{formatSDGShort(Number(it.unit_price))} × {it.quantity}</div>
               </td>
-              <td className="text-center py-0.5 nums">{it.quantity}</td>
-              <td className="text-left py-0.5 nums">{formatSDGShort(Number(it.line_total))}</td>
+              <td className="text-left py-1 px-1 nums font-bold">{formatSDGShort(Number(it.line_total))}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="border-t border-dashed border-black pt-2 space-y-0.5 text-[11px]">
-        <div className="flex justify-between font-bold text-[13px]">
+      {/* ===== PAYMENT SUMMARY BLOCK ===== */}
+      <div className="mt-1 rounded border-2 border-black p-2 space-y-1 text-[11.5px] keep-together">
+        <div className="flex justify-between font-extrabold text-[13px] pb-1 border-b border-dashed border-black">
           <span>الإجمالي</span>
           <span className="nums">{formatSDG(Number(inv.total))}</span>
         </div>
         <div className="flex justify-between">
-          <span>المدفوع</span>
-          <span className="nums">{formatSDGShort(Number(inv.paid))}</span>
+          <span className="text-emerald-800 font-bold">المدفوع</span>
+          <span className="nums text-emerald-800 font-bold">{formatSDG(Number(inv.paid))}</span>
         </div>
-        {Number(inv.remaining) > 0 && (
-          <div className="flex justify-between font-bold">
+        {isPaid ? (
+          <div className="mt-1 rounded bg-emerald-100 text-emerald-800 font-extrabold text-center py-1 border border-emerald-700">
+            ✓ مدفوعة بالكامل
+          </div>
+        ) : (
+          <div className="mt-1 rounded bg-rose-100 text-rose-800 font-extrabold text-center py-1 border border-rose-700 flex justify-between px-2">
             <span>المتبقي</span>
             <span className="nums">{formatSDG(Number(inv.remaining))}</span>
           </div>
@@ -2290,19 +2308,18 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
       </div>
 
       {paymentMethod && paymentMethod.type === "bank" && (
-        <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5">
+        <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5 keep-together">
           <div className="font-bold text-center">تفاصيل التحويل البنكي</div>
-          {paymentMethod.bank_name && <div>البنك: {paymentMethod.bank_name}</div>}
-          {paymentMethod.account_holder && <div>الحساب باسم: {paymentMethod.account_holder}</div>}
+          {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
+          {paymentMethod.account_holder && <div>الحساب باسم: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
           {paymentMethod.account_number && <div dir="ltr" className="text-right nums">Acc: {paymentMethod.account_number}</div>}
           {paymentMethod.iban && <div dir="ltr" className="text-right nums">IBAN: {paymentMethod.iban}</div>}
           {inv.reference_number && <div className="font-bold">رقم العملية: <span className="nums">{inv.reference_number}</span></div>}
         </div>
-
       )}
 
       {invoiceFooter && (
-        <div className="mt-3 text-center text-[10.5px] whitespace-pre-line border-t border-dashed border-black pt-2">
+        <div className="mt-3 text-center text-[10.5px] whitespace-pre-line border-t border-dashed border-black pt-2 text-black/70">
           {invoiceFooter}
         </div>
       )}

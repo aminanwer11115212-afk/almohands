@@ -731,12 +731,14 @@ function DetailedTab({
                     <td className="px-2 py-1.5 text-end nums font-bold">
                       {formatSDG(Number(inv.total || 0))}
                     </td>
-                    <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                      {formatSDG(profit)}
-                      <div className="text-[9px] text-muted-foreground font-normal">
-                        {margin.toFixed(1)}%
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                        {formatSDG(profit)}
+                        <div className="text-[9px] text-muted-foreground font-normal">
+                          {margin.toFixed(1)}%
+                        </div>
+                      </td>
+                    )}
                   </tr>
                   );
                 })}

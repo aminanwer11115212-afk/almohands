@@ -820,6 +820,10 @@ function InvoiceDetailPage() {
   const pdfTriggeredRef = useRef(false);
   const shareTriggeredRef = useRef(false);
   useEffect(() => {
+    pdfTriggeredRef.current = false;
+    shareTriggeredRef.current = false;
+  }, [invoiceId]);
+  useEffect(() => {
     if (!formatReady || !hasInv) return;
     if (autopdf && !pdfTriggeredRef.current) {
       pdfTriggeredRef.current = true;

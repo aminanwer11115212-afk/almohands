@@ -2424,3 +2424,32 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
     </div>
   );
 }
+
+function MiniKpi({
+  label,
+  value,
+  tone,
+  strong,
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "bad" | "muted";
+  strong?: boolean;
+}) {
+  const valueClass =
+    tone === "good"
+      ? "text-emerald-700"
+      : tone === "bad"
+      ? "text-rose-600"
+      : tone === "muted"
+      ? "text-muted-foreground"
+      : "text-foreground";
+  return (
+    <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className={`nums ${strong ? "text-base font-extrabold" : "text-sm font-bold"} ${valueClass}`}>
+        {value}
+      </div>
+    </div>
+  );
+}

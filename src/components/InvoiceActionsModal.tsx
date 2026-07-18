@@ -233,7 +233,11 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
     qc.invalidateQueries({ queryKey: ["dashboard-insights"] });
     qc.invalidateQueries({ queryKey: ["accounts"] });
+    qc.invalidateQueries({ queryKey: ["account-balances"] });
+    qc.invalidateQueries({ queryKey: ["payments"] });
+    qc.invalidateQueries({ queryKey: ["customers"] });
   }
+
 
 
   return (

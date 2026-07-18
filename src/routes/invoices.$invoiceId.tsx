@@ -1356,10 +1356,147 @@ function InvoiceDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit payment dialog */}
+      <Dialog open={!!editingPayment} onOpenChange={(o) => { if (!o) setEditingPayment(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="size-5 text-amber-600" /> تعديل الدفعة
+            </DialogTitle>
+          </DialogHeader>
+          {editingPayment && (
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-3 gap-2 rounded-md bg-muted p-2 text-xs">
+                <div className="text-center">
+                  <div className="text-muted-foreground">الإجمالي</div>
+                  <div className="nums font-semibold text-sm">{formatSDG(invTotalNum)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">مدفوعات أخرى</div>
+                  <div className="nums font-semibold text-sm">{formatSDG(editingOtherPaid)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">الحد الأقصى</div>
+                  <div className="nums font-bold text-sm text-emerald-700">{formatSDG(editMaxAllowed)}</div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold mb-1 block">المبلغ الجديد</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={editMaxAllowed}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={editPayAmount}
+                  onChange={(e) => setEditPayAmount(e.target.value)}
+                  onBlur={() => {
+                    if (editPayNum > editMaxAllowed) {
+                      setEditPayAmount(String(editMaxAllowed));
+                      toast.info(`تم ضبط المبلغ إلى الحد الأقصى: ${formatSDG(editMaxAllowed)}`);
+                    }
+                  }}
+                  aria-invalid={editPayExceeds}
+                  className={`w-full h-10 rounded-md border bg-background px-3 nums ${editPayExceeds ? "border-destructive ring-1 ring-destructive/40" : "border-input"}`}
+                />
+                {editPayExceeds && (
+                  <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive font-semibold">
+                    <AlertTriangle className="size-3" />
+                    المبلغ يتجاوز الحد المتاح ({formatSDG(editMaxAllowed)})
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                طريقة الدفع: {paymentMethodLabel(editingPayment)} — {new Date(editingPayment.created_at).toLocaleString("ar-EG")}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setEditingPayment(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >إلغاء</button>
+            <button
+              onClick={() => updatePaymentMutation.mutate()}
+              disabled={updatePaymentMutation.isPending || editPayExceeds || editPayNum <= 0}
+              className="px-4 h-10 rounded-md bg-amber-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {updatePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              حفظ التعديل
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
+      {/* Confirm delete PAYMENT dialog */}
+      <Dialog open={!!confirmDeletePayment} onOpenChange={(o) => { if (!o) setConfirmDeletePayment(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" /> تأكيد حذف الدفعة
+            </DialogTitle>
+          </DialogHeader>
+          {confirmDeletePayment && (
+            <div className="space-y-2 py-2 text-sm">
+              <p>سيتم حذف دفعة بقيمة <span className="nums font-bold">{formatSDG(Number(confirmDeletePayment.amount))}</span> ({paymentMethodLabel(confirmDeletePayment)}).</p>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                سيتم تحديث المدفوع والمتبقي وحالة الفاتورة تلقائياً بعد الحذف — قد تعود الفاتورة إلى حالة "جزئية" أو "معلّقة".
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setConfirmDeletePayment(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >تراجع</button>
+            <button
+              onClick={() => confirmDeletePayment && deletePaymentMutation.mutate(confirmDeletePayment)}
+              disabled={deletePaymentMutation.isPending}
+              className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {deletePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              تأكيد الحذف
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-
-
+      {/* Confirm delete ITEM dialog (marks for deletion; stock restored at save) */}
+      <Dialog open={!!confirmDeleteItem} onOpenChange={(o) => { if (!o) setConfirmDeleteItem(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" /> تأكيد حذف الصنف
+            </DialogTitle>
+          </DialogHeader>
+          {confirmDeleteItem && (
+            <div className="space-y-2 py-2 text-sm">
+              <p>هل تريد حذف <span className="font-bold">{confirmDeleteItem.product_name}</span> (الكمية {confirmDeleteItem._origQty}) من الفاتورة؟</p>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                سيتم إرجاع الكمية <span className="nums font-bold">{confirmDeleteItem._origQty}</span> إلى المخزون عند حفظ التعديلات، وتحديث إجمالي الفاتورة تلقائياً.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setConfirmDeleteItem(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >تراجع</button>
+            <button
+              onClick={() => {
+                if (confirmDeleteItem) {
+                  setDeletedRowIds((s) => new Set(s).add(confirmDeleteItem.id));
+                  setConfirmDeleteItem(null);
+                  toast.info("تم وضع علامة حذف على الصنف — سيتم تنفيذ الحذف وإرجاع المخزون عند الحفظ");
+                }
+              }}
+              className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1"
+            >
+              <Trash2 className="size-4" /> نعم، احذف عند الحفظ
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Inline edit panel */}
       {editMode && (

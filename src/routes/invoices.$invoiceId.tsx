@@ -864,7 +864,7 @@ function InvoiceDetailPage() {
   }
 
   async function handleDownloadPdf(attempt = 1) {
-    const el = previewRef.current ?? printRef.current;
+    const el = printRef.current ?? previewRef.current;
     if (!el) {
       toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
       return;
@@ -907,7 +907,7 @@ function InvoiceDetailPage() {
    * gracefully falls back to a local download.
    */
   async function handleSharePdfNative(attempt = 1) {
-    const el = previewRef.current ?? printRef.current;
+    const el = printRef.current ?? previewRef.current;
     if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
     if (pdfBusy) return;
     setPdfBusy(true);

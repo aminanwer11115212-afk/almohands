@@ -107,6 +107,7 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [includeProfitInPdf, setIncludeProfitInPdf] = useState(false);
 
   // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
   // scrollbars, and mobile browser quirks. Computes zoom based on both width & height

@@ -98,29 +98,45 @@ type Row = Record<string, any>;
 function buildInvoiceRows(
   invoices: any[],
   directory: { id: string; email: string }[],
+  opts?: { profitByInvoice?: Map<string, number>; includeProfit?: boolean },
 ) {
   const dir = new Map(directory.map((d) => [d.id, d.email]));
-  return invoices.map((inv) => ({
-    "رقم الفاتورة": inv.invoice_number,
-    "التاريخ": new Date(inv.created_at).toLocaleString("ar-EG"),
-    "الكاشير": dir.get(inv.user_id) ?? inv.user_id.slice(0, 8),
-    "العميل": inv.customer_name ?? "—",
-    "الحالة": inv.status === "cancelled" ? "ملغاة" : inv.status === "paid" ? "مدفوعة" : inv.status === "partial" ? "جزئي" : "معلقة",
-    "طريقة الدفع": PM_LABELS[String(inv.payment_method || "cash")] ?? inv.payment_method ?? "—",
-    "رقم العملية": inv.reference_number ?? "—",
-    "الإجمالي": Number(inv.total ?? 0),
-    "المدفوع": Number(inv.paid ?? 0),
-    "المتبقي": Number(inv.remaining ?? 0),
-    "الخصم": Number(inv.discount ?? 0),
-    "سبب الإلغاء": inv.status === "cancelled" ? (inv.cancellation_reason ?? "— (لم يُذكر)") : "",
-    "تاريخ الإلغاء": inv.cancelled_at ? new Date(inv.cancelled_at).toLocaleString("ar-EG") : "",
-    "ألغيت بواسطة": inv.cancelled_by ? (dir.get(inv.cancelled_by) ?? inv.cancelled_by.slice(0, 8)) : "",
-  }));
+  const includeProfit = !!opts?.includeProfit && !!opts?.profitByInvoice;
+  return invoices.map((inv) => {
+    const base: Record<string, string | number> = {
+      "رقم الفاتورة": inv.invoice_number,
+      "التاريخ": new Date(inv.created_at).toLocaleString("ar-EG"),
+      "الكاشير": dir.get(inv.user_id) ?? inv.user_id.slice(0, 8),
+      "العميل": inv.customer_name ?? "—",
+      "الحالة": inv.status === "cancelled" ? "ملغاة" : inv.status === "paid" ? "مدفوعة" : inv.status === "partial" ? "جزئي" : "معلقة",
+      "طريقة الدفع": PM_LABELS[String(inv.payment_method || "cash")] ?? inv.payment_method ?? "—",
+      "رقم العملية": inv.reference_number ?? "—",
+      "الإجمالي": Number(inv.total ?? 0),
+      "المدفوع": Number(inv.paid ?? 0),
+      "المتبقي": Number(inv.remaining ?? 0),
+      "الخصم": Number(inv.discount ?? 0),
+      "سبب الإلغاء": inv.status === "cancelled" ? (inv.cancellation_reason ?? "— (لم يُذكر)") : "",
+      "تاريخ الإلغاء": inv.cancelled_at ? new Date(inv.cancelled_at).toLocaleString("ar-EG") : "",
+      "ألغيت بواسطة": inv.cancelled_by ? (dir.get(inv.cancelled_by) ?? inv.cancelled_by.slice(0, 8)) : "",
+    };
+    if (includeProfit) {
+      const p = opts!.profitByInvoice!.get(inv.id) ?? 0;
+      const t = Number(inv.total ?? 0);
+      base["الربح"] = p;
+      base["هامش الربح %"] = t > 0 ? Number(((p / t) * 100).toFixed(2)) : 0;
+    }
+    return base;
+  });
 }
 
-function exportInvoicesXLSX(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
+function exportInvoicesXLSX(
+  invoices: any[],
+  directory: { id: string; email: string }[],
+  periodLabel: string,
+  opts?: { profitByInvoice?: Map<string, number>; includeProfit?: boolean },
+) {
   if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
-  const rows = buildInvoiceRows(invoices, directory);
+  const rows = buildInvoiceRows(invoices, directory, opts);
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = Object.keys(rows[0]).map(() => ({ wch: 16 }));
   const wb = XLSX.utils.book_new();
@@ -129,10 +145,15 @@ function exportInvoicesXLSX(invoices: any[], directory: { id: string; email: str
   toast.success(`تم تصدير ${rows.length} فاتورة`);
 }
 
-function exportInvoicesPDF(invoices: any[], directory: { id: string; email: string }[], periodLabel: string) {
+function exportInvoicesPDF(
+  invoices: any[],
+  directory: { id: string; email: string }[],
+  periodLabel: string,
+  opts?: { profitByInvoice?: Map<string, number>; includeProfit?: boolean },
+) {
   if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
   try {
-    const rows = buildInvoiceRows(invoices, directory);
+    const rows = buildInvoiceRows(invoices, directory, opts);
     const headers = Object.keys(rows[0]);
     exportPdfFromRows({
       title: `تقرير الفواتير — ${periodLabel}`,

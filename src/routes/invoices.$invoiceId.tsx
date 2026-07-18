@@ -572,7 +572,6 @@ function InvoiceDetailPage() {
 
   useEffect(() => {
     if (!payDialogOpen) return;
-    // Prefill with the remaining amount and default method.
     const remaining = Math.max(0, Number(data?.inv?.remaining) || 0);
     setPayAmount(remaining > 0 ? String(remaining) : "");
     if (!payMethodId && paymentMethods.length > 0) {
@@ -584,6 +583,25 @@ function InvoiceDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payDialogOpen]);
 
+  // Live derived values for the add-payment dialog
+  const invTotalNum = Math.max(0, Number(data?.inv?.total) || 0);
+  const invPaidNum = Math.max(0, Number(data?.inv?.paid) || 0);
+  const invRemainingNum = Math.max(0, Number(data?.inv?.remaining) || 0);
+  const payAmountNum = payAmount === "" ? 0 : Math.max(0, Number(payAmount) || 0);
+  const payExceeds = payAmountNum > invRemainingNum + 0.001;
+  const payAppliedAmount = Math.min(payAmountNum, invRemainingNum);
+  const payAfterPaid = invPaidNum + payAppliedAmount;
+  const payAfterRemaining = Math.max(0, invTotalNum - payAfterPaid);
+  const payAfterStatus: "paid" | "partial" | "pending" =
+    payAfterRemaining === 0 && invTotalNum > 0 ? "paid" : payAfterPaid > 0 ? "partial" : "pending";
+
+  const clampPayToRemaining = () => {
+    if (payAmountNum > invRemainingNum) {
+      setPayAmount(String(invRemainingNum));
+      toast.info(`تم ضبط المبلغ إلى المتبقي: ${formatSDG(invRemainingNum)}`);
+    }
+  };
+
   const addPaymentMutation = useMutation({
     mutationFn: async () => {
       if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
@@ -591,7 +609,7 @@ function InvoiceDetailPage() {
       const amount = Number(payAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("أدخل مبلغاً صحيحاً");
       const remaining = Math.max(0, Number(inv.remaining) || 0);
-      if (amount > remaining) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
+      if (amount > remaining + 0.001) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
       const method = paymentMethods.find((m) => m.id === payMethodId);
       if (!method) throw new Error("اختر حساب الدفع");
       const { data: authData } = await supabase.auth.getUser();
@@ -623,20 +641,114 @@ function InvoiceDetailPage() {
         .update({ paid: newPaid, remaining: newRemaining, status: newStatus })
         .eq("id", inv.id);
       if (invErr) throw invErr;
-      return { amount, newRemaining };
+      return { amount, newRemaining, newStatus };
     },
     onSuccess: (res) => {
       toast.success("تم تسجيل الدفعة", {
-        description: `المتبقي: ${formatSDG(res.newRemaining)}`,
+        description: `المتبقي: ${formatSDG(res.newRemaining)} — الحالة: ${res.newStatus === "paid" ? "مدفوعة بالكامل" : res.newStatus === "partial" ? "مدفوعة جزئياً" : "معلّقة"}`,
       });
       setPayDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["account-balances"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
     },
     onError: (e) => handleError(e, "تعذّر تسجيل الدفعة"),
   });
+
+  // ============ Payments list + edit/delete ============
+  type InvPayment = {
+    id: string; amount: number; method: string | null; account_id: string | null;
+    notes: string | null; created_at: string;
+  };
+  const { data: invoicePayments = [] } = useQuery({
+    queryKey: ["invoice-payments", invoiceId],
+    queryFn: async (): Promise<InvPayment[]> => {
+      const { data: rows, error } = await supabase
+        .from("payments")
+        .select("id, amount, method, account_id, notes, created_at")
+        .eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (rows ?? []) as InvPayment[];
+    },
+  });
+
+  const [editingPayment, setEditingPayment] = useState<InvPayment | null>(null);
+  const [editPayAmount, setEditPayAmount] = useState<string>("");
+  const [confirmDeletePayment, setConfirmDeletePayment] = useState<InvPayment | null>(null);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<EditRow | null>(null);
+
+  const editingOtherPaid = editingPayment ? Math.max(0, invPaidNum - Number(editingPayment.amount)) : 0;
+  const editMaxAllowed = Math.max(0, invTotalNum - editingOtherPaid);
+  const editPayNum = editPayAmount === "" ? 0 : Math.max(0, Number(editPayAmount) || 0);
+  const editPayExceeds = editPayNum > editMaxAllowed + 0.001;
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (p: InvPayment) => {
+      if (!data?.inv) throw new Error("لا توجد فاتورة");
+      const { error } = await supabase.from("payments").delete().eq("id", p.id);
+      if (error) throw error;
+      const inv = data.inv;
+      const newPaid = Math.max(0, (Number(inv.paid) || 0) - Number(p.amount));
+      const total = Number(inv.total) || 0;
+      const newRemaining = Math.max(0, total - newPaid);
+      const status: "paid" | "partial" | "pending" =
+        total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+      const { error: e2 } = await supabase.from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      if (e2) throw e2;
+      return { status, newRemaining };
+    },
+    onSuccess: (r) => {
+      toast.success("تم حذف الدفعة", { description: `المتبقي: ${formatSDG(r.newRemaining)}` });
+      setConfirmDeletePayment(null);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
+    },
+    onError: (e) => handleError(e, "تعذّر حذف الدفعة"),
+  });
+
+  const updatePaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingPayment || !data?.inv) throw new Error("لا توجد دفعة للتعديل");
+      const inv = data.inv;
+      const newAmt = Number(editPayAmount);
+      if (!Number.isFinite(newAmt) || newAmt <= 0) throw new Error("أدخل مبلغاً صحيحاً");
+      const total = Number(inv.total) || 0;
+      const otherPaid = Math.max(0, (Number(inv.paid) || 0) - Number(editingPayment.amount));
+      const maxAllowed = Math.max(0, total - otherPaid);
+      if (newAmt > maxAllowed + 0.001) throw new Error(`المبلغ يتجاوز الحد الأقصى (${formatSDG(maxAllowed)})`);
+      const { error } = await supabase.from("payments").update({ amount: newAmt }).eq("id", editingPayment.id);
+      if (error) throw error;
+      const newPaid = otherPaid + newAmt;
+      const newRemaining = Math.max(0, total - newPaid);
+      const status: "paid" | "partial" | "pending" =
+        total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+      const { error: e2 } = await supabase.from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      if (e2) throw e2;
+      return { status, newRemaining };
+    },
+    onSuccess: (r) => {
+      toast.success("تم تعديل الدفعة", { description: `المتبقي: ${formatSDG(r.newRemaining)}` });
+      setEditingPayment(null);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
+    },
+    onError: (e) => handleError(e, "تعذّر تعديل الدفعة"),
+  });
+
+  const paymentMethodLabel = (p: InvPayment) => {
+    const m = paymentMethods.find((x) => x.id === p.account_id);
+    if (m) return `${m.name}${m.bank_name ? " — " + m.bank_name : ""}`;
+    return p.method === "bank" ? "بنكي" : p.method === "cash" ? "نقدي" : (p.method ?? "—");
+  };
 
 
 

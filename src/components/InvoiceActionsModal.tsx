@@ -162,7 +162,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       // Any failure rolls the whole transaction back — no partial states.
       const { data: verify, error } = await supabase.rpc("delete_invoice_atomic", {
         _invoice_id: inv.id,
-        _reason: reason.trim() || null,
+        _reason: reason.trim() || undefined,
       });
       if (error) throw error;
 

@@ -147,6 +147,31 @@ function InvoicesPage() {
      
   }, []);
 
+  const sortedInvoices = useMemo(() => {
+    const rows = [...(query.data ?? [])];
+    const p = (id: string) => profitQuery.data?.get(id) ?? 0;
+    switch (sort) {
+      case "date_asc":
+        rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        break;
+      case "total_desc":
+        rows.sort((a, b) => Number(b.total || 0) - Number(a.total || 0));
+        break;
+      case "total_asc":
+        rows.sort((a, b) => Number(a.total || 0) - Number(b.total || 0));
+        break;
+      case "profit_desc":
+        if (isAdmin) rows.sort((a, b) => p(b.id) - p(a.id));
+        break;
+      case "profit_asc":
+        if (isAdmin) rows.sort((a, b) => p(a.id) - p(b.id));
+        break;
+      default:
+        rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+    return rows;
+  }, [query.data, sort, isAdmin, profitQuery.data]);
+
   const totals = useMemo(() => {
     const rows = query.data ?? [];
     const base = rows.reduce(

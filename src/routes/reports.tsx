@@ -319,14 +319,26 @@ function ReportsPage() {
     const acceptedReturns = data.returns.filter((r) => r.status === "accepted").length;
 
     // Per-invoice profit map: Σ((unit_price - cost_price) × quantity); discount is
-    // aggregated on the invoice header, so subtract it once below.
+    // aggregated on the invoice header, so subtract it once below. Accepted returns
+    // reverse the sale for their (invoice, product) — subtract that portion of profit.
     const profitByInvoice = new Map<string, number>();
+    const marginByLine = new Map<string, { unit: number; cost: number }>();
     for (const it of data.items as any[]) {
       const invId = String(it.invoice_id ?? "");
       if (!invId) continue;
       const qty = Number(it.quantity) || 0;
-      const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
-      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + p);
+      const unit = Number(it.unit_price) || 0;
+      const cost = Number(it.cost_price) || 0;
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + (unit - cost) * qty);
+      marginByLine.set(`${invId}::${(it as any).product_name ?? ""}`, { unit, cost });
+    }
+    for (const r of data.returns as any[]) {
+      if (r.status !== "accepted" || !r.invoice_id) continue;
+      const invId = String(r.invoice_id);
+      const m = marginByLine.get(`${invId}::${r.product_name ?? ""}`);
+      if (!m) continue;
+      const rq = Number(r.quantity) || 0;
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) - (m.unit - m.cost) * rq);
     }
     for (const inv of data.invoices) {
       const disc = Number(inv.discount || 0);

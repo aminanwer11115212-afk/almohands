@@ -1121,6 +1121,7 @@ export type Database = {
         Args: { _invoice_id: string }
         Returns: undefined
       }
+      reconcile_invoice_paid_all: { Args: never; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "seller" | "accountant" | "warehouse"

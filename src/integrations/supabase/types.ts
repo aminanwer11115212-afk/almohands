@@ -1117,6 +1117,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      recompute_invoice_totals: {
+        Args: { _invoice_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "seller" | "accountant" | "warehouse"

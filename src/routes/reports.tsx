@@ -500,9 +500,9 @@ function ReportsPage() {
       {isLoading || !stats ? (
         <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>
       ) : tab === "overview" ? (
-        <OverviewTab stats={stats} />
+        <OverviewTab stats={stats} isAdmin={isAdmin} />
       ) : tab === "detailed" ? (
-        <DetailedTab stats={stats} invoices={data!.invoices} />
+        <DetailedTab stats={stats} invoices={data!.invoices} isAdmin={isAdmin} />
       ) : (
         <ByUserTab perUser={perUser} directory={userDir.data ?? []} loading={userDir.isLoading} />
       )}

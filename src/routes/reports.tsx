@@ -609,9 +609,11 @@ function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof 
 function DetailedTab({
   stats,
   invoices,
+  isAdmin,
 }: {
   stats: NonNullable<ReturnType<typeof useComputed>>;
   invoices: Row[];
+  isAdmin: boolean;
 }) {
   const [pmFilter, setPmFilter] = useState<string>("all");
   const filteredInvoices = useMemo(

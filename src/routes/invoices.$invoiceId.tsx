@@ -1030,108 +1030,110 @@ function InvoiceDetailPage() {
       )}
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
-        <div className="mx-auto max-w-4xl px-4 h-14 flex items-center gap-2 flex-wrap">
-          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-2 rounded-md hover:bg-white/10">
-            <ArrowRight className="size-5" />
+        <div className="mx-auto max-w-4xl px-2 sm:px-4 h-12 sm:h-14 flex items-center gap-1 sm:gap-1.5 flex-wrap">
+          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-1.5 rounded-md hover:bg-white/10">
+            <ArrowRight className="size-4" />
           </Link>
-          <h1 className="text-lg font-bold flex-1 min-w-[140px]">فاتورة #{inv.invoice_number}</h1>
+          <h1 className="text-sm sm:text-base font-bold flex-1 min-w-[90px] truncate">فاتورة #{inv.invoice_number}</h1>
 
-          <div className="flex items-center rounded-lg bg-white/10 p-0.5 text-sm">
+          <div className="flex items-center rounded-md bg-white/10 p-0.5 text-xs">
             <button
               onClick={() => changeFormat("a4")}
-              className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "a4" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
+              className={`flex items-center gap-1 rounded px-1.5 sm:px-2 py-1 transition ${format === "a4" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
-              <FileText className="size-4" /> A4
+              <FileText className="size-3.5" /> A4
             </button>
             <button
               onClick={() => changeFormat("thermal")}
-              className={`flex items-center gap-1 rounded-md px-3 py-1.5 transition ${format === "thermal" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
+              className={`flex items-center gap-1 rounded px-1.5 sm:px-2 py-1 transition ${format === "thermal" ? "bg-white text-header shadow" : "text-white/90 hover:bg-white/10"}`}
             >
-              <Receipt className="size-4" /> حراري
+              <Receipt className="size-3.5" /> حراري
             </button>
           </div>
 
           <button
             onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="معاينة قبل الطباعة أو المشاركة"
             aria-label="معاينة"
           >
-            <Eye className="size-4" /> <span className="hidden sm:inline">معاينة</span>
+            <Eye className="size-3.5 sm:size-4" /> <span className="hidden lg:inline">معاينة</span>
           </button>
 
           <button
             onClick={() => handleSharePdfNative()}
             disabled={pdfBusy}
-            className="flex items-center gap-1 text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
+            className="flex items-center gap-1 text-xs sm:text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
             aria-label="مشاركة PDF"
           >
-            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            <span className="hidden sm:inline">مشاركة PDF</span>
+            {pdfBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Share2 className="size-3.5 sm:size-4" />}
+            <span className="hidden lg:inline">مشاركة PDF</span>
           </button>
 
           <button
             onClick={confirmAndPrint}
-            className="flex items-center gap-1 text-sm bg-white/20 hover:bg-white/30 rounded-lg px-2.5 sm:px-3 py-1.5"
+            className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
             aria-label="طباعة"
           >
-            <Printer className="size-4" /> <span className="hidden sm:inline">طباعة</span>
+            <Printer className="size-3.5 sm:size-4" /> <span className="hidden lg:inline">طباعة</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
+            className="flex items-center gap-1 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title={inv.customer_phone ? "إرسال نص الفاتورة إلى رقم العميل" : "إرسال نص الفاتورة — اختر جهة الاتصال"}
             aria-label="واتساب"
           >
-            {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
-            <span className="hidden sm:inline">واتساب</span>
+            {shareBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Share2 className="size-3.5 sm:size-4" />}
+            <span className="hidden lg:inline">واتساب</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare({ pickContact: true })}
             disabled={shareBusy}
-            className="hidden sm:flex items-center gap-1 text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5"
+            className="hidden md:flex items-center gap-1 text-xs sm:text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title="اختر جهة اتصال من واتساب وأرسل نص الفاتورة"
           >
-            <Share2 className="size-4" /> اختر جهة اتصال
+            <Share2 className="size-3.5 sm:size-4" /> <span className="hidden xl:inline">اختر جهة اتصال</span>
           </button>
 
           {inv.status !== "cancelled" && Number(inv.remaining) > 0 && (
             <button
               onClick={() => setPayDialogOpen(true)}
-              className="flex items-center gap-1 text-sm bg-emerald-500/90 hover:bg-emerald-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
+              className="flex items-center gap-1 text-xs sm:text-sm bg-emerald-500/90 hover:bg-emerald-600 text-white rounded-md px-2 py-1 sm:py-1.5"
               title="تسجيل دفعة جديدة على الفاتورة"
               aria-label="تسجيل دفعة"
             >
-              <Wallet className="size-4" />
-              <span className="hidden sm:inline">تسجيل دفعة</span>
+              <Wallet className="size-3.5 sm:size-4" />
+              <span className="hidden lg:inline">تسجيل دفعة</span>
             </button>
           )}
 
           <button
             onClick={() => setEditMode((v) => !v)}
-            className={`flex items-center gap-1 text-sm rounded-lg px-2.5 sm:px-3 py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
+            className={`flex items-center gap-1 text-xs sm:text-sm rounded-md px-2 py-1 sm:py-1.5 ${editMode ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/20 hover:bg-white/30"}`}
             title={editMode ? "إلغاء التعديل" : "تعديل بنود الفاتورة"}
             aria-label={editMode ? "إلغاء" : "تعديل"}
           >
-            {editMode ? <X className="size-4" /> : <Edit3 className="size-4" />}
-            <span className="hidden sm:inline">{editMode ? "إلغاء" : "تعديل"}</span>
+            {editMode ? <X className="size-3.5 sm:size-4" /> : <Edit3 className="size-3.5 sm:size-4" />}
+            <span className="hidden lg:inline">{editMode ? "إلغاء" : "تعديل"}</span>
           </button>
 
           {inv.status !== "cancelled" && (
             <button
               onClick={() => setCancelOpen(true)}
-              className="flex items-center gap-1 text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-2.5 sm:px-3 py-1.5"
+              className="flex items-center gap-1 text-xs sm:text-sm bg-red-500/90 hover:bg-red-600 text-white rounded-md px-2 py-1 sm:py-1.5"
               title="إلغاء الفاتورة مع إدخال سبب"
+              aria-label="إلغاء الفاتورة"
             >
-              <X className="size-4" /> <span className="hidden sm:inline">إلغاء الفاتورة</span>
+              <X className="size-3.5 sm:size-4" /> <span className="hidden lg:inline">إلغاء الفاتورة</span>
             </button>
           )}
         </div>
+
       </header>
 
       {inv.status === "cancelled" && (

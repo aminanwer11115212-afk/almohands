@@ -107,7 +107,7 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [includeProfitInPdf, setIncludeProfitInPdf] = useState(false);
+  
 
   // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
   // scrollbars, and mobile browser quirks. Computes zoom based on both width & height
@@ -1800,61 +1800,26 @@ function InvoiceDetailPage() {
         </section>
       )}
 
-      {/* Profit summary — admin only, hidden in print */}
+      {/* Profit summary — admin only, compact total, hidden in print. Full per-line breakdown lives in Reports. */}
       {isAdmin && profitInfo && (
         <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40 gap-2 flex-wrap">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <Wallet className="size-4 text-emerald-600" /> تحليل ربح الفاتورة
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 flex-wrap">
+              <h3 className="font-bold text-sm flex items-center gap-2 text-emerald-800">
+                <Wallet className="size-4" /> صافي ربح الفاتورة
               </h3>
-              <div className="flex items-center gap-3">
-                <label className="text-[11px] flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={includeProfitInPdf}
-                    onChange={(e) => setIncludeProfitInPdf(e.target.checked)}
-                    className="size-3.5"
-                  />
-                  <span>تضمين في الطباعة / PDF</span>
-                </label>
-                <div className="text-[11px] text-muted-foreground hidden sm:block">
-                  يعتمد على التكلفة المسجّلة وقت البيع
+              <div className="flex items-center gap-4 text-sm">
+                <div>
+                  <span className="text-xs text-muted-foreground ms-1">هامش:</span>
+                  <span className="nums font-bold">{profitInfo.margin.toFixed(1)}%</span>
+                </div>
+                <div className={`nums font-extrabold text-lg ${profitInfo.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                  {formatSDG(profitInfo.netProfit)}
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
-              <MiniKpi label="الإيراد" value={formatSDG(profitInfo.revenue)} />
-              <MiniKpi label="التكلفة" value={formatSDG(profitInfo.cost)} tone="muted" />
-              <MiniKpi label="مجمل الربح" value={formatSDG(profitInfo.grossProfit)} tone={profitInfo.grossProfit >= 0 ? "good" : "bad"} />
-              <MiniKpi label="الخصم" value={formatSDG(profitInfo.discount)} tone="muted" />
-              <MiniKpi label={`صافي الربح (${profitInfo.margin.toFixed(1)}%)`} value={formatSDG(profitInfo.netProfit)} tone={profitInfo.netProfit >= 0 ? "good" : "bad"} strong />
-            </div>
-            <div className="overflow-x-auto border-t border-border">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/30 text-[11px] text-muted-foreground">
-                  <tr>
-                    <th className="p-2 text-right">الصنف</th>
-                    <th className="p-2 text-end">الكمية</th>
-                    <th className="p-2 text-end">سعر البيع</th>
-                    <th className="p-2 text-end">التكلفة</th>
-                    <th className="p-2 text-end">الربح</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {profitInfo.perLine.map((r) => (
-                    <tr key={r.id} className="hover:bg-muted/20">
-                      <td className="p-2">{r.name}</td>
-                      <td className="p-2 text-end nums">{r.qty}</td>
-                      <td className="p-2 text-end nums">{formatSDG(r.unit)}</td>
-                      <td className="p-2 text-end nums text-muted-foreground">{formatSDG(r.cost)}</td>
-                      <td className={`p-2 text-end nums font-bold ${r.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                        {formatSDG(r.profit)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="px-4 pb-3 text-[11px] text-muted-foreground">
+              التفصيل الكامل لكل صنف متاح في <a href="/reports" className="text-emerald-700 underline">صفحة التقارير</a> — لا يظهر في الطباعة أو ملف PDF.
             </div>
           </div>
         </section>
@@ -1965,45 +1930,7 @@ function InvoiceDetailPage() {
             paymentLabel={paymentLabel}
           />
         )}
-        {isAdmin && includeProfitInPdf && profitInfo && format === "a4" && (
-          <div className="mt-4 mx-auto max-w-[190mm] break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
-            <div className="rounded border border-black/20" style={{ padding: "8px 12px" }}>
-              <div className="flex items-center justify-between mb-2" style={{ borderBottom: "1px solid #0002", paddingBottom: 4 }}>
-                <strong style={{ fontSize: 13 }}>تحليل ربح الفاتورة (خاص بالإدارة)</strong>
-                <span style={{ fontSize: 10, color: "#555" }}>مبني على التكلفة وقت البيع</span>
-              </div>
-              <div className="grid grid-cols-5 gap-2 text-center" style={{ fontSize: 11 }}>
-                <div><div style={{ color: "#666" }}>الإيراد</div><div className="nums font-bold">{formatSDG(profitInfo.revenue)}</div></div>
-                <div><div style={{ color: "#666" }}>التكلفة</div><div className="nums font-bold">{formatSDG(profitInfo.cost)}</div></div>
-                <div><div style={{ color: "#666" }}>مجمل الربح</div><div className="nums font-bold">{formatSDG(profitInfo.grossProfit)}</div></div>
-                <div><div style={{ color: "#666" }}>الخصم</div><div className="nums font-bold">{formatSDG(profitInfo.discount)}</div></div>
-                <div><div style={{ color: "#666" }}>صافي الربح ({profitInfo.margin.toFixed(1)}%)</div><div className="nums font-bold">{formatSDG(profitInfo.netProfit)}</div></div>
-              </div>
-              <table className="w-full mt-2" style={{ fontSize: 10, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #0002" }}>
-                    <th className="text-right p-1">الصنف</th>
-                    <th className="text-end p-1">الكمية</th>
-                    <th className="text-end p-1">سعر البيع</th>
-                    <th className="text-end p-1">التكلفة</th>
-                    <th className="text-end p-1">الربح</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profitInfo.perLine.map((r) => (
-                    <tr key={r.id} style={{ borderBottom: "1px dashed #0001" }}>
-                      <td className="p-1">{r.name}</td>
-                      <td className="p-1 text-end nums">{r.qty}</td>
-                      <td className="p-1 text-end nums">{formatSDG(r.unit)}</td>
-                      <td className="p-1 text-end nums">{formatSDG(r.cost)}</td>
-                      <td className="p-1 text-end nums font-bold">{formatSDG(r.profit)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
         </div>
       </main>
 

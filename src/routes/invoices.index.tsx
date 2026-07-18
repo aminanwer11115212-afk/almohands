@@ -65,7 +65,7 @@ export const Route = createFileRoute("/invoices/")({
 });
 
 function InvoicesPage() {
-  const { q, status, from, to } = Route.useSearch();
+  const { q, status, from, to, sort } = Route.useSearch();
   const navigate = useNavigate({ from: "/invoices" });
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 

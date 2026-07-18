@@ -1203,10 +1203,20 @@ function InvoiceDetailPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="flex items-center justify-between rounded-md bg-muted p-2 text-sm">
-              <span>الإجمالي: <span className="nums font-semibold">{formatSDG(Number(inv.total) || 0)}</span></span>
-              <span>المدفوع: <span className="nums font-semibold">{formatSDG(Number(inv.paid) || 0)}</span></span>
-              <span>المتبقي: <span className="nums font-bold text-emerald-700">{formatSDG(Number(inv.remaining) || 0)}</span></span>
+            {/* Live totals — before payment */}
+            <div className="grid grid-cols-3 gap-2 rounded-md bg-muted p-2 text-xs">
+              <div className="text-center">
+                <div className="text-muted-foreground">الإجمالي</div>
+                <div className="nums font-semibold text-sm">{formatSDG(invTotalNum)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground">المدفوع</div>
+                <div className="nums font-semibold text-sm">{formatSDG(invPaidNum)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground">المتبقي</div>
+                <div className="nums font-bold text-sm text-emerald-700">{formatSDG(invRemainingNum)}</div>
+              </div>
             </div>
 
             <div>
@@ -1214,24 +1224,40 @@ function InvoiceDetailPage() {
               <input
                 type="number"
                 min={0}
+                max={invRemainingNum}
                 step="0.01"
                 inputMode="decimal"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
-                className="w-full h-10 rounded-md border border-input bg-background px-3 nums"
+                onBlur={clampPayToRemaining}
+                aria-invalid={payExceeds}
+                className={`w-full h-10 rounded-md border bg-background px-3 nums ${payExceeds ? "border-destructive ring-1 ring-destructive/40" : "border-input"}`}
               />
-              <div className="mt-1 flex gap-2">
+              <div className="mt-1 flex gap-2 items-center">
                 <button
                   type="button"
-                  onClick={() => setPayAmount(String(Math.max(0, Number(inv.remaining) || 0)))}
+                  onClick={() => setPayAmount(String(invRemainingNum))}
                   className="text-xs underline text-emerald-700"
                 >دفع المتبقي</button>
                 <button
                   type="button"
-                  onClick={() => setPayAmount(String((Math.max(0, Number(inv.remaining) || 0)) / 2))}
+                  onClick={() => setPayAmount(String(+(invRemainingNum / 2).toFixed(2)))}
                   className="text-xs underline text-muted-foreground"
                 >النصف</button>
+                {payExceeds && (
+                  <button
+                    type="button"
+                    onClick={clampPayToRemaining}
+                    className="ms-auto text-xs underline text-destructive font-semibold"
+                  >ضبط تلقائي</button>
+                )}
               </div>
+              {payExceeds && (
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive font-semibold">
+                  <AlertTriangle className="size-3" />
+                  المبلغ يتجاوز المتبقي — الحد الأقصى {formatSDG(invRemainingNum)}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1247,7 +1273,7 @@ function InvoiceDetailPage() {
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setPayMethodId(m.id)}
+                        onClick={() => { setPayMethodId(m.id); clampPayToRemaining(); }}
                         className={`flex items-center gap-2 rounded-md border p-2 text-sm text-right ${active ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-input hover:bg-muted"}`}
                       >
                         <Icon className={`size-4 ${m.type === "bank" ? "text-blue-600" : "text-emerald-600"}`} />
@@ -1290,6 +1316,27 @@ function InvoiceDetailPage() {
                 className="w-full h-10 rounded-md border border-input bg-background px-3"
               />
             </div>
+
+            {/* Live preview — after payment */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2">
+              <div className="text-[11px] font-semibold text-emerald-900 mb-1">بعد تسجيل هذه الدفعة:</div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="text-center">
+                  <div className="text-muted-foreground">المدفوع</div>
+                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterPaid)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">المتبقي</div>
+                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterRemaining)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">الحالة</div>
+                  <div className={`font-bold text-sm ${payAfterStatus === "paid" ? "text-emerald-700" : payAfterStatus === "partial" ? "text-amber-700" : "text-muted-foreground"}`}>
+                    {payAfterStatus === "paid" ? "مدفوعة بالكامل" : payAfterStatus === "partial" ? "مدفوعة جزئياً" : "معلّقة"}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <button
@@ -1298,8 +1345,9 @@ function InvoiceDetailPage() {
             >إلغاء</button>
             <button
               onClick={() => addPaymentMutation.mutate()}
-              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount}
+              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount || payExceeds || payAmountNum <= 0}
               className="px-4 h-10 rounded-md bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              title={payExceeds ? "المبلغ يتجاوز المتبقي" : undefined}
             >
               {addPaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               تسجيل الدفعة

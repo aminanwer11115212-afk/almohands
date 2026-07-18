@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
+import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
 
@@ -101,6 +102,35 @@ function InvoicesPage() {
     },
   });
 
+  // Admin-only per-invoice profit fetch (based on cost_price snapshot)
+  const { isAdmin } = useMyRole();
+  const invoiceIds = useMemo(() => (query.data ?? []).map((r) => r.id), [query.data]);
+  const profitQuery = useQuery({
+    queryKey: ["invoices-profit", invoiceIds],
+    enabled: isAdmin && invoiceIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoice_items")
+        .select("invoice_id, quantity, unit_price, cost_price")
+        .in("invoice_id", invoiceIds);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      for (const it of (data ?? []) as any[]) {
+        const qty = Number(it.quantity) || 0;
+        const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
+        map.set(it.invoice_id, (map.get(it.invoice_id) ?? 0) + p);
+      }
+      // subtract invoice-level discount to get net line profit
+      for (const inv of query.data ?? []) {
+        if (map.has(inv.id)) {
+          const disc = Number((inv as any).discount) || 0;
+          if (disc) map.set(inv.id, (map.get(inv.id) ?? 0) - disc);
+        }
+      }
+      return map;
+    },
+  });
+
   useEffect(() => {
     const channel = supabase
       .channel("invoices-list")
@@ -116,7 +146,7 @@ function InvoicesPage() {
 
   const totals = useMemo(() => {
     const rows = query.data ?? [];
-    return rows.reduce(
+    const base = rows.reduce(
       (acc, r) => {
         acc.count += 1;
         acc.total += Number(r.total) || 0;
@@ -124,9 +154,13 @@ function InvoicesPage() {
         acc.remaining += Number(r.remaining) || 0;
         return acc;
       },
-      { count: 0, total: 0, paid: 0, remaining: 0 },
+      { count: 0, total: 0, paid: 0, remaining: 0, profit: 0 },
     );
-  }, [query.data]);
+    if (profitQuery.data) {
+      for (const [, p] of profitQuery.data) base.profit += p;
+    }
+    return base;
+  }, [query.data, profitQuery.data]);
 
   return (
     <AppShell title="الفواتير" showBack>
@@ -199,11 +233,14 @@ function InvoicesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}>
           <SummaryCard label="فواتير" value={String(totals.count)} />
           <SummaryCard label="الإجمالي" value={formatSDG(totals.total)} />
           <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="emerald" />
           <SummaryCard label="المتبقي" value={formatSDG(totals.remaining)} tone="rose" />
+          {isAdmin && (
+            <SummaryCard label="صافي الربح" value={formatSDG(totals.profit)} tone={totals.profit >= 0 ? "emerald" : "rose"} />
+          )}
         </div>
 
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -259,6 +296,11 @@ function InvoicesPage() {
                           <div className="text-sm font-semibold nums">{formatSDG(Number(inv.total))}</div>
                           {Number(inv.remaining) > 0 && (
                             <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
+                          )}
+                          {isAdmin && profitQuery.data?.has(inv.id) && (
+                            <div className={`text-[11px] nums font-semibold ${(profitQuery.data.get(inv.id) ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              ربح {formatSDG(profitQuery.data.get(inv.id) ?? 0)}
+                            </div>
                           )}
                         </div>
                       </div>

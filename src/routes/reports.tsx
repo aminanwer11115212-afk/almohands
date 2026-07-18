@@ -168,7 +168,7 @@ function useReportBundle(period: Period) {
       // Invoice items (for top products & profit)
       let qItems = supabase
         .from("invoice_items")
-        .select("user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
+        .select("invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
       if (from) qItems = qItems.gte("created_at", from);
       if (to) qItems = qItems.lt("created_at", to);
 
@@ -318,6 +318,23 @@ function ReportsPage() {
     const returnsCount = data.returns.length;
     const acceptedReturns = data.returns.filter((r) => r.status === "accepted").length;
 
+    // Per-invoice profit map: Σ((unit_price - cost_price) × quantity); discount is
+    // aggregated on the invoice header, so subtract it once below.
+    const profitByInvoice = new Map<string, number>();
+    for (const it of data.items as any[]) {
+      const invId = String(it.invoice_id ?? "");
+      if (!invId) continue;
+      const qty = Number(it.quantity) || 0;
+      const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
+      profitByInvoice.set(invId, (profitByInvoice.get(invId) ?? 0) + p);
+    }
+    for (const inv of data.invoices) {
+      const disc = Number(inv.discount || 0);
+      if (disc && profitByInvoice.has(inv.id)) {
+        profitByInvoice.set(inv.id, (profitByInvoice.get(inv.id) ?? 0) - disc);
+      }
+    }
+
     return {
       totalSales,
       totalPaid,
@@ -337,6 +354,7 @@ function ReportsPage() {
       daily,
       returnsCount,
       acceptedReturns,
+      profitByInvoice,
     };
   }, [data]);
 
@@ -661,10 +679,15 @@ function DetailedTab({
                   <th className="text-right px-2 py-1.5">العميل</th>
                   <th className="text-center px-2 py-1.5">الدفع</th>
                   <th className="text-end px-2 py-1.5">المبلغ</th>
+                  <th className="text-end px-2 py-1.5">الربح</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredInvoices.slice(0, 200).map((inv) => (
+                {filteredInvoices.slice(0, 200).map((inv) => {
+                  const profit = stats.profitByInvoice.get(inv.id) ?? 0;
+                  const total = Number(inv.total || 0);
+                  const margin = total > 0 ? (profit / total) * 100 : 0;
+                  return (
                   <tr key={inv.id}>
                     <td className="px-2 py-1.5 nums">#{inv.invoice_number}</td>
                     <td className="px-2 py-1.5 text-muted-foreground">
@@ -690,8 +713,15 @@ function DetailedTab({
                     <td className="px-2 py-1.5 text-end nums font-bold">
                       {formatSDG(Number(inv.total || 0))}
                     </td>
+                    <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                      {formatSDG(profit)}
+                      <div className="text-[9px] text-muted-foreground font-normal">
+                        {margin.toFixed(1)}%
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {filteredInvoices.length > 200 && (
@@ -888,6 +918,7 @@ function useComputed() {
     daily: { date: string; amount: number }[];
     returnsCount: number;
     acceptedReturns: number;
+    profitByInvoice: Map<string, number>;
   };
 }
 

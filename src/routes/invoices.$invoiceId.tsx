@@ -17,6 +17,7 @@ import { logger, newRequestId } from "@/lib/logger";
 import { invoiceEditRowsSchema, validateItemField } from "@/lib/schemas";
 import { useProducts } from "@/hooks/use-products";
 import { usePaymentMethods, type PaymentMethodType } from "@/hooks/use-payment-methods";
+import { useMyRole } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
@@ -318,6 +319,28 @@ function InvoiceDetailPage() {
     () => visibleEditRows.reduce((s, r) => s + r.quantity * r.unit_price, 0),
     [visibleEditRows],
   );
+
+  // ============ Profit summary (admin/accountant only, computed from cost_price snapshot) ============
+  const { isAdmin } = useMyRole();
+  const profitInfo = useMemo(() => {
+    const items = (data?.items ?? []) as any[];
+    if (items.length === 0) return null;
+    let revenue = 0, cost = 0;
+    const perLine = items.map((it) => {
+      const qty = Number(it.quantity) || 0;
+      const unit = Number(it.unit_price) || 0;
+      const c = Number(it.cost_price) || 0;
+      const r = unit * qty, k = c * qty, p = r - k;
+      revenue += r; cost += k;
+      return { id: it.id, name: it.product_name as string, qty, unit, cost: c, profit: p };
+    });
+    const discount = Number(data?.inv?.discount) || 0;
+    const grossProfit = revenue - cost;
+    const netProfit = grossProfit - discount;
+    const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin };
+  }, [data?.items, data?.inv?.discount]);
+
 
   const maxAllowedFor = (row: EditRow): number | null => {
     if (!row.product_id || !stockMap) return null;
@@ -1750,6 +1773,55 @@ function InvoiceDetailPage() {
         </section>
       )}
 
+      {/* Profit summary — admin only, hidden in print */}
+      {isAdmin && profitInfo && (
+        <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Wallet className="size-4 text-emerald-600" /> تحليل ربح الفاتورة
+              </h3>
+              <div className="text-[11px] text-muted-foreground">
+                يعتمد على سعر التكلفة المسجّل وقت البيع (لا يتأثر بتغيير الأسعار لاحقاً)
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
+              <MiniKpi label="الإيراد" value={formatSDG(profitInfo.revenue)} />
+              <MiniKpi label="التكلفة" value={formatSDG(profitInfo.cost)} tone="muted" />
+              <MiniKpi label="مجمل الربح" value={formatSDG(profitInfo.grossProfit)} tone={profitInfo.grossProfit >= 0 ? "good" : "bad"} />
+              <MiniKpi label="الخصم" value={formatSDG(profitInfo.discount)} tone="muted" />
+              <MiniKpi label={`صافي الربح (${profitInfo.margin.toFixed(1)}%)`} value={formatSDG(profitInfo.netProfit)} tone={profitInfo.netProfit >= 0 ? "good" : "bad"} strong />
+            </div>
+            <div className="overflow-x-auto border-t border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/30 text-[11px] text-muted-foreground">
+                  <tr>
+                    <th className="p-2 text-right">الصنف</th>
+                    <th className="p-2 text-end">الكمية</th>
+                    <th className="p-2 text-end">سعر البيع</th>
+                    <th className="p-2 text-end">التكلفة</th>
+                    <th className="p-2 text-end">الربح</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {profitInfo.perLine.map((r) => (
+                    <tr key={r.id} className="hover:bg-muted/20">
+                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-end nums">{r.qty}</td>
+                      <td className="p-2 text-end nums">{formatSDG(r.unit)}</td>
+                      <td className="p-2 text-end nums text-muted-foreground">{formatSDG(r.cost)}</td>
+                      <td className={`p-2 text-end nums font-bold ${r.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                        {formatSDG(r.profit)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Payments history — visible on invoice page, hidden in print */}
       <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -2349,6 +2421,35 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
           {invoiceFooter}
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniKpi({
+  label,
+  value,
+  tone,
+  strong,
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "bad" | "muted";
+  strong?: boolean;
+}) {
+  const valueClass =
+    tone === "good"
+      ? "text-emerald-700"
+      : tone === "bad"
+      ? "text-rose-600"
+      : tone === "muted"
+      ? "text-muted-foreground"
+      : "text-foreground";
+  return (
+    <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className={`nums ${strong ? "text-base font-extrabold" : "text-sm font-bold"} ${valueClass}`}>
+        {value}
+      </div>
     </div>
   );
 }

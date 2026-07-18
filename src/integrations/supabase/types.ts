@@ -1106,6 +1106,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      delete_invoice_atomic: {
+        Args: { _invoice_id: string; _reason?: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

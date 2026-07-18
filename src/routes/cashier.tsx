@@ -3,7 +3,7 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User, Printer, Eye, Share2, Camera,
+  Wallet, Landmark, Package, X, User, Printer, Eye, Share2, Camera, ClipboardList,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
@@ -631,6 +631,16 @@ function CashierPage() {
               <Plus className="size-4" />
               <span className="hidden sm:inline">صنف مخصص</span>
             </button>
+            {/* Quick shortcut to "System Order" (PreOrder) for items not currently in stock. */}
+            <Link
+              to="/special-orders"
+              aria-label="طلب النظام"
+              title="طلب صنف غير متوفر (PreOrder)"
+              className="h-12 px-3 rounded-xl border border-brand/40 bg-brand/10 hover:bg-brand/20 text-brand flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <ClipboardList className="size-4" />
+              <span className="hidden sm:inline">طلب النظام</span>
+            </Link>
           </div>
 
           <Dialog open={customItemOpen} onOpenChange={setCustomItemOpen}>

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search, Download } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
@@ -1072,6 +1072,17 @@ function InvoiceDetailPage() {
           </button>
 
           <button
+            onClick={() => handleDownloadPdf()}
+            disabled={pdfBusy}
+            className="flex items-center gap-1 text-xs sm:text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
+            title="تنزيل الفاتورة كملف PDF بنفس تصميم A4"
+            aria-label="تنزيل PDF"
+          >
+            {pdfBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Download className="size-3.5 sm:size-4" />}
+            <span className="hidden lg:inline">تصدير PDF</span>
+          </button>
+
+          <button
             onClick={confirmAndPrint}
             className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
@@ -2040,10 +2051,14 @@ function InvoiceDetailPage() {
           .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-a4 {
             width: 281mm; /* A4 landscape 297mm - 2×8mm margins */
-            min-height: 194mm;
             margin: 0 auto !important;
-            page-break-inside: avoid;
+            /* NO page-break-inside on the whole invoice — large invoices must paginate cleanly */
           }
+          /* Keep atomic blocks intact across page breaks */
+          .keep-together, tr, thead, tfoot { break-inside: avoid !important; page-break-inside: avoid !important; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+          .a4-summary { break-before: auto; break-inside: avoid !important; page-break-inside: avoid !important; }
           .print-thermal { width: 76mm; margin: 0 auto !important; }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
@@ -2067,12 +2082,13 @@ type A4Props = {
 };
 
 function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, invoiceFooter, showLogo, paymentLabel }: A4Props) {
-  // Pad to a comfortable minimum so short invoices still fill the page nicely.
+  // Pad short invoices only when they fit on one page. Beyond ~18 rows we rely on
+  // native pagination + `break-inside: avoid` per row (see print CSS at the bottom).
   const MIN_ROWS = 14;
-  const paddedRows = [
-    ...items,
-    ...Array.from({ length: Math.max(0, MIN_ROWS - items.length) }, () => null),
-  ];
+  const shouldPad = items.length <= MIN_ROWS;
+  const paddedRows = shouldPad
+    ? [...items, ...Array.from({ length: MIN_ROWS - items.length }, () => null)]
+    : items;
   const created = new Date(inv.created_at);
   const dateStr = `${created.getFullYear()} / ${String(created.getMonth() + 1).padStart(2, "0")} / ${String(created.getDate()).padStart(2, "0")}`;
   const timeStr = created.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
@@ -2080,123 +2096,135 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
 
   return (
     <div className="print-a4 w-full bg-white text-black shadow-lg border p-6 print:shadow-none print:border-0" dir="rtl">
-      {/* ===== HEADER ===== */}
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-6 pb-4 border-b-2 border-black">
-        <div className="flex justify-start">
-          {showLogo && <img src={logo} alt={storeName} className="h-24 w-24 object-contain" />}
+      {/* ===== HEADER (kept together with meta strip) ===== */}
+      <div className="a4-head keep-together">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-6 pb-4 border-b-2 border-black">
+          <div className="flex justify-start">
+            {showLogo && <img src={logo} alt={storeName} className="h-24 w-24 object-contain" />}
+          </div>
+          <div className="text-center">
+            <h1 className="text-4xl font-extrabold tracking-wide">{storeName}</h1>
+            {storeSubtitle && <p className="text-lg font-semibold mt-1 text-black/80">{storeSubtitle}</p>}
+            {storePhone && <p className="text-sm mt-1 nums" dir="ltr">TEL: {storePhone}</p>}
+          </div>
+          <div className="text-left">
+            <div className="inline-block border-2 border-black px-4 py-2 rounded">
+              <div className="text-xs font-semibold text-black/70">فاتورة رقم</div>
+              <div className="text-2xl font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+            </div>
+          </div>
         </div>
-        <div className="text-center">
-          <h1 className="text-4xl font-extrabold tracking-wide">{storeName}</h1>
-          {storeSubtitle && <p className="text-lg font-semibold mt-1 text-black/80">{storeSubtitle}</p>}
-          {storePhone && <p className="text-sm mt-1 nums" dir="ltr">TEL: {storePhone}</p>}
-        </div>
-        <div className="text-left">
-          <div className="inline-block border-2 border-black px-4 py-2 rounded">
-            <div className="text-xs font-semibold text-black/70">فاتورة رقم</div>
-            <div className="text-2xl font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+
+        {/* ===== META STRIP ===== */}
+        <div className="grid grid-cols-4 gap-3 my-3 text-sm">
+          <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
+            <div className="text-[11px] font-semibold text-black/60">اسم العميل</div>
+            <div className="font-bold truncate">{inv.customer_name || "—"}</div>
+          </div>
+          <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
+            <div className="text-[11px] font-semibold text-black/60">التاريخ</div>
+            <div className="font-bold nums">{dateStr}</div>
+          </div>
+          <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
+            <div className="text-[11px] font-semibold text-black/60">الوقت</div>
+            <div className="font-bold nums">{timeStr}</div>
+          </div>
+          <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
+            <div className="text-[11px] font-semibold text-black/60">طريقة الدفع</div>
+            <div className="font-bold">{paymentLabel}</div>
           </div>
         </div>
       </div>
 
-      {/* ===== META STRIP ===== */}
-      <div className="grid grid-cols-4 gap-3 my-3 text-sm">
-        <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
-          <div className="text-[11px] font-semibold text-black/60">اسم العميل</div>
-          <div className="font-bold truncate">{inv.customer_name || "—"}</div>
-        </div>
-        <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
-          <div className="text-[11px] font-semibold text-black/60">التاريخ</div>
-          <div className="font-bold nums">{dateStr}</div>
-        </div>
-        <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
-          <div className="text-[11px] font-semibold text-black/60">الوقت</div>
-          <div className="font-bold nums">{timeStr}</div>
-        </div>
-        <div className="border border-black/30 rounded px-3 py-2 bg-black/[0.03]">
-          <div className="text-[11px] font-semibold text-black/60">طريقة الدفع</div>
-          <div className="font-bold">{paymentLabel}</div>
-        </div>
-      </div>
-
-      {/* ===== ITEMS TABLE ===== */}
-      <table className="w-full border-collapse border-2 border-black text-sm">
+      {/* ===== ITEMS TABLE — unified column widths across every invoice ===== */}
+      <table className="w-full border-collapse border-2 border-black text-sm table-fixed">
+        <colgroup>
+          <col style={{ width: "6%" }} />
+          <col />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "20%" }} />
+        </colgroup>
         <thead>
           <tr className="bg-black text-white">
-            <th className="border border-black py-2 w-12">م</th>
+            <th className="border border-black py-2">م</th>
             <th className="border border-black py-2 text-right px-3">الصنف</th>
-            <th className="border border-black py-2 w-32">السعر (وحدة)</th>
-            <th className="border border-black py-2 w-20">الكمية</th>
-            <th className="border border-black py-2 w-40">الإجمالي</th>
+            <th className="border border-black py-2">السعر (وحدة)</th>
+            <th className="border border-black py-2">الكمية</th>
+            <th className="border border-black py-2">الإجمالي</th>
           </tr>
         </thead>
         <tbody>
           {paddedRows.map((it, i) => (
-            <tr key={i} className={`h-8 ${it && i % 2 === 1 ? "bg-black/[0.03]" : ""}`}>
-              <td className="border border-black text-center nums font-semibold">{it ? i + 1 : ""}</td>
-              <td className="border border-black px-3">{it?.product_name ?? ""}</td>
-              <td className="border border-black text-center nums px-1">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
-              <td className="border border-black text-center nums font-semibold">{it?.quantity ?? ""}</td>
-              <td className="border border-black text-center nums px-1 font-semibold">{it ? formatSDG(Number(it.line_total)) : ""}</td>
+            <tr key={i} className={`h-8 keep-together ${it && i % 2 === 1 ? "bg-black/[0.03]" : ""}`}>
+              <td className="border border-black text-center nums font-semibold align-middle">{it ? i + 1 : ""}</td>
+              {/* Long names wrap cleanly instead of overflowing the cell */}
+              <td className="border border-black px-3 align-middle break-words whitespace-normal leading-snug">{it?.product_name ?? ""}</td>
+              <td className="border border-black text-center nums px-1 align-middle">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
+              <td className="border border-black text-center nums font-semibold align-middle">{it?.quantity ?? ""}</td>
+              <td className="border border-black text-center nums px-1 font-semibold align-middle">{it ? formatSDG(Number(it.line_total)) : ""}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="h-10 font-bold text-base bg-black/[0.06]">
+          <tr className="h-10 font-bold text-base bg-black/[0.06] keep-together">
             <td colSpan={4} className="border-2 border-black text-left px-4">المجموع الكلي</td>
             <td className="border-2 border-black text-center nums px-2">{formatSDG(Number(inv.total))}</td>
           </tr>
         </tfoot>
       </table>
 
-      {/* ===== PAYMENT SUMMARY CARD ===== */}
-      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        <div className="border-2 border-black rounded px-3 py-2">
-          <div className="text-[11px] font-semibold text-black/60">الإجمالي</div>
-          <div className="text-lg font-extrabold nums">{formatSDG(Number(inv.total))}</div>
-        </div>
-        <div className="border-2 border-emerald-700 rounded px-3 py-2 bg-emerald-50">
-          <div className="text-[11px] font-semibold text-emerald-800">المدفوع</div>
-          <div className="text-lg font-extrabold nums text-emerald-800">{formatSDG(Number(inv.paid))}</div>
-        </div>
-        <div className={`border-2 rounded px-3 py-2 ${isPaid ? "border-emerald-700 bg-emerald-50" : "border-rose-700 bg-rose-50"}`}>
-          <div className={`text-[11px] font-semibold ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
-            {isPaid ? "الحالة" : "المتبقي"}
+      {/* ===== PAYMENT SUMMARY — kept together on the same page ===== */}
+      <div className="a4-summary keep-together">
+        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div className="border-2 border-black rounded px-3 py-2">
+            <div className="text-[11px] font-semibold text-black/60">الإجمالي</div>
+            <div className="text-lg font-extrabold nums">{formatSDG(Number(inv.total))}</div>
           </div>
-          <div className={`text-lg font-extrabold nums ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
-            {isPaid ? "مدفوعة بالكامل ✓" : formatSDG(Number(inv.remaining))}
+          <div className="border-2 border-emerald-700 rounded px-3 py-2 bg-emerald-50">
+            <div className="text-[11px] font-semibold text-emerald-800">المدفوع</div>
+            <div className="text-lg font-extrabold nums text-emerald-800">{formatSDG(Number(inv.paid))}</div>
+          </div>
+          <div className={`border-2 rounded px-3 py-2 ${isPaid ? "border-emerald-700 bg-emerald-50" : "border-rose-700 bg-rose-50"}`}>
+            <div className={`text-[11px] font-semibold ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
+              {isPaid ? "الحالة" : "المتبقي"}
+            </div>
+            <div className={`text-lg font-extrabold nums ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
+              {isPaid ? "مدفوعة بالكامل ✓" : formatSDG(Number(inv.remaining))}
+            </div>
           </div>
         </div>
+
+        {/* ===== BANK TRANSFER DETAILS ===== */}
+        {paymentMethod && paymentMethod.type === "bank" && (
+          <div className="mt-3 border-2 border-black/60 rounded p-3 text-xs bg-black/[0.02]">
+            <div className="font-bold mb-1.5 text-sm">تفاصيل التحويل البنكي</div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+              {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
+              {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
+              {paymentMethod.account_number && <div dir="ltr" className="text-right">حساب: <span className="font-semibold nums">{paymentMethod.account_number}</span></div>}
+              {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-semibold nums">{paymentMethod.iban}</span></div>}
+              {inv.reference_number && <div className="col-span-2">رقم العملية: <span className="font-bold nums">{inv.reference_number}</span></div>}
+            </div>
+          </div>
+        )}
+
+        {/* ===== SIGNATURE ROW ===== */}
+        <div className="mt-8 grid grid-cols-2 gap-8 text-sm">
+          <div className="flex items-baseline gap-2">
+            <span className="font-semibold">توقيع المستلم:</span>
+            <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem]" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-semibold">توقيع البائع:</span>
+            <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem]" />
+          </div>
+        </div>
+
+        {invoiceFooter && (
+          <p className="text-center text-xs mt-6 pt-3 border-t border-black/30 whitespace-pre-line text-black/70">{invoiceFooter}</p>
+        )}
       </div>
-
-      {/* ===== BANK TRANSFER DETAILS ===== */}
-      {paymentMethod && paymentMethod.type === "bank" && (
-        <div className="mt-3 border-2 border-black/60 rounded p-3 text-xs bg-black/[0.02]">
-          <div className="font-bold mb-1.5 text-sm">تفاصيل التحويل البنكي</div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-            {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
-            {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
-            {paymentMethod.account_number && <div dir="ltr" className="text-right">حساب: <span className="font-semibold nums">{paymentMethod.account_number}</span></div>}
-            {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-semibold nums">{paymentMethod.iban}</span></div>}
-            {inv.reference_number && <div className="col-span-2">رقم العملية: <span className="font-bold nums">{inv.reference_number}</span></div>}
-          </div>
-        </div>
-      )}
-
-      {/* ===== SIGNATURE ROW ===== */}
-      <div className="mt-8 grid grid-cols-2 gap-8 text-sm">
-        <div className="flex items-baseline gap-2">
-          <span className="font-semibold">توقيع المستلم:</span>
-          <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem]" />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="font-semibold">توقيع البائع:</span>
-          <span className="flex-1 border-b border-dotted border-black min-h-[1.25rem]" />
-        </div>
-      </div>
-
-      {invoiceFooter && (
-        <p className="text-center text-xs mt-6 pt-3 border-t border-black/30 whitespace-pre-line text-black/70">{invoiceFooter}</p>
-      )}
     </div>
   );
 }
@@ -2206,59 +2234,77 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
 type ThermalProps = A4Props & { storeAddress: string };
 
 function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, storeAddress, invoiceFooter, showLogo, paymentLabel }: ThermalProps) {
+  const isPaid = Number(inv.remaining) <= 0;
   return (
     <div className="print-thermal mx-auto w-[80mm] bg-white text-black shadow-lg border p-3 text-[12px] leading-tight print:shadow-none print:border-0" dir="rtl">
-      <div className="text-center border-b border-dashed border-black pb-2">
+      {/* ===== HEADER — matches A4 tone ===== */}
+      <div className="text-center pb-2 border-b-2 border-black">
         {showLogo && <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />}
-        <div className="font-extrabold text-base mt-1">{storeName}</div>
-        <div className="text-[11px]">{storeSubtitle}</div>
-        {storeAddress && <div className="text-[11px]">{storeAddress}</div>}
-        <div className="text-[11px] nums" dir="ltr">{storePhone}</div>
+        <div className="font-extrabold text-base mt-1 tracking-wide">{storeName}</div>
+        {storeSubtitle && <div className="text-[11px] font-semibold text-black/80">{storeSubtitle}</div>}
+        {storeAddress && <div className="text-[10.5px] text-black/70">{storeAddress}</div>}
+        {storePhone && <div className="text-[11px] nums" dir="ltr">TEL: {storePhone}</div>}
       </div>
 
-      <div className="py-2 border-b border-dashed border-black text-[11px] space-y-0.5">
-        <div className="flex justify-between"><span>فاتورة #</span><span className="nums">{inv.invoice_number}</span></div>
+      {/* ===== INVOICE NUMBER (bordered, matches A4) ===== */}
+      <div className="mt-2 border-2 border-black rounded px-2 py-1 text-center">
+        <div className="text-[10px] font-semibold text-black/70">فاتورة رقم</div>
+        <div className="text-lg font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+      </div>
+
+      {/* ===== META ===== */}
+      <div className="py-2 mt-2 border-b border-dashed border-black text-[11px] space-y-0.5">
         <div className="flex justify-between">
-          <span>التاريخ</span>
+          <span className="text-black/70">التاريخ</span>
           <span className="nums">{new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}</span>
         </div>
-        {inv.customer_name && <div className="flex justify-between"><span>العميل</span><span>{inv.customer_name}</span></div>}
-        <div className="flex justify-between"><span>الدفع</span><span>{paymentLabel}</span></div>
+        {inv.customer_name && (
+          <div className="flex justify-between"><span className="text-black/70">العميل</span><span className="font-semibold">{inv.customer_name}</span></div>
+        )}
+        <div className="flex justify-between"><span className="text-black/70">الدفع</span><span className="font-semibold">{paymentLabel}</span></div>
       </div>
 
-      <table className="w-full my-2 text-[11px]">
+      {/* ===== ITEMS (long-name friendly) ===== */}
+      <table className="w-full my-2 text-[11px] table-fixed">
+        <colgroup>
+          <col />
+          <col style={{ width: "22mm" }} />
+        </colgroup>
         <thead>
-          <tr className="border-b border-dashed border-black">
-            <th className="text-right py-1">الصنف</th>
-            <th className="text-center py-1 w-8">كم</th>
-            <th className="text-left py-1 w-14">الإجمالي</th>
+          <tr className="bg-black text-white">
+            <th className="text-right py-1 px-1">الصنف</th>
+            <th className="text-left py-1 px-1">الإجمالي</th>
           </tr>
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="align-top">
-              <td className="py-0.5">
-                <div>{it.product_name}</div>
+            <tr key={it.id} className="align-top border-b border-dashed border-black/30 keep-together">
+              <td className="py-1 px-1 break-words whitespace-normal">
+                <div className="font-semibold leading-snug">{it.product_name}</div>
                 <div className="text-[10px] text-black/60 nums">{formatSDGShort(Number(it.unit_price))} × {it.quantity}</div>
               </td>
-              <td className="text-center py-0.5 nums">{it.quantity}</td>
-              <td className="text-left py-0.5 nums">{formatSDGShort(Number(it.line_total))}</td>
+              <td className="text-left py-1 px-1 nums font-bold">{formatSDGShort(Number(it.line_total))}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="border-t border-dashed border-black pt-2 space-y-0.5 text-[11px]">
-        <div className="flex justify-between font-bold text-[13px]">
+      {/* ===== PAYMENT SUMMARY BLOCK ===== */}
+      <div className="mt-1 rounded border-2 border-black p-2 space-y-1 text-[11.5px] keep-together">
+        <div className="flex justify-between font-extrabold text-[13px] pb-1 border-b border-dashed border-black">
           <span>الإجمالي</span>
           <span className="nums">{formatSDG(Number(inv.total))}</span>
         </div>
         <div className="flex justify-between">
-          <span>المدفوع</span>
-          <span className="nums">{formatSDGShort(Number(inv.paid))}</span>
+          <span className="text-emerald-800 font-bold">المدفوع</span>
+          <span className="nums text-emerald-800 font-bold">{formatSDG(Number(inv.paid))}</span>
         </div>
-        {Number(inv.remaining) > 0 && (
-          <div className="flex justify-between font-bold">
+        {isPaid ? (
+          <div className="mt-1 rounded bg-emerald-100 text-emerald-800 font-extrabold text-center py-1 border border-emerald-700">
+            ✓ مدفوعة بالكامل
+          </div>
+        ) : (
+          <div className="mt-1 rounded bg-rose-100 text-rose-800 font-extrabold text-center py-1 border border-rose-700 flex justify-between px-2">
             <span>المتبقي</span>
             <span className="nums">{formatSDG(Number(inv.remaining))}</span>
           </div>
@@ -2266,19 +2312,18 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
       </div>
 
       {paymentMethod && paymentMethod.type === "bank" && (
-        <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5">
+        <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5 keep-together">
           <div className="font-bold text-center">تفاصيل التحويل البنكي</div>
-          {paymentMethod.bank_name && <div>البنك: {paymentMethod.bank_name}</div>}
-          {paymentMethod.account_holder && <div>الحساب باسم: {paymentMethod.account_holder}</div>}
+          {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
+          {paymentMethod.account_holder && <div>الحساب باسم: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
           {paymentMethod.account_number && <div dir="ltr" className="text-right nums">Acc: {paymentMethod.account_number}</div>}
           {paymentMethod.iban && <div dir="ltr" className="text-right nums">IBAN: {paymentMethod.iban}</div>}
           {inv.reference_number && <div className="font-bold">رقم العملية: <span className="nums">{inv.reference_number}</span></div>}
         </div>
-
       )}
 
       {invoiceFooter && (
-        <div className="mt-3 text-center text-[10.5px] whitespace-pre-line border-t border-dashed border-black pt-2">
+        <div className="mt-3 text-center text-[10.5px] whitespace-pre-line border-t border-dashed border-black pt-2 text-black/70">
           {invoiceFooter}
         </div>
       )}

@@ -222,6 +222,21 @@ function InvoiceDetailPage() {
     },
   });
 
+  // Accepted returns for this invoice — used to reverse profit of returned units.
+  const { data: acceptedReturns = [] } = useQuery({
+    queryKey: ["invoice-returns", invoiceId],
+    enabled: !!invoiceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("returns")
+        .select("product_id, product_name, quantity, status")
+        .eq("invoice_id", invoiceId)
+        .eq("status", "accepted");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
   type EditRow = { id: string; product_id: string | null; product_name: string; unit: string; quantity: number; unit_price: number; _origQty: number; _isNew?: boolean };
   const [editRows, setEditRows] = useState<EditRow[]>([]);

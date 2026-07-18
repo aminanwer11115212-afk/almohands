@@ -129,10 +129,25 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
 
   async function deleteInvoiceWithRestore() {
     if (!inv || deleting) return;
+
+    // Read any payments linked to this invoice so the confirmation is honest.
+    const { data: linkedPays } = await supabase
+      .from("payments")
+      .select("id, amount, account_id")
+      .eq("invoice_id", inv.id);
+    const paysCount = linkedPays?.length ?? 0;
+    const paysTotal = (linkedPays ?? []).reduce(
+      (s: number, p: any) => s + Number(p.amount || 0),
+      0,
+    );
+
     const ok = window.confirm(
       `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً\n\n` +
         `- ستُعاد كل الأصناف إلى المخزن\n` +
         `- ستُخصم من إجمالي المبيعات\n` +
+        (paysCount > 0
+          ? `- سيتم حذف ${paysCount} دفعة مرتبطة (بقيمة ${paysTotal}) وخصمها من رصيد الحسابات\n`
+          : "") +
         `- لا يمكن التراجع عن هذا الإجراء\n\nمتابعة؟`,
     );
     if (!ok) return;
@@ -179,12 +194,27 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
         }
       }
 
-      // 2) Delete invoice (invoice_items cascade; returns.invoice_id set NULL)
+      // 2) Delete linked payments first — payments.invoice_id has no FK,
+      //    so without this the account balances view keeps summing them
+      //    after the invoice is gone (orphaned money).
+      if (paysCount > 0) {
+        const { error: payErr } = await supabase
+          .from("payments")
+          .delete()
+          .eq("invoice_id", inv.id);
+        if (payErr) throw payErr;
+      }
+
+      // 3) Delete invoice (invoice_items cascade; returns.invoice_id set NULL)
       const { error: delErr } = await supabase.from("invoices").delete().eq("id", inv.id);
       if (delErr) throw delErr;
 
       invalidateAll();
-      toast.success("تم حذف الفاتورة وإرجاع المخزون");
+      toast.success(
+        paysCount > 0
+          ? `تم حذف الفاتورة وإرجاع المخزون وحذف ${paysCount} دفعة من الحسابات`
+          : "تم حذف الفاتورة وإرجاع المخزون",
+      );
       onOpenChange(false);
     } catch (err) {
       toast.error(getErrorMessage(err, "تعذّر حذف الفاتورة"));
@@ -192,6 +222,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       setDeleting(false);
     }
   }
+
 
   function invalidateAll() {
     if (!inv) return;
@@ -202,7 +233,11 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
     qc.invalidateQueries({ queryKey: ["dashboard-insights"] });
     qc.invalidateQueries({ queryKey: ["accounts"] });
+    qc.invalidateQueries({ queryKey: ["account-balances"] });
+    qc.invalidateQueries({ queryKey: ["payments"] });
+    qc.invalidateQueries({ queryKey: ["customers"] });
   }
+
 
 
   return (

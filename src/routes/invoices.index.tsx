@@ -297,14 +297,14 @@ function InvoicesPage() {
             <div className="p-6 text-center text-sm text-muted-foreground">جارٍ التحميل…</div>
           ) : query.isError ? (
             <div className="p-6 text-center text-sm text-destructive">تعذر تحميل الفواتير</div>
-          ) : (query.data ?? []).length === 0 ? (
+          ) : sortedInvoices.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
               <Receipt className="size-8 opacity-50" />
               لا توجد فواتير مطابقة
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {(query.data ?? []).map((inv) => {
+              {sortedInvoices.map((inv) => {
                 const goDetail = (autoprint: 0 | 1) =>
                   navigate({
                     to: "/invoices/$invoiceId",

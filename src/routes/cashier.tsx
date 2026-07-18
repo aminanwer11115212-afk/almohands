@@ -177,6 +177,16 @@ function CashierPage() {
     return products.filter((p) => (p.category ?? "").trim() === activeCategory);
   }, [products, activeCategory]);
 
+  // Reset paging when filter/search/category changes so the user always sees page 1.
+  useEffect(() => { setPage(1); }, [activeCategory, query]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedProducts = useMemo(
+    () => visibleProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [visibleProducts, currentPage],
+  );
+
   const subtotal = useMemo(
     () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
     [cart],

@@ -1804,12 +1804,23 @@ function InvoiceDetailPage() {
       {isAdmin && profitInfo && (
         <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40 gap-2 flex-wrap">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Wallet className="size-4 text-emerald-600" /> تحليل ربح الفاتورة
               </h3>
-              <div className="text-[11px] text-muted-foreground">
-                يعتمد على سعر التكلفة المسجّل وقت البيع (لا يتأثر بتغيير الأسعار لاحقاً)
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={includeProfitInPdf}
+                    onChange={(e) => setIncludeProfitInPdf(e.target.checked)}
+                    className="size-3.5"
+                  />
+                  <span>تضمين في الطباعة / PDF</span>
+                </label>
+                <div className="text-[11px] text-muted-foreground hidden sm:block">
+                  يعتمد على التكلفة المسجّلة وقت البيع
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">

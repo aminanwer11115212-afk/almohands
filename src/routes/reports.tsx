@@ -918,6 +918,7 @@ function useComputed() {
     daily: { date: string; amount: number }[];
     returnsCount: number;
     acceptedReturns: number;
+    profitByInvoice: Map<string, number>;
   };
 }
 

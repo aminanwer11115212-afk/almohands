@@ -631,6 +631,16 @@ function CashierPage() {
               <Plus className="size-4" />
               <span className="hidden sm:inline">صنف مخصص</span>
             </button>
+            {/* Quick shortcut to "System Order" (PreOrder) for items not currently in stock. */}
+            <Link
+              to="/special-orders"
+              aria-label="طلب النظام"
+              title="طلب صنف غير متوفر (PreOrder)"
+              className="h-12 px-3 rounded-xl border border-brand/40 bg-brand/10 hover:bg-brand/20 text-brand flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <ClipboardList className="size-4" />
+              <span className="hidden sm:inline">طلب النظام</span>
+            </Link>
           </div>
 
           <Dialog open={customItemOpen} onOpenChange={setCustomItemOpen}>

@@ -572,7 +572,6 @@ function InvoiceDetailPage() {
 
   useEffect(() => {
     if (!payDialogOpen) return;
-    // Prefill with the remaining amount and default method.
     const remaining = Math.max(0, Number(data?.inv?.remaining) || 0);
     setPayAmount(remaining > 0 ? String(remaining) : "");
     if (!payMethodId && paymentMethods.length > 0) {
@@ -584,6 +583,25 @@ function InvoiceDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payDialogOpen]);
 
+  // Live derived values for the add-payment dialog
+  const invTotalNum = Math.max(0, Number(data?.inv?.total) || 0);
+  const invPaidNum = Math.max(0, Number(data?.inv?.paid) || 0);
+  const invRemainingNum = Math.max(0, Number(data?.inv?.remaining) || 0);
+  const payAmountNum = payAmount === "" ? 0 : Math.max(0, Number(payAmount) || 0);
+  const payExceeds = payAmountNum > invRemainingNum + 0.001;
+  const payAppliedAmount = Math.min(payAmountNum, invRemainingNum);
+  const payAfterPaid = invPaidNum + payAppliedAmount;
+  const payAfterRemaining = Math.max(0, invTotalNum - payAfterPaid);
+  const payAfterStatus: "paid" | "partial" | "pending" =
+    payAfterRemaining === 0 && invTotalNum > 0 ? "paid" : payAfterPaid > 0 ? "partial" : "pending";
+
+  const clampPayToRemaining = () => {
+    if (payAmountNum > invRemainingNum) {
+      setPayAmount(String(invRemainingNum));
+      toast.info(`تم ضبط المبلغ إلى المتبقي: ${formatSDG(invRemainingNum)}`);
+    }
+  };
+
   const addPaymentMutation = useMutation({
     mutationFn: async () => {
       if (!data?.inv) throw new Error("لا توجد بيانات فاتورة");
@@ -591,7 +609,7 @@ function InvoiceDetailPage() {
       const amount = Number(payAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("أدخل مبلغاً صحيحاً");
       const remaining = Math.max(0, Number(inv.remaining) || 0);
-      if (amount > remaining) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
+      if (amount > remaining + 0.001) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
       const method = paymentMethods.find((m) => m.id === payMethodId);
       if (!method) throw new Error("اختر حساب الدفع");
       const { data: authData } = await supabase.auth.getUser();
@@ -623,20 +641,114 @@ function InvoiceDetailPage() {
         .update({ paid: newPaid, remaining: newRemaining, status: newStatus })
         .eq("id", inv.id);
       if (invErr) throw invErr;
-      return { amount, newRemaining };
+      return { amount, newRemaining, newStatus };
     },
     onSuccess: (res) => {
       toast.success("تم تسجيل الدفعة", {
-        description: `المتبقي: ${formatSDG(res.newRemaining)}`,
+        description: `المتبقي: ${formatSDG(res.newRemaining)} — الحالة: ${res.newStatus === "paid" ? "مدفوعة بالكامل" : res.newStatus === "partial" ? "مدفوعة جزئياً" : "معلّقة"}`,
       });
       setPayDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["account-balances"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
     },
     onError: (e) => handleError(e, "تعذّر تسجيل الدفعة"),
   });
+
+  // ============ Payments list + edit/delete ============
+  type InvPayment = {
+    id: string; amount: number; method: string | null; account_id: string | null;
+    notes: string | null; created_at: string;
+  };
+  const { data: invoicePayments = [] } = useQuery({
+    queryKey: ["invoice-payments", invoiceId],
+    queryFn: async (): Promise<InvPayment[]> => {
+      const { data: rows, error } = await supabase
+        .from("payments")
+        .select("id, amount, method, account_id, notes, created_at")
+        .eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (rows ?? []) as InvPayment[];
+    },
+  });
+
+  const [editingPayment, setEditingPayment] = useState<InvPayment | null>(null);
+  const [editPayAmount, setEditPayAmount] = useState<string>("");
+  const [confirmDeletePayment, setConfirmDeletePayment] = useState<InvPayment | null>(null);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<EditRow | null>(null);
+
+  const editingOtherPaid = editingPayment ? Math.max(0, invPaidNum - Number(editingPayment.amount)) : 0;
+  const editMaxAllowed = Math.max(0, invTotalNum - editingOtherPaid);
+  const editPayNum = editPayAmount === "" ? 0 : Math.max(0, Number(editPayAmount) || 0);
+  const editPayExceeds = editPayNum > editMaxAllowed + 0.001;
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (p: InvPayment) => {
+      if (!data?.inv) throw new Error("لا توجد فاتورة");
+      const { error } = await supabase.from("payments").delete().eq("id", p.id);
+      if (error) throw error;
+      const inv = data.inv;
+      const newPaid = Math.max(0, (Number(inv.paid) || 0) - Number(p.amount));
+      const total = Number(inv.total) || 0;
+      const newRemaining = Math.max(0, total - newPaid);
+      const status: "paid" | "partial" | "pending" =
+        total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+      const { error: e2 } = await supabase.from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      if (e2) throw e2;
+      return { status, newRemaining };
+    },
+    onSuccess: (r) => {
+      toast.success("تم حذف الدفعة", { description: `المتبقي: ${formatSDG(r.newRemaining)}` });
+      setConfirmDeletePayment(null);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
+    },
+    onError: (e) => handleError(e, "تعذّر حذف الدفعة"),
+  });
+
+  const updatePaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingPayment || !data?.inv) throw new Error("لا توجد دفعة للتعديل");
+      const inv = data.inv;
+      const newAmt = Number(editPayAmount);
+      if (!Number.isFinite(newAmt) || newAmt <= 0) throw new Error("أدخل مبلغاً صحيحاً");
+      const total = Number(inv.total) || 0;
+      const otherPaid = Math.max(0, (Number(inv.paid) || 0) - Number(editingPayment.amount));
+      const maxAllowed = Math.max(0, total - otherPaid);
+      if (newAmt > maxAllowed + 0.001) throw new Error(`المبلغ يتجاوز الحد الأقصى (${formatSDG(maxAllowed)})`);
+      const { error } = await supabase.from("payments").update({ amount: newAmt }).eq("id", editingPayment.id);
+      if (error) throw error;
+      const newPaid = otherPaid + newAmt;
+      const newRemaining = Math.max(0, total - newPaid);
+      const status: "paid" | "partial" | "pending" =
+        total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+      const { error: e2 } = await supabase.from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      if (e2) throw e2;
+      return { status, newRemaining };
+    },
+    onSuccess: (r) => {
+      toast.success("تم تعديل الدفعة", { description: `المتبقي: ${formatSDG(r.newRemaining)}` });
+      setEditingPayment(null);
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoiceId] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["account-balances"] });
+    },
+    onError: (e) => handleError(e, "تعذّر تعديل الدفعة"),
+  });
+
+  const paymentMethodLabel = (p: InvPayment) => {
+    const m = paymentMethods.find((x) => x.id === p.account_id);
+    if (m) return `${m.name}${m.bank_name ? " — " + m.bank_name : ""}`;
+    return p.method === "bank" ? "بنكي" : p.method === "cash" ? "نقدي" : (p.method ?? "—");
+  };
 
 
 
@@ -1091,10 +1203,20 @@ function InvoiceDetailPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="flex items-center justify-between rounded-md bg-muted p-2 text-sm">
-              <span>الإجمالي: <span className="nums font-semibold">{formatSDG(Number(inv.total) || 0)}</span></span>
-              <span>المدفوع: <span className="nums font-semibold">{formatSDG(Number(inv.paid) || 0)}</span></span>
-              <span>المتبقي: <span className="nums font-bold text-emerald-700">{formatSDG(Number(inv.remaining) || 0)}</span></span>
+            {/* Live totals — before payment */}
+            <div className="grid grid-cols-3 gap-2 rounded-md bg-muted p-2 text-xs">
+              <div className="text-center">
+                <div className="text-muted-foreground">الإجمالي</div>
+                <div className="nums font-semibold text-sm">{formatSDG(invTotalNum)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground">المدفوع</div>
+                <div className="nums font-semibold text-sm">{formatSDG(invPaidNum)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground">المتبقي</div>
+                <div className="nums font-bold text-sm text-emerald-700">{formatSDG(invRemainingNum)}</div>
+              </div>
             </div>
 
             <div>
@@ -1102,24 +1224,40 @@ function InvoiceDetailPage() {
               <input
                 type="number"
                 min={0}
+                max={invRemainingNum}
                 step="0.01"
                 inputMode="decimal"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
-                className="w-full h-10 rounded-md border border-input bg-background px-3 nums"
+                onBlur={clampPayToRemaining}
+                aria-invalid={payExceeds}
+                className={`w-full h-10 rounded-md border bg-background px-3 nums ${payExceeds ? "border-destructive ring-1 ring-destructive/40" : "border-input"}`}
               />
-              <div className="mt-1 flex gap-2">
+              <div className="mt-1 flex gap-2 items-center">
                 <button
                   type="button"
-                  onClick={() => setPayAmount(String(Math.max(0, Number(inv.remaining) || 0)))}
+                  onClick={() => setPayAmount(String(invRemainingNum))}
                   className="text-xs underline text-emerald-700"
                 >دفع المتبقي</button>
                 <button
                   type="button"
-                  onClick={() => setPayAmount(String((Math.max(0, Number(inv.remaining) || 0)) / 2))}
+                  onClick={() => setPayAmount(String(+(invRemainingNum / 2).toFixed(2)))}
                   className="text-xs underline text-muted-foreground"
                 >النصف</button>
+                {payExceeds && (
+                  <button
+                    type="button"
+                    onClick={clampPayToRemaining}
+                    className="ms-auto text-xs underline text-destructive font-semibold"
+                  >ضبط تلقائي</button>
+                )}
               </div>
+              {payExceeds && (
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive font-semibold">
+                  <AlertTriangle className="size-3" />
+                  المبلغ يتجاوز المتبقي — الحد الأقصى {formatSDG(invRemainingNum)}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1135,7 +1273,7 @@ function InvoiceDetailPage() {
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setPayMethodId(m.id)}
+                        onClick={() => { setPayMethodId(m.id); clampPayToRemaining(); }}
                         className={`flex items-center gap-2 rounded-md border p-2 text-sm text-right ${active ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-input hover:bg-muted"}`}
                       >
                         <Icon className={`size-4 ${m.type === "bank" ? "text-blue-600" : "text-emerald-600"}`} />
@@ -1178,6 +1316,27 @@ function InvoiceDetailPage() {
                 className="w-full h-10 rounded-md border border-input bg-background px-3"
               />
             </div>
+
+            {/* Live preview — after payment */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2">
+              <div className="text-[11px] font-semibold text-emerald-900 mb-1">بعد تسجيل هذه الدفعة:</div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="text-center">
+                  <div className="text-muted-foreground">المدفوع</div>
+                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterPaid)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">المتبقي</div>
+                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterRemaining)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">الحالة</div>
+                  <div className={`font-bold text-sm ${payAfterStatus === "paid" ? "text-emerald-700" : payAfterStatus === "partial" ? "text-amber-700" : "text-muted-foreground"}`}>
+                    {payAfterStatus === "paid" ? "مدفوعة بالكامل" : payAfterStatus === "partial" ? "مدفوعة جزئياً" : "معلّقة"}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <button
@@ -1186,8 +1345,9 @@ function InvoiceDetailPage() {
             >إلغاء</button>
             <button
               onClick={() => addPaymentMutation.mutate()}
-              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount}
+              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount || payExceeds || payAmountNum <= 0}
               className="px-4 h-10 rounded-md bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+              title={payExceeds ? "المبلغ يتجاوز المتبقي" : undefined}
             >
               {addPaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               تسجيل الدفعة
@@ -1196,10 +1356,147 @@ function InvoiceDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit payment dialog */}
+      <Dialog open={!!editingPayment} onOpenChange={(o) => { if (!o) setEditingPayment(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="size-5 text-amber-600" /> تعديل الدفعة
+            </DialogTitle>
+          </DialogHeader>
+          {editingPayment && (
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-3 gap-2 rounded-md bg-muted p-2 text-xs">
+                <div className="text-center">
+                  <div className="text-muted-foreground">الإجمالي</div>
+                  <div className="nums font-semibold text-sm">{formatSDG(invTotalNum)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">مدفوعات أخرى</div>
+                  <div className="nums font-semibold text-sm">{formatSDG(editingOtherPaid)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground">الحد الأقصى</div>
+                  <div className="nums font-bold text-sm text-emerald-700">{formatSDG(editMaxAllowed)}</div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold mb-1 block">المبلغ الجديد</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={editMaxAllowed}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={editPayAmount}
+                  onChange={(e) => setEditPayAmount(e.target.value)}
+                  onBlur={() => {
+                    if (editPayNum > editMaxAllowed) {
+                      setEditPayAmount(String(editMaxAllowed));
+                      toast.info(`تم ضبط المبلغ إلى الحد الأقصى: ${formatSDG(editMaxAllowed)}`);
+                    }
+                  }}
+                  aria-invalid={editPayExceeds}
+                  className={`w-full h-10 rounded-md border bg-background px-3 nums ${editPayExceeds ? "border-destructive ring-1 ring-destructive/40" : "border-input"}`}
+                />
+                {editPayExceeds && (
+                  <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive font-semibold">
+                    <AlertTriangle className="size-3" />
+                    المبلغ يتجاوز الحد المتاح ({formatSDG(editMaxAllowed)})
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                طريقة الدفع: {paymentMethodLabel(editingPayment)} — {new Date(editingPayment.created_at).toLocaleString("ar-EG")}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setEditingPayment(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >إلغاء</button>
+            <button
+              onClick={() => updatePaymentMutation.mutate()}
+              disabled={updatePaymentMutation.isPending || editPayExceeds || editPayNum <= 0}
+              className="px-4 h-10 rounded-md bg-amber-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {updatePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              حفظ التعديل
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
+      {/* Confirm delete PAYMENT dialog */}
+      <Dialog open={!!confirmDeletePayment} onOpenChange={(o) => { if (!o) setConfirmDeletePayment(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" /> تأكيد حذف الدفعة
+            </DialogTitle>
+          </DialogHeader>
+          {confirmDeletePayment && (
+            <div className="space-y-2 py-2 text-sm">
+              <p>سيتم حذف دفعة بقيمة <span className="nums font-bold">{formatSDG(Number(confirmDeletePayment.amount))}</span> ({paymentMethodLabel(confirmDeletePayment)}).</p>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                سيتم تحديث المدفوع والمتبقي وحالة الفاتورة تلقائياً بعد الحذف — قد تعود الفاتورة إلى حالة "جزئية" أو "معلّقة".
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setConfirmDeletePayment(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >تراجع</button>
+            <button
+              onClick={() => confirmDeletePayment && deletePaymentMutation.mutate(confirmDeletePayment)}
+              disabled={deletePaymentMutation.isPending}
+              className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
+            >
+              {deletePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              تأكيد الحذف
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-
-
+      {/* Confirm delete ITEM dialog (marks for deletion; stock restored at save) */}
+      <Dialog open={!!confirmDeleteItem} onOpenChange={(o) => { if (!o) setConfirmDeleteItem(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5" /> تأكيد حذف الصنف
+            </DialogTitle>
+          </DialogHeader>
+          {confirmDeleteItem && (
+            <div className="space-y-2 py-2 text-sm">
+              <p>هل تريد حذف <span className="font-bold">{confirmDeleteItem.product_name}</span> (الكمية {confirmDeleteItem._origQty}) من الفاتورة؟</p>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                سيتم إرجاع الكمية <span className="nums font-bold">{confirmDeleteItem._origQty}</span> إلى المخزون عند حفظ التعديلات، وتحديث إجمالي الفاتورة تلقائياً.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setConfirmDeleteItem(null)}
+              className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
+            >تراجع</button>
+            <button
+              onClick={() => {
+                if (confirmDeleteItem) {
+                  setDeletedRowIds((s) => new Set(s).add(confirmDeleteItem.id));
+                  setConfirmDeleteItem(null);
+                  toast.info("تم وضع علامة حذف على الصنف — سيتم تنفيذ الحذف وإرجاع المخزون عند الحفظ");
+                }
+              }}
+              className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1"
+            >
+              <Trash2 className="size-4" /> نعم، احذف عند الحفظ
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Inline edit panel */}
       {editMode && (
@@ -1309,9 +1606,10 @@ function InvoiceDetailPage() {
                           type="button"
                           onClick={() => {
                             if (row._isNew) {
+                              // New unsaved row — remove immediately, no stock impact yet.
                               setEditRows((rows) => rows.filter((r) => r.id !== row.id));
                             } else {
-                              setDeletedRowIds((s) => new Set(s).add(row.id));
+                              setConfirmDeleteItem(row);
                             }
                           }}
                           className="text-red-600 hover:bg-red-50 rounded p-1"
@@ -1429,6 +1727,82 @@ function InvoiceDetailPage() {
           </div>
         </section>
       )}
+
+      {/* Payments history — visible on invoice page, hidden in print */}
+      <section className="mx-auto max-w-4xl px-4 pt-4 print:hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <Wallet className="size-4 text-emerald-600" /> سجل الدفعات ({invoicePayments.length})
+            </h3>
+            <div className="text-xs text-muted-foreground">
+              المدفوع: <span className="nums font-bold text-emerald-700">{formatSDG(invPaidNum)}</span>
+              <span className="mx-2">•</span>
+              المتبقي: <span className="nums font-bold">{formatSDG(invRemainingNum)}</span>
+              <span className="mx-2">•</span>
+              <span className={`font-bold ${inv.status === "paid" ? "text-emerald-700" : inv.status === "partial" ? "text-amber-700" : inv.status === "cancelled" ? "text-red-600" : "text-muted-foreground"}`}>
+                {inv.status === "paid" ? "مدفوعة بالكامل" : inv.status === "partial" ? "مدفوعة جزئياً" : inv.status === "cancelled" ? "ملغاة" : "معلّقة"}
+              </span>
+            </div>
+          </div>
+          {invoicePayments.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              لا توجد دفعات مسجّلة على هذه الفاتورة بعد.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="p-2 text-right">التاريخ</th>
+                    <th className="p-2 text-right">طريقة الدفع</th>
+                    <th className="p-2 text-right">المبلغ</th>
+                    <th className="p-2 text-right">ملاحظات</th>
+                    <th className="p-2 w-28"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {invoicePayments.map((p) => (
+                    <tr key={p.id} className="hover:bg-muted/20">
+                      <td className="p-2 nums text-xs whitespace-nowrap">{new Date(p.created_at).toLocaleString("ar-EG")}</td>
+                      <td className="p-2">
+                        <span className="inline-flex items-center gap-1">
+                          {p.method === "bank" ? <Landmark className="size-3.5 text-blue-600" /> : <Wallet className="size-3.5 text-emerald-600" />}
+                          {paymentMethodLabel(p)}
+                        </span>
+                      </td>
+                      <td className="p-2 nums font-semibold text-emerald-700">{formatSDG(Number(p.amount))}</td>
+                      <td className="p-2 text-xs text-muted-foreground max-w-[240px] truncate" title={p.notes ?? ""}>{p.notes || "—"}</td>
+                      <td className="p-2 text-center">
+                        <div className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingPayment(p); setEditPayAmount(String(Number(p.amount))); }}
+                            className="p-1.5 rounded hover:bg-amber-50 text-amber-700"
+                            title="تعديل الدفعة"
+                            aria-label="تعديل الدفعة"
+                          >
+                            <Edit3 className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeletePayment(p)}
+                            className="p-1.5 rounded hover:bg-red-50 text-red-600"
+                            title="حذف الدفعة"
+                            aria-label="حذف الدفعة"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
 
 
       <main className="py-6 px-4 print:p-0">

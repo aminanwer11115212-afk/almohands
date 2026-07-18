@@ -320,6 +320,28 @@ function InvoiceDetailPage() {
     [visibleEditRows],
   );
 
+  // ============ Profit summary (admin/accountant only, computed from cost_price snapshot) ============
+  const { isAdmin } = useMyRole();
+  const profitInfo = useMemo(() => {
+    const items = (data?.items ?? []) as any[];
+    if (items.length === 0) return null;
+    let revenue = 0, cost = 0;
+    const perLine = items.map((it) => {
+      const qty = Number(it.quantity) || 0;
+      const unit = Number(it.unit_price) || 0;
+      const c = Number(it.cost_price) || 0;
+      const r = unit * qty, k = c * qty, p = r - k;
+      revenue += r; cost += k;
+      return { id: it.id, name: it.product_name as string, qty, unit, cost: c, profit: p };
+    });
+    const discount = Number(data?.inv?.discount) || 0;
+    const grossProfit = revenue - cost;
+    const netProfit = grossProfit - discount;
+    const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+    return { perLine, revenue, cost, discount, grossProfit, netProfit, margin };
+  }, [data?.items, data?.inv?.discount]);
+
+
   const maxAllowedFor = (row: EditRow): number | null => {
     if (!row.product_id || !stockMap) return null;
     const p = stockMap.get(row.product_id);

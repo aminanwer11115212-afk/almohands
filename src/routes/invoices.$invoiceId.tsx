@@ -1469,9 +1469,10 @@ function InvoiceDetailPage() {
                           type="button"
                           onClick={() => {
                             if (row._isNew) {
+                              // New unsaved row — remove immediately, no stock impact yet.
                               setEditRows((rows) => rows.filter((r) => r.id !== row.id));
                             } else {
-                              setDeletedRowIds((s) => new Set(s).add(row.id));
+                              setConfirmDeleteItem(row);
                             }
                           }}
                           className="text-red-600 hover:bg-red-50 rounded p-1"

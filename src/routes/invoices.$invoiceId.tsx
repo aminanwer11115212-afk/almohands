@@ -1072,6 +1072,17 @@ function InvoiceDetailPage() {
           </button>
 
           <button
+            onClick={() => handleDownloadPdf()}
+            disabled={pdfBusy}
+            className="flex items-center gap-1 text-xs sm:text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
+            title="تنزيل الفاتورة كملف PDF بنفس تصميم A4"
+            aria-label="تنزيل PDF"
+          >
+            {pdfBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Download className="size-3.5 sm:size-4" />}
+            <span className="hidden lg:inline">تصدير PDF</span>
+          </button>
+
+          <button
             onClick={confirmAndPrint}
             className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"

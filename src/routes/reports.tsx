@@ -168,7 +168,7 @@ function useReportBundle(period: Period) {
       // Invoice items (for top products & profit)
       let qItems = supabase
         .from("invoice_items")
-        .select("user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
+        .select("invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
       if (from) qItems = qItems.gte("created_at", from);
       if (to) qItems = qItems.lt("created_at", to);
 

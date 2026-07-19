@@ -154,10 +154,19 @@ function RootComponent() {
       <OnlineStatus />
       <Toaster position="top-center" richColors closeButton />
       <ErrorBoundary>
-        <AuthGate>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AuthGate>
+        <ClientOnly fallback={null}>
+          <PowerSyncProvider>
+            <AuthGate>
+              <Outlet />
+            </AuthGate>
+          </PowerSyncProvider>
+        </ClientOnly>
+        {/* SSR fallback (no PowerSync context): render the tree directly. */}
+        <noscript>
+          <AuthGate>
+            <Outlet />
+          </AuthGate>
+        </noscript>
       </ErrorBoundary>
     </QueryClientProvider>
   );

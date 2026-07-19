@@ -80,6 +80,7 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
               <SyncStatusBadge />
               {rightAction}
             </div>
+          </div>
         </header>
 
         <main

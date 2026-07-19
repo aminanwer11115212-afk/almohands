@@ -2160,11 +2160,7 @@ function InvoiceDetailPage() {
           .print-thermal { width: 76mm; margin: 0 auto !important; }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: A4 landscape; margin: 8mm; } @page :first { size: A4 landscape; margin: 8mm; } @page :left { size: A4 landscape; } @page :right { size: A4 landscape; }"}
-        }
-        /* Hard-lock A4 to landscape even if the browser is asked to switch to portrait. */
-        @media print and (orientation: portrait) {
-          ${format === "a4" ? "#invoice-print-root .print-a4 { transform: rotate(-90deg) translateY(-100%); transform-origin: top left; width: 194mm; height: 281mm; }" : ""}
+            : "@page { size: 297mm 210mm; margin: 8mm; } @page :first { size: 297mm 210mm; margin: 8mm; } @page :left { size: 297mm 210mm; } @page :right { size: 297mm 210mm; }"}
         }
       `}</style>
     </div>

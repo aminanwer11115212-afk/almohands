@@ -126,7 +126,7 @@ function ConnectedBadge() {
               variant="secondary"
               className="w-full"
               onClick={() => {
-                powersync.triggerCrudUpload();
+                (powersync as any).triggerCrudUpload?.();
               }}
               disabled={pending === 0}
             >

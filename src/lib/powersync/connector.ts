@@ -33,9 +33,11 @@ export function createSupabaseConnector(powersyncUrl: string): PowerSyncBackendC
 
       try {
         for (const op of transaction.crud) {
-          const table = supabase.from(op.table);
+          // Dynamic table names — Supabase types are per-table literal unions,
+          // so we cast to bypass strict inference for the sync bridge.
+          const table = (supabase as any).from(op.table);
           if (op.op === UpdateType.PUT) {
-            const { error } = await table.upsert({ id: op.id, ...op.opData });
+            const { error } = await table.upsert({ id: op.id, ...(op.opData ?? {}) });
             if (error) throw error;
           } else if (op.op === UpdateType.PATCH) {
             const { error } = await table.update(op.opData ?? {}).eq("id", op.id);

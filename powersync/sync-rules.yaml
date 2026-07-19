@@ -1,0 +1,48 @@
+# PowerSync Sync Rules
+# يُزامن بيانات المتجر كاملة لكل مستخدم مسجّل دخول.
+# مناسب لعدد مستخدمين قليل (مدير + كاشير) يتشاركون نفس بيانات المتجر.
+#
+# ملاحظة: عند نمو الفواتير القديمة يمكن لاحقاً تقييد نطاقها (مثلاً آخر 12 شهراً)
+# بإضافة WHERE created_at > now() - interval '365 days' على جدول invoices.
+
+bucket_definitions:
+  # كل الجداول للجميع (بشرط تسجيل الدخول عبر Supabase JWT)
+  store_data:
+    parameters:
+      - SELECT request.user_id() AS user_id WHERE request.user_id() IS NOT NULL
+    data:
+      - SELECT * FROM products
+      - SELECT * FROM customers
+      - SELECT * FROM suppliers
+      - SELECT * FROM invoices
+      - SELECT * FROM invoice_items
+      - SELECT * FROM payments
+      - SELECT * FROM purchases
+      - SELECT * FROM purchase_items
+      - SELECT * FROM price_history
+      - SELECT * FROM expenses
+      - SELECT * FROM payment_methods
+      - SELECT * FROM returns
+      - SELECT * FROM special_orders
+      - SELECT * FROM special_order_history
+      - SELECT * FROM store_profile
+      - SELECT * FROM user_roles
+
+  # إشعارات المستخدم الحالي فقط
+  user_notifications:
+    parameters:
+      - SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM notifications WHERE user_id = bucket.user_id
+
+  # سجلات التدقيق والاستيراد/التصدير للمديرين فقط
+  admin_logs:
+    parameters:
+      - SELECT user_id
+        FROM user_roles
+        WHERE user_id = request.user_id()
+          AND role = 'admin'
+    data:
+      - SELECT * FROM audit_logs
+      - SELECT * FROM import_logs
+      - SELECT * FROM export_logs

@@ -2149,18 +2149,26 @@ function InvoiceDetailPage() {
           .print\\:hidden { display: none !important; }
           .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-a4 {
-            width: 281mm; /* A4 landscape 297mm - 2×8mm margins */
+            width: 285mm; /* A4 landscape 297mm - 2×6mm margins */
             margin: 0 auto !important;
+            padding: 4mm !important;
+            font-size: 10.5pt !important;
+            line-height: 1.35 !important;
           }
+          .print-a4 table { font-size: 9.5pt !important; }
+          .print-a4 th, .print-a4 td { padding: 3px 5px !important; }
+          .print-a4 h1, .print-a4 h2, .print-a4 h3 { margin: 0 0 4px !important; }
+          .print-a4 .a4-head { margin-bottom: 6px !important; padding-bottom: 4px !important; }
+          .print-a4 .a4-summary { margin-top: 6px !important; }
           /* Keep atomic blocks intact across page breaks */
           .keep-together, tr, thead, tfoot { break-inside: avoid !important; page-break-inside: avoid !important; }
           thead { display: table-header-group; }
           tfoot { display: table-footer-group; }
           .a4-summary { break-before: auto; break-inside: avoid !important; page-break-inside: avoid !important; }
-          .print-thermal { width: 76mm; margin: 0 auto !important; }
+          .print-thermal { width: 76mm; margin: 0 auto !important; font-size: 9pt !important; }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: 297mm 210mm; margin: 8mm; } @page :first { size: 297mm 210mm; margin: 8mm; } @page :left { size: 297mm 210mm; } @page :right { size: 297mm 210mm; }"}
+            : "@page { size: 297mm 210mm; margin: 6mm; } @page :first { size: 297mm 210mm; margin: 6mm; } @page :left { size: 297mm 210mm; margin: 6mm; } @page :right { size: 297mm 210mm; margin: 6mm; }"}
         }
       `}</style>
     </div>

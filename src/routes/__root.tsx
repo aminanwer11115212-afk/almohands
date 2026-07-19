@@ -6,8 +6,9 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  ClientOnly,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { lazy, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -18,6 +19,10 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { AuthGate } from "../components/AuthGate";
 import { handleError } from "../lib/errors";
 import { useAutoLocalBackup } from "../hooks/use-auto-backup";
+
+const PowerSyncProvider = lazy(() =>
+  import("../components/PowerSyncProvider").then((m) => ({ default: m.PowerSyncProvider })),
+);
 
 function NotFoundComponent() {
   return (

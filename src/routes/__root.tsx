@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { lazy, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -18,6 +18,10 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { AuthGate } from "../components/AuthGate";
 import { handleError } from "../lib/errors";
 import { useAutoLocalBackup } from "../hooks/use-auto-backup";
+
+const PowerSyncProvider = lazy(() =>
+  import("../components/PowerSyncProvider").then((m) => ({ default: m.PowerSyncProvider })),
+);
 
 function NotFoundComponent() {
   return (
@@ -149,10 +153,12 @@ function RootComponent() {
       <OnlineStatus />
       <Toaster position="top-center" richColors closeButton />
       <ErrorBoundary>
-        <AuthGate>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AuthGate>
+        <PowerSyncProvider>
+          <AuthGate>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </AuthGate>
+        </PowerSyncProvider>
       </ErrorBoundary>
     </QueryClientProvider>
   );

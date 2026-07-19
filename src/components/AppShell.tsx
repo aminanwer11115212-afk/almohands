@@ -2,6 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SyncStatusBadge } from "@/components/SyncStatusBadge";
 
 type Props = {
   title: string;
@@ -75,7 +76,10 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
                 </p>
               ) : null}
             </div>
-            <div className="shrink-0">{rightAction}</div>
+            <div className="shrink-0 flex items-center gap-2">
+              <SyncStatusBadge />
+              {rightAction}
+            </div>
           </div>
         </header>
 

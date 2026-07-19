@@ -2161,11 +2161,21 @@ function InvoiceDetailPage() {
           .print-a4 .a4-head { margin-bottom: 6px !important; padding-bottom: 4px !important; }
           .print-a4 .a4-summary { margin-top: 6px !important; }
           /* Keep atomic blocks intact across page breaks */
-          .keep-together, tr, thead, tfoot { break-inside: avoid !important; page-break-inside: avoid !important; }
-          thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          .keep-together { break-inside: avoid !important; page-break-inside: avoid !important; }
+          tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+          /* Repeat table header on every printed page */
+          thead { display: table-header-group !important; }
+          thead tr { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
+          thead th { background: #f1f5f9 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          tfoot { display: table-footer-group !important; }
           .a4-summary { break-before: auto; break-inside: avoid !important; page-break-inside: avoid !important; }
           .print-thermal { width: 76mm; margin: 0 auto !important; font-size: 9pt !important; }
+          /* Fit-to-page: computed at print time via onbeforeprint hook */
+          #invoice-print-root.fit-to-page .print-a4 {
+            transform: scale(var(--print-fit, 1));
+            transform-origin: top center;
+            width: calc(285mm / var(--print-fit, 1));
+          }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
             : "@page { size: 297mm 210mm; margin: 6mm; } @page :first { size: 297mm 210mm; margin: 6mm; } @page :left { size: 297mm 210mm; margin: 6mm; } @page :right { size: 297mm 210mm; margin: 6mm; }"}

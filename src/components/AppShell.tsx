@@ -76,8 +76,10 @@ export function AppShell({ title, children, showBack = false, rightAction, subti
                 </p>
               ) : null}
             </div>
-            <div className="shrink-0">{rightAction}</div>
-          </div>
+            <div className="shrink-0 flex items-center gap-2">
+              <SyncStatusBadge />
+              {rightAction}
+            </div>
         </header>
 
         <main

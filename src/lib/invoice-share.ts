@@ -123,14 +123,14 @@ async function renderElementToPdf(
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const isThermal = format === "thermal";
-  // A4 invoices print in landscape (297mm × 210mm) on both mobile and desktop
-  // so wide item tables aren't squashed and match what the browser prints.
+  // A4 invoices print in landscape (297mm × 210mm) with 6mm margins to match
+  // the on-screen print CSS exactly.
   const pageWidth = isThermal ? 80 : 297;
   const pageHeight = isThermal ? Math.max(297, 0) : 210;
-  const marginX = isThermal ? 2 : 8;
-  const marginY = isThermal ? 2 : 8;
+  const marginX = isThermal ? 2 : 6;
+  const marginY = isThermal ? 2 : 6;
   const contentWidth = pageWidth - marginX * 2;
-  const imgHeight = (canvas.height * contentWidth) / canvas.width;
+  let imgHeight = (canvas.height * contentWidth) / canvas.width;
 
   const pdf = new jsPDF({
     unit: "mm",
@@ -141,17 +141,27 @@ async function renderElementToPdf(
   if (isThermal) {
     pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, imgHeight);
   } else {
-    // Multi-page slicing for long A4-landscape documents.
     const contentHeight = pageHeight - marginY * 2;
-    let heightLeft = imgHeight;
-    let position = marginY;
-    pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
-    heightLeft -= contentHeight;
-    while (heightLeft > 0) {
-      pdf.addPage();
-      position = marginY - (imgHeight - heightLeft);
+    // Fit-to-page: if content is only slightly larger than one page (up to 25%
+    // overflow), scale it down so the whole invoice fits on a single A4 sheet
+    // without clipping the footer or totals.
+    if (imgHeight > contentHeight && imgHeight <= contentHeight * 1.25) {
+      const scale = contentHeight / imgHeight;
+      const scaledWidth = contentWidth * scale;
+      const scaledX = marginX + (contentWidth - scaledWidth) / 2;
+      pdf.addImage(imgData, "JPEG", scaledX, marginY, scaledWidth, contentHeight);
+    } else {
+      // Multi-page slicing for genuinely long documents.
+      let heightLeft = imgHeight;
+      let position = marginY;
       pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
       heightLeft -= contentHeight;
+      while (heightLeft > 0) {
+        pdf.addPage();
+        position = marginY - (imgHeight - heightLeft);
+        pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
+        heightLeft -= contentHeight;
+      }
     }
   }
 

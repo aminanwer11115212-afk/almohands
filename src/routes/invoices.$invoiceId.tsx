@@ -866,6 +866,41 @@ function InvoiceDetailPage() {
     return () => clearTimeout(t);
   }, [autoprint, formatReady, hasInv, invoiceId]);
 
+  // Fit-to-page: measure invoice height right before print; if it slightly
+  // overflows a single A4 landscape sheet (up to 30%), scale it down so the
+  // whole invoice fits without clipping. Only applies to A4 format.
+  useEffect(() => {
+    if (format !== "a4") return;
+    // A4 landscape printable area at 96 DPI ≈ (297-12)mm × (210-12)mm.
+    // Convert mm→px at 96dpi: 1mm ≈ 3.7795px.
+    const PAGE_H_PX = (210 - 12) * 3.7795; // ~748px
+    function apply() {
+      const root = document.getElementById("invoice-print-root");
+      const paper = root?.querySelector<HTMLElement>(".print-a4");
+      if (!root || !paper) return;
+      root.style.removeProperty("--print-fit");
+      root.classList.remove("fit-to-page");
+      const h = paper.getBoundingClientRect().height;
+      if (h > PAGE_H_PX && h <= PAGE_H_PX * 1.3) {
+        const scale = Math.max(0.7, PAGE_H_PX / h);
+        root.style.setProperty("--print-fit", String(scale));
+        root.classList.add("fit-to-page");
+      }
+    }
+    function clear() {
+      const root = document.getElementById("invoice-print-root");
+      if (!root) return;
+      root.style.removeProperty("--print-fit");
+      root.classList.remove("fit-to-page");
+    }
+    window.addEventListener("beforeprint", apply);
+    window.addEventListener("afterprint", clear);
+    return () => {
+      window.removeEventListener("beforeprint", apply);
+      window.removeEventListener("afterprint", clear);
+    };
+  }, [format, invoiceId]);
+
   // Auto-trigger PDF/WhatsApp actions if requested via search params (once).
   const pdfTriggeredRef = useRef(false);
   const shareTriggeredRef = useRef(false);

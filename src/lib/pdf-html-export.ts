@@ -10,8 +10,9 @@ export function exportPdfFromRows(opts: {
   subtitle?: string;
 }) {
   const { title, headers, rows, subtitle } = opts;
-  // Auto-choose landscape when many columns to prevent squashing.
-  const orientation = opts.orientation ?? (headers.length > 6 ? "landscape" : "portrait");
+  // Default to A4 landscape with 6mm margins to match the invoice print CSS
+  // (so exports look identical to what the browser prints on paper).
+  const orientation = opts.orientation ?? "landscape";
   const w = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
   if (!w) {
     console.warn("[exportPdfFromRows] popup blocked");
@@ -33,19 +34,19 @@ export function exportPdfFromRows(opts: {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4 ${orientation}; margin: 12mm; }
+  @page { size: ${orientation === "landscape" ? "297mm 210mm" : "210mm 297mm"}; margin: 6mm; }
   * { box-sizing: border-box; }
   html, body { font-family: "Cairo","Tajawal","Noto Naskh Arabic","Segoe UI","Tahoma",Arial,sans-serif; color:#0f172a; }
-  body { margin: 0; padding: 8px; }
-  h1 { font-size: 16px; margin: 0 0 4px; }
-  .sub { font-size: 11px; color:#475569; margin-bottom: 10px; }
-  table { width:100%; border-collapse: collapse; font-size: 11px; }
-  th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: right; vertical-align: middle; word-break: break-word; }
+  body { margin: 0; padding: 4px; font-size: 10.5pt; line-height: 1.35; }
+  h1 { font-size: 15pt; margin: 0 0 3px; }
+  .sub { font-size: 10pt; color:#475569; margin-bottom: 6px; }
+  table { width:100%; border-collapse: collapse; font-size: 9.5pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 3px 5px; text-align: right; vertical-align: middle; word-break: break-word; }
   thead { display: table-header-group; }
   thead th { background:#f1f5f9; font-weight: 700; }
-  tbody tr { page-break-inside: avoid; }
+  tbody tr, .keep-together { page-break-inside: avoid; break-inside: avoid; }
   tbody tr:nth-child(even) { background:#fafafa; }
-  tfoot { display: table-row-group; }
+  tfoot { display: table-footer-group; }
   @media print { .noprint { display:none } }
 </style>
 </head>

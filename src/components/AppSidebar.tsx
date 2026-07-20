@@ -57,6 +57,9 @@ const UTILITY: NavItem[] = [
   { to: "/import", label: "استيراد", icon: FileSpreadsheet, perm: "import_export" },
   { to: "/export", label: "تصدير", icon: Download, perm: "import_export" },
   { to: "/activity-log", label: "سجل النشاط", icon: Activity, perm: "reports.view" },
+  { to: "/offline-pending", label: "التعديلات المعلّقة", icon: CloudOff, perm: "reports.view" },
+
+
 
   { to: "/notifications", label: "الإشعارات", icon: Bell, perm: "cashier.use" },
   { to: "/permissions", label: "الصلاحيات", icon: ShieldCheck, perm: "permissions.manage" },

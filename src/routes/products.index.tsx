@@ -375,7 +375,8 @@ function ProductsPage() {
         {canWrite && !editMode && (
           <button type="button" onClick={beginEdit}
             className="h-11 px-3 rounded-xl border border-brand text-brand text-sm font-bold hover:bg-brand/10">
-            <Pencil className="inline size-4 ml-1" /> تعديل جماعي
+            <Pencil className="inline size-4 ml-1" />
+            {selected.size > 0 ? `تعديل جماعي (${formatNumber(selected.size)})` : "تعديل جماعي"}
           </button>
         )}
         {editMode && (

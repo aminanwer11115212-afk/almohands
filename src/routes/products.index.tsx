@@ -165,6 +165,8 @@ function ProductsPage() {
     if (editMode) return;
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    // Cells own their own keyboard nav (Excel-like grid); don't hijack.
+    if (target.closest("[data-cell]")) return;
     if (!pageRows.length) return;
 
     if (e.key === "ArrowDown") {

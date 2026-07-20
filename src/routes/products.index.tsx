@@ -324,9 +324,9 @@ function ProductsPage() {
         >
           {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / صفحة</option>)}
         </select>
-        <button type="button" onClick={() => setSearch({ low: !low, page: 1 })}
+        <button type="button" onClick={() => setSearch({ low: !effectiveLow, filter: "", page: 1 })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
-            low ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
+            effectiveLow ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
           }`}>
           <AlertTriangle className="inline size-4 ml-1" /> منخفض المخزون
         </button>

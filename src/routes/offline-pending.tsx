@@ -54,16 +54,17 @@ export const Route = createFileRoute("/offline-pending")({
   ),
 });
 
-// Runtime import — module is browser-only.
-const usePowerSyncSafe = () => {
+// usePowerSync throws when no PowerSyncContext is present. Wrap in try/catch
+// to detect provider availability without crashing the render.
+function useHasPowerSync(): boolean {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("@powersync/react") as typeof import("@powersync/react");
-    return { usePowerSync: mod.usePowerSync, useStatus: mod.useStatus };
+    usePowerSync();
+    return true;
   } catch {
-    return null;
+    return false;
   }
-};
+}
+
 
 type OpKind = "PUT" | "PATCH" | "DELETE";
 

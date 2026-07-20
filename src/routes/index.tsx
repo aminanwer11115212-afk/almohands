@@ -312,14 +312,15 @@ function QuickAction({
     <Link
       to={to}
       className={[
-        "flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold transition",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+        "group relative flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs sm:text-sm font-bold transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none",
         primary
-          ? "bg-brand-gradient text-brand-foreground shadow-elevated hover:opacity-95"
-          : "bg-card border border-border shadow-card text-foreground hover:border-brand/40 hover:text-brand",
+          ? "bg-brand-gradient text-brand-foreground shadow-elevated hover:shadow-lg hover:-translate-y-0.5"
+          : "bg-card border border-border shadow-card text-foreground hover:border-brand/50 hover:text-brand hover:-translate-y-0.5",
       ].join(" ")}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <Icon className="size-4 shrink-0 transition-transform group-hover:scale-110" aria-hidden="true" />
       <span className="truncate">{label}</span>
     </Link>
   );

@@ -31,6 +31,8 @@ function ExpensesPageGuarded() {
 }
 
 function ExpensesPage() {
+  const { range } = Route.useSearch();
+  const navigate = useNavigate({ from: "/expenses" });
   const today = new Date().toISOString().slice(0, 10);
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
@@ -38,6 +40,25 @@ function ExpensesPage() {
   const [accountId, setAccountId] = useState<string>("");
 
   const { data: expenses = [], isLoading } = useExpenses();
+  const { data: accounts = [] } = useAccountBalances();
+  const addExpense = useAddExpense();
+  const deleteExpense = useDeleteExpense();
+
+  const filteredExpenses = useMemo(() => {
+    if (!range) return expenses;
+    const now = new Date();
+    const start = new Date(now);
+    if (range === "today") start.setHours(0, 0, 0, 0);
+    else if (range === "week") { start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0); }
+    else if (range === "month") { start.setDate(now.getDate() - 29); start.setHours(0, 0, 0, 0); }
+    const startISO = start.toISOString().slice(0, 10);
+    return expenses.filter((e) => (e.date ?? "") >= startISO);
+  }, [expenses, range]);
+
+  const totalFiltered = useMemo(
+    () => filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    [filteredExpenses],
+  );
   const { data: accounts = [] } = useAccountBalances();
   const addExpense = useAddExpense();
   const deleteExpense = useDeleteExpense();

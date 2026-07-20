@@ -13,6 +13,7 @@ import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
 const sortEnum = z.enum(["date_desc", "date_asc", "profit_desc", "profit_asc", "total_desc", "total_asc"]);
+const rangeEnum = z.enum(["", "today", "week", "month"]);
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -20,6 +21,7 @@ const searchSchema = z.object({
   from: fallback(z.string(), "").default(""),
   to: fallback(z.string(), "").default(""),
   sort: fallback(sortEnum, "date_desc").default("date_desc"),
+  range: fallback(rangeEnum, "").default(""),
 });
 
 type InvoicesSearch = z.infer<typeof searchSchema>;

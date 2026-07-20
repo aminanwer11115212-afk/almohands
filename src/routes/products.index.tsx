@@ -799,8 +799,38 @@ function EditCell({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
+type CellSyncStatus = "saving" | "saved" | "error" | undefined;
+
+function RowSyncDot({ state }: { state: "saving" | "saved" | "error" | null }) {
+  if (!state) return null;
+  const cfg = {
+    saving: { cls: "bg-sky-500 animate-pulse", title: "جارٍ الحفظ…" },
+    saved:  { cls: "bg-emerald-500", title: "تمت المزامنة" },
+    error:  { cls: "bg-destructive", title: "فشل الحفظ — أعد المحاولة" },
+  }[state];
+  return <span className={`inline-block size-2 rounded-full ${cfg.cls}`} title={cfg.title} aria-label={cfg.title} />;
+}
+
+function CellStatusIcon({ status }: { status: CellSyncStatus }) {
+  if (!status) return null;
+  if (status === "saving")
+    return <Loader2 className="size-3 animate-spin text-sky-500 shrink-0" aria-label="جارٍ الحفظ" />;
+  if (status === "saved")
+    return <span className="text-emerald-500 text-[10px] leading-none shrink-0" aria-label="محفوظ">✓</span>;
+  return <span className="text-destructive text-[10px] leading-none shrink-0" aria-label="فشل">⚠</span>;
+}
+
+/** Focus the cell at (r, c). Returns true if a cell was found. */
+function focusGridCell(r: number, c: number): boolean {
+  const el = document.querySelector<HTMLElement>(`[data-cell="${r}-${c}"]`);
+  if (!el) return false;
+  el.focus();
+  return true;
+}
+
 function EditableCell({
   value, type = "text", onSave, disabled, className = "", placeholder = "—", prefix = "",
+  row, col, status,
 }: {
   value: string | number | null | undefined;
   type?: "text" | "number";
@@ -809,29 +839,67 @@ function EditableCell({
   className?: string;
   placeholder?: string;
   prefix?: string;
+  row?: number;
+  col?: number;
+  status?: CellSyncStatus;
 }) {
   const displayed = value === null || value === undefined || value === "" ? "" : String(value);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(displayed);
-  const [saving, setSaving] = useState(false);
+  const [savingLocal, setSavingLocal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef<string>(displayed);
 
   useEffect(() => { if (!editing) setDraft(displayed); }, [displayed, editing]);
-  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  useEffect(() => {
+    if (editing) {
+      const el = inputRef.current;
+      if (!el) return;
+      // Place cursor at end so typed initial char lands after existing value.
+      const len = el.value.length;
+      el.focus();
+      try { el.setSelectionRange(len, len); } catch { /* ignore for number inputs */ }
+    }
+  }, [editing]);
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
-  async function commit() {
-    if (!editing) return;
-    if (draft === displayed) { setEditing(false); return; }
-    setSaving(true);
+  const dataAttr = row !== undefined && col !== undefined ? `${row}-${col}` : undefined;
+
+  async function persist(v: string) {
+    latestRef.current = v;
+    if (v.trim() === displayed) return;
+    setSavingLocal(true);
     try {
-      await onSave(draft.trim());
-      setEditing(false);
+      await onSave(v.trim());
     } catch {
       setDraft(displayed);
-      setEditing(false);
     } finally {
-      setSaving(false);
+      setSavingLocal(false);
     }
+  }
+
+  function scheduleAutoSave(v: string) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void persist(v); }, 500);
+  }
+
+  async function commitAndClose() {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    await persist(draft);
+    setEditing(false);
+  }
+
+  function moveTo(dr: number, dc: number) {
+    if (row === undefined || col === undefined) return false;
+    // Grid layout: 7 columns (0=barcode, 1=part_number, 2=location, 3=quantity,
+    // 4=min_quantity, 5=cost_price, 6=sale_price).
+    const nr = row + dr;
+    const nc = Math.max(0, Math.min(6, col + dc));
+    if (nr < 0) return false;
+    return focusGridCell(nr, nc);
   }
 
   if (disabled) {
@@ -840,42 +908,81 @@ function EditableCell({
 
   if (!editing) {
     return (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === "F2") {
-            e.preventDefault(); e.stopPropagation(); setEditing(true);
-          }
-        }}
-        className={`w-full text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
-        title="اضغط للتعديل"
-      >
-        {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
-      </button>
+      <div className="inline-flex items-center gap-1 w-full justify-center">
+        <button
+          type="button"
+          data-cell={dataAttr}
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          onKeyDown={(e) => {
+            // Grid navigation from a non-editing cell.
+            if (e.key === "ArrowUp")    { e.preventDefault(); e.stopPropagation(); moveTo(-1, 0); return; }
+            if (e.key === "ArrowDown")  { e.preventDefault(); e.stopPropagation(); moveTo(+1, 0); return; }
+            if (e.key === "ArrowLeft")  { e.preventDefault(); e.stopPropagation(); moveTo(0, -1); return; }
+            if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); moveTo(0, +1); return; }
+            if (e.key === "Enter" || e.key === "F2") {
+              e.preventDefault(); e.stopPropagation(); setEditing(true); return;
+            }
+            // Any printable key → enter edit mode with that key as initial value (Excel-like).
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault(); e.stopPropagation();
+              setDraft(e.key);
+              setEditing(true);
+              scheduleAutoSave(e.key);
+            }
+          }}
+          className={`min-w-[3ch] text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
+          title="اضغط أو ابدأ الكتابة للتعديل"
+        >
+          {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
+        </button>
+        <CellStatusIcon status={status} />
+      </div>
     );
   }
 
   return (
-    <input
-      ref={inputRef}
-      type={type}
-      inputMode={type === "number" ? "decimal" : undefined}
-      value={draft}
-      autoFocus
-      disabled={saving}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") { e.preventDefault(); void commit(); }
-        else if (e.key === "Escape") { e.preventDefault(); setDraft(displayed); setEditing(false); }
-      }}
-      placeholder={placeholder}
-      className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
-    />
+    <div className="inline-flex items-center gap-1 w-full justify-center">
+      <input
+        ref={inputRef}
+        data-cell={dataAttr}
+        type={type}
+        inputMode={type === "number" ? "decimal" : undefined}
+        value={draft}
+        disabled={savingLocal}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          scheduleAutoSave(e.target.value);
+        }}
+        onBlur={() => { void commitAndClose(); }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+          } else if (e.key === "Tab") {
+            // Native tab traversal covers this; still commit first.
+            void persist(draft);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+            setDraft(displayed);
+            setEditing(false);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(-1, 0); })();
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+          }
+          // ArrowLeft/Right stay as native text-cursor movement.
+        }}
+        placeholder={placeholder}
+        className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
+      />
+      <CellStatusIcon status={status} />
+    </div>
   );
 }
 

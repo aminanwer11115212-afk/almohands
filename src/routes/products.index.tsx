@@ -500,6 +500,24 @@ function ProductsPage() {
                   isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
                   isFocused ? "ring-2 ring-inset ring-brand" : "",
                 ].join(" ");
+                // Aggregate row sync status from all cell statuses on this row.
+                const rowKeys = ["barcode","part_number","location","quantity","min_quantity","cost_price","sale_price"];
+                const rowStatuses = rowKeys.map((f) => cellStatus[`${p.id}:${f}`]).filter(Boolean);
+                const rowState: "saving" | "error" | "saved" | null =
+                  rowStatuses.includes("error") ? "error"
+                    : rowStatuses.includes("saving") ? "saving"
+                      : rowStatuses.includes("saved") ? "saved" : null;
+                const mkSave = (field: string, transform: (v: string) => unknown) => async (v: string) => {
+                  const key = `${p.id}:${field}`;
+                  reportCellStatus(key, "saving");
+                  try {
+                    await updateField(p.id, { [field]: transform(v) });
+                    reportCellStatus(key, "saved");
+                  } catch {
+                    reportCellStatus(key, "error");
+                    throw new Error("save-failed");
+                  }
+                };
                 return (
                   <tr
                     key={p.id}
@@ -508,13 +526,16 @@ function ProductsPage() {
                     onClick={() => setFocusedIdx(idx)}
                   >
                     <td className="px-2 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`تحديد ${p.name}`}
-                        checked={isSelected}
-                        onChange={() => toggleSelect(p.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <div className="flex items-center justify-center gap-1">
+                        <input
+                          type="checkbox"
+                          aria-label={`تحديد ${p.name}`}
+                          checked={isSelected}
+                          onChange={() => toggleSelect(p.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <RowSyncDot state={rowState} />
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       <div className="flex items-center gap-2">
@@ -544,39 +565,46 @@ function ProductsPage() {
                       ) : (
                         <div className="space-y-0.5">
                           <EditableCell value={p.barcode} placeholder="باركود"
+                            row={idx} col={0} status={cellStatus[`${p.id}:barcode`]}
                             disabled={!canWrite}
-                            onSave={(v) => updateField(p.id, { barcode: v || null })} />
+                            onSave={mkSave("barcode", (v) => v || null)} />
                           <EditableCell value={p.partNumber} placeholder="رقم القطعة" prefix="#"
+                            row={idx} col={1} status={cellStatus[`${p.id}:part_number`]}
                             disabled={!canWrite} className="text-[10px]"
-                            onSave={(v) => updateField(p.id, { part_number: v || null })} />
+                            onSave={mkSave("part_number", (v) => v || null)} />
                           <EditableCell value={p.location} placeholder="الرف" prefix="📍"
+                            row={idx} col={2} status={cellStatus[`${p.id}:location`]}
                             disabled={!canWrite} className="text-[10px]"
-                            onSave={(v) => updateField(p.id, { location: v || null })} />
+                            onSave={mkSave("location", (v) => v || null)} />
                         </div>
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : (
                         <EditableCell value={p.quantity} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { quantity: Number(v) })} />
+                          row={idx} col={3} status={cellStatus[`${p.id}:quantity`]}
+                          onSave={mkSave("quantity", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">
                       {editMode && d ? <EditCell value={d.min_quantity} onChange={(v) => updateDraft(p.id, "min_quantity", v)} /> : (
                         <EditableCell value={p.minQuantity} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { min_quantity: Number(v) })} />
+                          row={idx} col={4} status={cellStatus[`${p.id}:min_quantity`]}
+                          onSave={mkSave("min_quantity", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.cost_price} onChange={(v) => updateDraft(p.id, "cost_price", v)} /> : (
                         <EditableCell value={p.costPrice} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { cost_price: Number(v) })} />
+                          row={idx} col={5} status={cellStatus[`${p.id}:cost_price`]}
+                          onSave={mkSave("cost_price", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums font-bold">
                       {editMode && d ? <EditCell value={d.sale_price} onChange={(v) => updateDraft(p.id, "sale_price", v)} /> : (
                         <EditableCell value={p.salePrice} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { sale_price: Number(v) })} />
+                          row={idx} col={6} status={cellStatus[`${p.id}:sale_price`]}
+                          onSave={mkSave("sale_price", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">

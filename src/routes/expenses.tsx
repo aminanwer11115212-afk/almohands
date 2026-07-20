@@ -145,12 +145,37 @@ function ExpensesPage() {
 
       {/* List */}
       <div className="mt-6 space-y-2">
-        <h3 className="text-sm font-bold text-end">المصروفات السابقة</h3>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground nums">
+            الإجمالي: <span className="font-bold text-brand">{formatSDG(totalFiltered)}</span>
+          </span>
+          <h3 className="text-sm font-bold text-end">المصروفات السابقة</h3>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {([
+            ["", "الكل"],
+            ["today", "اليوم"],
+            ["week", "آخر 7 أيام"],
+            ["month", "آخر 30 يوم"],
+          ] as const).map(([r, label]) => (
+            <button
+              key={r || "all"}
+              onClick={() => navigate({ search: (prev: ExpensesSearch) => ({ ...prev, range: r }) })}
+              className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
+                range === r
+                  ? "bg-emerald-600 text-white border-emerald-600"
+                  : "bg-background text-foreground border-input hover:bg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {isLoading && <p className="text-center text-muted-foreground text-xs">جاري التحميل...</p>}
-        {!isLoading && expenses.length === 0 && (
+        {!isLoading && filteredExpenses.length === 0 && (
           <p className="text-center text-muted-foreground text-xs">لا توجد مصروفات</p>
         )}
-        {expenses.map((ex) => (
+        {filteredExpenses.map((ex) => (
           <div key={ex.id} className="flex items-center justify-between rounded-xl bg-card border border-border p-3">
             <button
               onClick={() => deleteExpense.mutate(ex.id, { onSuccess: () => toast.success("تم الحذف") })}

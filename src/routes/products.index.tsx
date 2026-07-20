@@ -65,6 +65,27 @@ function ProductsPage() {
   const [deleting, setDeleting] = useState<Product[] | null>(null);
   const savingRef = useRef(false);
 
+  // Per-cell sync status for inline edits (key = `${productId}:${field}`).
+  type CellStatus = "saving" | "saved" | "error";
+  const [cellStatus, setCellStatus] = useState<Record<string, CellStatus>>({});
+  const statusTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  function reportCellStatus(key: string, s: CellStatus) {
+    setCellStatus((prev) => ({ ...prev, [key]: s }));
+    if (statusTimers.current[key]) clearTimeout(statusTimers.current[key]);
+    if (s === "saved" || s === "error") {
+      const delay = s === "saved" ? 1600 : 4000;
+      statusTimers.current[key] = setTimeout(() => {
+        setCellStatus((prev) => {
+          if (prev[key] !== s) return prev;
+          const next = { ...prev }; delete next[key]; return next;
+        });
+      }, delay);
+    }
+  }
+  useEffect(() => () => {
+    Object.values(statusTimers.current).forEach(clearTimeout);
+  }, []);
+
   // Selection & keyboard navigation
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [focusedIdx, setFocusedIdx] = useState(0);
@@ -144,6 +165,8 @@ function ProductsPage() {
     if (editMode) return;
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    // Cells own their own keyboard nav (Excel-like grid); don't hijack.
+    if (target.closest("[data-cell]")) return;
     if (!pageRows.length) return;
 
     if (e.key === "ArrowDown") {
@@ -212,14 +235,22 @@ function ProductsPage() {
   }
 
   function beginEdit() {
+    // If the user has selected specific rows, edit only those; otherwise the visible page.
+    const scope = selected.size > 0
+      ? pageRows.filter((p) => selected.has(p.id))
+      : pageRows;
     const d: Record<string, Draft> = {};
-    for (const p of pageRows) {
+    for (const p of scope) {
       d[p.id] = {
         quantity: String(p.quantity),
         cost_price: String(p.costPrice),
         sale_price: String(p.salePrice),
         min_quantity: String(p.minQuantity),
       };
+    }
+    if (Object.keys(d).length === 0) {
+      toast.error("لا توجد صفوف مرئية للتعديل");
+      return;
     }
     setDrafts(d);
     setEditMode(true);
@@ -344,7 +375,8 @@ function ProductsPage() {
         {canWrite && !editMode && (
           <button type="button" onClick={beginEdit}
             className="h-11 px-3 rounded-xl border border-brand text-brand text-sm font-bold hover:bg-brand/10">
-            <Pencil className="inline size-4 ml-1" /> تعديل جماعي
+            <Pencil className="inline size-4 ml-1" />
+            {selected.size > 0 ? `تعديل جماعي (${formatNumber(selected.size)})` : "تعديل جماعي"}
           </button>
         )}
         {editMode && (
@@ -364,7 +396,7 @@ function ProductsPage() {
 
       {/* Keyboard hint + bulk actions */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم ↑/↓ للتنقل، Space للتحديد، Ctrl+A للكل، Delete للحذف، Enter للفتح</span>
+        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم للتنقل، Enter/F2 أو الكتابة للتحرير، ↑↓ داخل الخلية للحفظ التلقائي والانتقال، Escape للإلغاء، Delete للحذف</span>
         {selected.size > 0 && (
           <span className="ms-auto flex items-center gap-2">
             <span className="font-bold text-foreground">{formatNumber(selected.size)} محدد</span>
@@ -469,6 +501,24 @@ function ProductsPage() {
                   isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
                   isFocused ? "ring-2 ring-inset ring-brand" : "",
                 ].join(" ");
+                // Aggregate row sync status from all cell statuses on this row.
+                const rowKeys = ["barcode","part_number","location","quantity","min_quantity","cost_price","sale_price"];
+                const rowStatuses = rowKeys.map((f) => cellStatus[`${p.id}:${f}`]).filter(Boolean);
+                const rowState: "saving" | "error" | "saved" | null =
+                  rowStatuses.includes("error") ? "error"
+                    : rowStatuses.includes("saving") ? "saving"
+                      : rowStatuses.includes("saved") ? "saved" : null;
+                const mkSave = (field: string, transform: (v: string) => unknown) => async (v: string) => {
+                  const key = `${p.id}:${field}`;
+                  reportCellStatus(key, "saving");
+                  try {
+                    await updateField(p.id, { [field]: transform(v) });
+                    reportCellStatus(key, "saved");
+                  } catch {
+                    reportCellStatus(key, "error");
+                    throw new Error("save-failed");
+                  }
+                };
                 return (
                   <tr
                     key={p.id}
@@ -477,13 +527,16 @@ function ProductsPage() {
                     onClick={() => setFocusedIdx(idx)}
                   >
                     <td className="px-2 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`تحديد ${p.name}`}
-                        checked={isSelected}
-                        onChange={() => toggleSelect(p.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <div className="flex items-center justify-center gap-1">
+                        <input
+                          type="checkbox"
+                          aria-label={`تحديد ${p.name}`}
+                          checked={isSelected}
+                          onChange={() => toggleSelect(p.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <RowSyncDot state={rowState} />
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       <div className="flex items-center gap-2">
@@ -513,39 +566,46 @@ function ProductsPage() {
                       ) : (
                         <div className="space-y-0.5">
                           <EditableCell value={p.barcode} placeholder="باركود"
+                            row={idx} col={0} status={cellStatus[`${p.id}:barcode`]}
                             disabled={!canWrite}
-                            onSave={(v) => updateField(p.id, { barcode: v || null })} />
+                            onSave={mkSave("barcode", (v) => v || null)} />
                           <EditableCell value={p.partNumber} placeholder="رقم القطعة" prefix="#"
+                            row={idx} col={1} status={cellStatus[`${p.id}:part_number`]}
                             disabled={!canWrite} className="text-[10px]"
-                            onSave={(v) => updateField(p.id, { part_number: v || null })} />
+                            onSave={mkSave("part_number", (v) => v || null)} />
                           <EditableCell value={p.location} placeholder="الرف" prefix="📍"
+                            row={idx} col={2} status={cellStatus[`${p.id}:location`]}
                             disabled={!canWrite} className="text-[10px]"
-                            onSave={(v) => updateField(p.id, { location: v || null })} />
+                            onSave={mkSave("location", (v) => v || null)} />
                         </div>
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : (
                         <EditableCell value={p.quantity} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { quantity: Number(v) })} />
+                          row={idx} col={3} status={cellStatus[`${p.id}:quantity`]}
+                          onSave={mkSave("quantity", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">
                       {editMode && d ? <EditCell value={d.min_quantity} onChange={(v) => updateDraft(p.id, "min_quantity", v)} /> : (
                         <EditableCell value={p.minQuantity} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { min_quantity: Number(v) })} />
+                          row={idx} col={4} status={cellStatus[`${p.id}:min_quantity`]}
+                          onSave={mkSave("min_quantity", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
                       {editMode && d ? <EditCell value={d.cost_price} onChange={(v) => updateDraft(p.id, "cost_price", v)} /> : (
                         <EditableCell value={p.costPrice} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { cost_price: Number(v) })} />
+                          row={idx} col={5} status={cellStatus[`${p.id}:cost_price`]}
+                          onSave={mkSave("cost_price", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums font-bold">
                       {editMode && d ? <EditCell value={d.sale_price} onChange={(v) => updateDraft(p.id, "sale_price", v)} /> : (
                         <EditableCell value={p.salePrice} type="number" disabled={!canWrite}
-                          onSave={(v) => updateField(p.id, { sale_price: Number(v) })} />
+                          row={idx} col={6} status={cellStatus[`${p.id}:sale_price`]}
+                          onSave={mkSave("sale_price", (v) => Number(v))} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">
@@ -740,8 +800,38 @@ function EditCell({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
+type CellSyncStatus = "saving" | "saved" | "error" | undefined;
+
+function RowSyncDot({ state }: { state: "saving" | "saved" | "error" | null }) {
+  if (!state) return null;
+  const cfg = {
+    saving: { cls: "bg-sky-500 animate-pulse", title: "جارٍ الحفظ…" },
+    saved:  { cls: "bg-emerald-500", title: "تمت المزامنة" },
+    error:  { cls: "bg-destructive", title: "فشل الحفظ — أعد المحاولة" },
+  }[state];
+  return <span className={`inline-block size-2 rounded-full ${cfg.cls}`} title={cfg.title} aria-label={cfg.title} />;
+}
+
+function CellStatusIcon({ status }: { status: CellSyncStatus }) {
+  if (!status) return null;
+  if (status === "saving")
+    return <Loader2 className="size-3 animate-spin text-sky-500 shrink-0" aria-label="جارٍ الحفظ" />;
+  if (status === "saved")
+    return <span className="text-emerald-500 text-[10px] leading-none shrink-0" aria-label="محفوظ">✓</span>;
+  return <span className="text-destructive text-[10px] leading-none shrink-0" aria-label="فشل">⚠</span>;
+}
+
+/** Focus the cell at (r, c). Returns true if a cell was found. */
+function focusGridCell(r: number, c: number): boolean {
+  const el = document.querySelector<HTMLElement>(`[data-cell="${r}-${c}"]`);
+  if (!el) return false;
+  el.focus();
+  return true;
+}
+
 function EditableCell({
   value, type = "text", onSave, disabled, className = "", placeholder = "—", prefix = "",
+  row, col, status,
 }: {
   value: string | number | null | undefined;
   type?: "text" | "number";
@@ -750,29 +840,67 @@ function EditableCell({
   className?: string;
   placeholder?: string;
   prefix?: string;
+  row?: number;
+  col?: number;
+  status?: CellSyncStatus;
 }) {
   const displayed = value === null || value === undefined || value === "" ? "" : String(value);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(displayed);
-  const [saving, setSaving] = useState(false);
+  const [savingLocal, setSavingLocal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef<string>(displayed);
 
   useEffect(() => { if (!editing) setDraft(displayed); }, [displayed, editing]);
-  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  useEffect(() => {
+    if (editing) {
+      const el = inputRef.current;
+      if (!el) return;
+      // Place cursor at end so typed initial char lands after existing value.
+      const len = el.value.length;
+      el.focus();
+      try { el.setSelectionRange(len, len); } catch { /* ignore for number inputs */ }
+    }
+  }, [editing]);
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
-  async function commit() {
-    if (!editing) return;
-    if (draft === displayed) { setEditing(false); return; }
-    setSaving(true);
+  const dataAttr = row !== undefined && col !== undefined ? `${row}-${col}` : undefined;
+
+  async function persist(v: string) {
+    latestRef.current = v;
+    if (v.trim() === displayed) return;
+    setSavingLocal(true);
     try {
-      await onSave(draft.trim());
-      setEditing(false);
+      await onSave(v.trim());
     } catch {
       setDraft(displayed);
-      setEditing(false);
     } finally {
-      setSaving(false);
+      setSavingLocal(false);
     }
+  }
+
+  function scheduleAutoSave(v: string) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void persist(v); }, 500);
+  }
+
+  async function commitAndClose() {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    await persist(draft);
+    setEditing(false);
+  }
+
+  function moveTo(dr: number, dc: number) {
+    if (row === undefined || col === undefined) return false;
+    // Grid layout: 7 columns (0=barcode, 1=part_number, 2=location, 3=quantity,
+    // 4=min_quantity, 5=cost_price, 6=sale_price).
+    const nr = row + dr;
+    const nc = Math.max(0, Math.min(6, col + dc));
+    if (nr < 0) return false;
+    return focusGridCell(nr, nc);
   }
 
   if (disabled) {
@@ -781,42 +909,81 @@ function EditableCell({
 
   if (!editing) {
     return (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === "F2") {
-            e.preventDefault(); e.stopPropagation(); setEditing(true);
-          }
-        }}
-        className={`w-full text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
-        title="اضغط للتعديل"
-      >
-        {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
-      </button>
+      <div className="inline-flex items-center gap-1 w-full justify-center">
+        <button
+          type="button"
+          data-cell={dataAttr}
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          onKeyDown={(e) => {
+            // Grid navigation from a non-editing cell.
+            if (e.key === "ArrowUp")    { e.preventDefault(); e.stopPropagation(); moveTo(-1, 0); return; }
+            if (e.key === "ArrowDown")  { e.preventDefault(); e.stopPropagation(); moveTo(+1, 0); return; }
+            if (e.key === "ArrowLeft")  { e.preventDefault(); e.stopPropagation(); moveTo(0, -1); return; }
+            if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); moveTo(0, +1); return; }
+            if (e.key === "Enter" || e.key === "F2") {
+              e.preventDefault(); e.stopPropagation(); setEditing(true); return;
+            }
+            // Any printable key → enter edit mode with that key as initial value (Excel-like).
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault(); e.stopPropagation();
+              setDraft(e.key);
+              setEditing(true);
+              scheduleAutoSave(e.key);
+            }
+          }}
+          className={`min-w-[3ch] text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
+          title="اضغط أو ابدأ الكتابة للتعديل"
+        >
+          {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
+        </button>
+        <CellStatusIcon status={status} />
+      </div>
     );
   }
 
   return (
-    <input
-      ref={inputRef}
-      type={type}
-      inputMode={type === "number" ? "decimal" : undefined}
-      value={draft}
-      autoFocus
-      disabled={saving}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") { e.preventDefault(); void commit(); }
-        else if (e.key === "Escape") { e.preventDefault(); setDraft(displayed); setEditing(false); }
-      }}
-      placeholder={placeholder}
-      className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
-    />
+    <div className="inline-flex items-center gap-1 w-full justify-center">
+      <input
+        ref={inputRef}
+        data-cell={dataAttr}
+        type={type}
+        inputMode={type === "number" ? "decimal" : undefined}
+        value={draft}
+        disabled={savingLocal}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          scheduleAutoSave(e.target.value);
+        }}
+        onBlur={() => { void commitAndClose(); }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+          } else if (e.key === "Tab") {
+            // Native tab traversal covers this; still commit first.
+            void persist(draft);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+            setDraft(displayed);
+            setEditing(false);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(-1, 0); })();
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+          }
+          // ArrowLeft/Right stay as native text-cursor movement.
+        }}
+        placeholder={placeholder}
+        className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
+      />
+      <CellStatusIcon status={status} />
+    </div>
   );
 }
 

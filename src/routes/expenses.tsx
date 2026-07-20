@@ -59,9 +59,6 @@ function ExpensesPage() {
     () => filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0),
     [filteredExpenses],
   );
-  const { data: accounts = [] } = useAccountBalances();
-  const addExpense = useAddExpense();
-  const deleteExpense = useDeleteExpense();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

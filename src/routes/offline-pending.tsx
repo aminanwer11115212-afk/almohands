@@ -130,9 +130,9 @@ function ClientOnlyWrapper() {
 }
 
 function PendingContent() {
-  const hooks = usePowerSyncSafe();
-  if (!hooks) return <NotConfiguredCard />;
-  return <PendingList hooks={hooks} />;
+  const hasPs = useHasPowerSync();
+  if (!hasPs) return <NotConfiguredCard />;
+  return <PendingList />;
 }
 
 function NotConfiguredCard() {
@@ -152,10 +152,10 @@ function NotConfiguredCard() {
   );
 }
 
-function PendingList({ hooks }: { hooks: NonNullable<ReturnType<typeof usePowerSyncSafe>> }) {
-  const { usePowerSync, useStatus } = hooks;
+function PendingList() {
   const ps = usePowerSync();
   const status = useStatus();
+
 
   const [rows, setRows] = useState<CrudRow[]>([]);
   const [loading, setLoading] = useState(true);

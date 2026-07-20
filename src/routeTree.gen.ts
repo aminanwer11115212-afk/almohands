@@ -19,6 +19,7 @@ import { Route as PricesRouteImport } from './routes/prices'
 import { Route as PriceHistoryRouteImport } from './routes/price-history'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as PaymentMethodsRouteImport } from './routes/payment-methods'
+import { Route as OfflinePendingRouteImport } from './routes/offline-pending'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as ImportRouteImport } from './routes/import'
@@ -95,6 +96,11 @@ const PermissionsRoute = PermissionsRouteImport.update({
 const PaymentMethodsRoute = PaymentMethodsRouteImport.update({
   id: '/payment-methods',
   path: '/payment-methods',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflinePendingRoute = OfflinePendingRouteImport.update({
+  id: '/offline-pending',
+  path: '/offline-pending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -248,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/offline-pending': typeof OfflinePendingRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/price-history': typeof PriceHistoryRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/offline-pending': typeof OfflinePendingRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/price-history': typeof PriceHistoryRoute
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/mcp': typeof McpRoute
   '/notifications': typeof NotificationsRoute
+  '/offline-pending': typeof OfflinePendingRoute
   '/payment-methods': typeof PaymentMethodsRoute
   '/permissions': typeof PermissionsRoute
   '/price-history': typeof PriceHistoryRoute
@@ -368,6 +377,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/mcp'
     | '/notifications'
+    | '/offline-pending'
     | '/payment-methods'
     | '/permissions'
     | '/price-history'
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/mcp'
     | '/notifications'
+    | '/offline-pending'
     | '/payment-methods'
     | '/permissions'
     | '/price-history'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/mcp'
     | '/notifications'
+    | '/offline-pending'
     | '/payment-methods'
     | '/permissions'
     | '/price-history'
@@ -486,6 +498,7 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   McpRoute: typeof McpRoute
   NotificationsRoute: typeof NotificationsRoute
+  OfflinePendingRoute: typeof OfflinePendingRoute
   PaymentMethodsRoute: typeof PaymentMethodsRoute
   PermissionsRoute: typeof PermissionsRoute
   PriceHistoryRoute: typeof PriceHistoryRoute
@@ -583,6 +596,13 @@ declare module '@tanstack/react-router' {
       path: '/payment-methods'
       fullPath: '/payment-methods'
       preLoaderRoute: typeof PaymentMethodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline-pending': {
+      id: '/offline-pending'
+      path: '/offline-pending'
+      fullPath: '/offline-pending'
+      preLoaderRoute: typeof OfflinePendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -801,6 +821,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   McpRoute: McpRoute,
   NotificationsRoute: NotificationsRoute,
+  OfflinePendingRoute: OfflinePendingRoute,
   PaymentMethodsRoute: PaymentMethodsRoute,
   PermissionsRoute: PermissionsRoute,
   PriceHistoryRoute: PriceHistoryRoute,

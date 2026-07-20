@@ -234,6 +234,28 @@ function InvoicesPage() {
             ))}
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["", "كل الفترات"],
+              ["today", "اليوم"],
+              ["week", "آخر 7 أيام"],
+              ["month", "آخر 30 يوم"],
+            ] as const).map(([r, label]) => (
+              <button
+                key={r || "all"}
+                onClick={() => navigate({ search: (prev: InvoicesSearch) => ({ ...prev, range: r, from: "", to: "" }) })}
+                className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
+                  range === r && !from && !to
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-background text-foreground border-input hover:bg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-muted-foreground flex flex-col gap-1">
               <span className="flex items-center gap-1"><Calendar className="size-3" /> من</span>

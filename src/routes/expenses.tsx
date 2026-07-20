@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useExpenses, useAddExpense, useDeleteExpense } from "@/hooks/use-expenses";
@@ -8,9 +10,15 @@ import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
+const rangeEnum = z.enum(["", "today", "week", "month"]);
+const searchSchema = z.object({
+  range: fallback(rangeEnum, "").default(""),
+});
+type ExpensesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "المصروفات — المهندس" }] }),
+  validateSearch: zodValidator(searchSchema),
   component: ExpensesPageGuarded,
 });
 
@@ -23,6 +31,8 @@ function ExpensesPageGuarded() {
 }
 
 function ExpensesPage() {
+  const { range } = Route.useSearch();
+  const navigate = useNavigate({ from: "/expenses" });
   const today = new Date().toISOString().slice(0, 10);
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
@@ -33,6 +43,22 @@ function ExpensesPage() {
   const { data: accounts = [] } = useAccountBalances();
   const addExpense = useAddExpense();
   const deleteExpense = useDeleteExpense();
+
+  const filteredExpenses = useMemo(() => {
+    if (!range) return expenses;
+    const now = new Date();
+    const start = new Date(now);
+    if (range === "today") start.setHours(0, 0, 0, 0);
+    else if (range === "week") { start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0); }
+    else if (range === "month") { start.setDate(now.getDate() - 29); start.setHours(0, 0, 0, 0); }
+    const startISO = start.toISOString().slice(0, 10);
+    return expenses.filter((e) => (e.date ?? "") >= startISO);
+  }, [expenses, range]);
+
+  const totalFiltered = useMemo(
+    () => filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    [filteredExpenses],
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,12 +145,37 @@ function ExpensesPage() {
 
       {/* List */}
       <div className="mt-6 space-y-2">
-        <h3 className="text-sm font-bold text-end">المصروفات السابقة</h3>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground nums">
+            الإجمالي: <span className="font-bold text-brand">{formatSDG(totalFiltered)}</span>
+          </span>
+          <h3 className="text-sm font-bold text-end">المصروفات السابقة</h3>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {([
+            ["", "الكل"],
+            ["today", "اليوم"],
+            ["week", "آخر 7 أيام"],
+            ["month", "آخر 30 يوم"],
+          ] as const).map(([r, label]) => (
+            <button
+              key={r || "all"}
+              onClick={() => navigate({ search: (prev: ExpensesSearch) => ({ ...prev, range: r }) })}
+              className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
+                range === r
+                  ? "bg-emerald-600 text-white border-emerald-600"
+                  : "bg-background text-foreground border-input hover:bg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {isLoading && <p className="text-center text-muted-foreground text-xs">جاري التحميل...</p>}
-        {!isLoading && expenses.length === 0 && (
+        {!isLoading && filteredExpenses.length === 0 && (
           <p className="text-center text-muted-foreground text-xs">لا توجد مصروفات</p>
         )}
-        {expenses.map((ex) => (
+        {filteredExpenses.map((ex) => (
           <div key={ex.id} className="flex items-center justify-between rounded-xl bg-card border border-border p-3">
             <button
               onClick={() => deleteExpense.mutate(ex.id, { onSuccess: () => toast.success("تم الحذف") })}

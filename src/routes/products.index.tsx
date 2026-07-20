@@ -30,6 +30,7 @@ const searchSchema = z.object({
   category: fallback(z.string(), "").default(""),
   page: fallback(z.number().int(), 1).default(1),
   pageSize: fallback(z.number().int(), 50).default(50),
+  filter: fallback(z.string(), "").default(""),
 });
 
 
@@ -49,10 +50,11 @@ type Draft = {
 };
 
 function ProductsPage() {
-  const { q, sort, asc, low, category, page, pageSize } = Route.useSearch();
+  const { q, sort, asc, low, category, page, pageSize, filter } = Route.useSearch();
   const navigate = useNavigate({ from: "/products/" });
   const queryClient = useQueryClient();
   const canWrite = useCan("products.write");
+  const effectiveLow = low || filter === "low-stock";
   const { data: rows = [], isLoading, isError, error } = useProducts({ q, sort, asc });
   const { data: store } = useStoreProfile();
 
@@ -88,11 +90,11 @@ function ProductsPage() {
 
   const filtered = useMemo(() => {
     return rows.filter((p) => {
-      if (low && p.quantity > p.minQuantity) return false;
+      if (effectiveLow && p.quantity > p.minQuantity) return false;
       if (category && (p.category ?? "") !== category) return false;
       return true;
     });
-  }, [rows, low, category]);
+  }, [rows, effectiveLow, category]);
 
   // Pagination — slice filtered.
   const safePageSize = (PAGE_SIZES as readonly number[]).includes(pageSize) ? pageSize : 50;
@@ -322,9 +324,9 @@ function ProductsPage() {
         >
           {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / صفحة</option>)}
         </select>
-        <button type="button" onClick={() => setSearch({ low: !low, page: 1 })}
+        <button type="button" onClick={() => setSearch({ low: !effectiveLow, filter: "", page: 1 })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
-            low ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
+            effectiveLow ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
           }`}>
           <AlertTriangle className="inline size-4 ml-1" /> منخفض المخزون
         </button>
@@ -426,17 +428,17 @@ function ProductsPage() {
                 <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
               ) : pageRows.length === 0 ? (
                 <tr><td colSpan={8} className="py-12 text-center">
-                  {(q || category || low) ? (
+                  {(q || category || effectiveLow) ? (
                     <div className="flex flex-col items-center gap-3 text-muted-foreground">
                       <Search className="size-8 opacity-40" />
                       <div className="font-bold text-foreground">لا توجد منتجات مطابقة للفلاتر</div>
                       <div className="text-xs">
                         {q && <span className="mx-1">البحث: «{q}»</span>}
                         {category && <span className="mx-1">النوع: «{category}»</span>}
-                        {low && <span className="mx-1">منخفض المخزون فقط</span>}
+                        {effectiveLow && <span className="mx-1">منخفض المخزون فقط</span>}
                       </div>
                       <button type="button"
-                        onClick={() => setSearch({ q: "", category: "", low: false, page: 1 })}
+                        onClick={() => setSearch({ q: "", category: "", low: false, filter: "", page: 1 })}
                         className="h-8 px-3 rounded-md border border-border bg-card hover:bg-muted text-xs font-bold">
                         <X className="inline size-3.5 ml-1" /> مسح جميع الفلاتر
                       </button>

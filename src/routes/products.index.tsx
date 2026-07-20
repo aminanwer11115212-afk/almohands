@@ -65,6 +65,27 @@ function ProductsPage() {
   const [deleting, setDeleting] = useState<Product[] | null>(null);
   const savingRef = useRef(false);
 
+  // Per-cell sync status for inline edits (key = `${productId}:${field}`).
+  type CellStatus = "saving" | "saved" | "error";
+  const [cellStatus, setCellStatus] = useState<Record<string, CellStatus>>({});
+  const statusTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  function reportCellStatus(key: string, s: CellStatus) {
+    setCellStatus((prev) => ({ ...prev, [key]: s }));
+    if (statusTimers.current[key]) clearTimeout(statusTimers.current[key]);
+    if (s === "saved" || s === "error") {
+      const delay = s === "saved" ? 1600 : 4000;
+      statusTimers.current[key] = setTimeout(() => {
+        setCellStatus((prev) => {
+          if (prev[key] !== s) return prev;
+          const next = { ...prev }; delete next[key]; return next;
+        });
+      }, delay);
+    }
+  }
+  useEffect(() => () => {
+    Object.values(statusTimers.current).forEach(clearTimeout);
+  }, []);
+
   // Selection & keyboard navigation
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [focusedIdx, setFocusedIdx] = useState(0);

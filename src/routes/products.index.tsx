@@ -235,14 +235,22 @@ function ProductsPage() {
   }
 
   function beginEdit() {
+    // If the user has selected specific rows, edit only those; otherwise the visible page.
+    const scope = selected.size > 0
+      ? pageRows.filter((p) => selected.has(p.id))
+      : pageRows;
     const d: Record<string, Draft> = {};
-    for (const p of pageRows) {
+    for (const p of scope) {
       d[p.id] = {
         quantity: String(p.quantity),
         cost_price: String(p.costPrice),
         sale_price: String(p.salePrice),
         min_quantity: String(p.minQuantity),
       };
+    }
+    if (Object.keys(d).length === 0) {
+      toast.error("لا توجد صفوف مرئية للتعديل");
+      return;
     }
     setDrafts(d);
     setEditMode(true);

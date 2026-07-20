@@ -67,12 +67,24 @@ export const Route = createFileRoute("/invoices/")({
 });
 
 function InvoicesPage() {
-  const { q, status, from, to, sort } = Route.useSearch();
+  const { q, status, from, to, sort, range } = Route.useSearch();
   const navigate = useNavigate({ from: "/invoices" });
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 
+  // Derive effective from/to from `range` shortcut (today/week/month) unless explicit from/to set
+  const { effFrom, effTo } = useMemo(() => {
+    if (from || to) return { effFrom: from, effTo: to };
+    if (!range) return { effFrom: "", effTo: "" };
+    const now = new Date();
+    const start = new Date(now);
+    if (range === "today") start.setHours(0, 0, 0, 0);
+    else if (range === "week") { start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0); }
+    else if (range === "month") { start.setDate(now.getDate() - 29); start.setHours(0, 0, 0, 0); }
+    return { effFrom: start.toISOString(), effTo: now.toISOString() };
+  }, [from, to, range]);
+
   const query = useQuery({
-    queryKey: ["invoices", { q, status, from, to }],
+    queryKey: ["invoices", { q, status, effFrom, effTo }],
     queryFn: async () => {
       let req = supabase
         .from("invoices")
@@ -81,12 +93,8 @@ function InvoicesPage() {
         .limit(200);
 
       if (status !== "all") req = req.eq("status", status);
-      if (from) req = req.gte("created_at", new Date(from).toISOString());
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        req = req.lte("created_at", end.toISOString());
-      }
+      if (effFrom) req = req.gte("created_at", effFrom);
+      if (effTo) req = req.lte("created_at", effTo);
       if (q.trim()) {
         const term = sanitizeOrTerm(q);
         if (term) {

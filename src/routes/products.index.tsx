@@ -264,6 +264,13 @@ function ProductsPage() {
     onError: (e) => handleError(e, "فشل حفظ التعديلات"),
   });
 
+  // Excel-like inline single-cell save (no bulk-edit mode).
+  async function updateField(id: string, patch: Record<string, unknown>) {
+    const { error } = await supabase.from("products").update(patch as never).eq("id", id);
+    if (error) { handleError(error, "تعذّر الحفظ"); throw error; }
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  }
+
   async function handleSaveAll() {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true);

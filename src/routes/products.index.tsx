@@ -428,17 +428,17 @@ function ProductsPage() {
                 <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
               ) : pageRows.length === 0 ? (
                 <tr><td colSpan={8} className="py-12 text-center">
-                  {(q || category || low) ? (
+                  {(q || category || effectiveLow) ? (
                     <div className="flex flex-col items-center gap-3 text-muted-foreground">
                       <Search className="size-8 opacity-40" />
                       <div className="font-bold text-foreground">لا توجد منتجات مطابقة للفلاتر</div>
                       <div className="text-xs">
                         {q && <span className="mx-1">البحث: «{q}»</span>}
                         {category && <span className="mx-1">النوع: «{category}»</span>}
-                        {low && <span className="mx-1">منخفض المخزون فقط</span>}
+                        {effectiveLow && <span className="mx-1">منخفض المخزون فقط</span>}
                       </div>
                       <button type="button"
-                        onClick={() => setSearch({ q: "", category: "", low: false, page: 1 })}
+                        onClick={() => setSearch({ q: "", category: "", low: false, filter: "", page: 1 })}
                         className="h-8 px-3 rounded-md border border-border bg-card hover:bg-muted text-xs font-bold">
                         <X className="inline size-3.5 ml-1" /> مسح جميع الفلاتر
                       </button>

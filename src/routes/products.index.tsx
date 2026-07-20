@@ -30,6 +30,7 @@ const searchSchema = z.object({
   category: fallback(z.string(), "").default(""),
   page: fallback(z.number().int(), 1).default(1),
   pageSize: fallback(z.number().int(), 50).default(50),
+  filter: fallback(z.string(), "").default(""),
 });
 
 

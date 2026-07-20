@@ -264,6 +264,13 @@ function ProductsPage() {
     onError: (e) => handleError(e, "فشل حفظ التعديلات"),
   });
 
+  // Excel-like inline single-cell save (no bulk-edit mode).
+  async function updateField(id: string, patch: Record<string, unknown>) {
+    const { error } = await supabase.from("products").update(patch as never).eq("id", id);
+    if (error) { handleError(error, "تعذّر الحفظ"); throw error; }
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  }
+
   async function handleSaveAll() {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true);
@@ -497,21 +504,49 @@ function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-2 py-2 text-center text-muted-foreground nums text-xs" dir="ltr">
-                      <div>{p.barcode || "—"}</div>
-                      {p.partNumber && <div className="text-[10px] opacity-80">#{p.partNumber}</div>}
-                      {p.location && <div className="text-[10px] opacity-70">📍{p.location}</div>}
+                      {editMode && d ? (
+                        <>
+                          <div>{p.barcode || "—"}</div>
+                          {p.partNumber && <div className="text-[10px] opacity-80">#{p.partNumber}</div>}
+                          {p.location && <div className="text-[10px] opacity-70">📍{p.location}</div>}
+                        </>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <EditableCell value={p.barcode} placeholder="باركود"
+                            disabled={!canWrite}
+                            onSave={(v) => updateField(p.id, { barcode: v || null })} />
+                          <EditableCell value={p.partNumber} placeholder="رقم القطعة" prefix="#"
+                            disabled={!canWrite} className="text-[10px]"
+                            onSave={(v) => updateField(p.id, { part_number: v || null })} />
+                          <EditableCell value={p.location} placeholder="الرف" prefix="📍"
+                            disabled={!canWrite} className="text-[10px]"
+                            onSave={(v) => updateField(p.id, { location: v || null })} />
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
-                      {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : formatNumber(p.quantity)}
+                      {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : (
+                        <EditableCell value={p.quantity} type="number" disabled={!canWrite}
+                          onSave={(v) => updateField(p.id, { quantity: Number(v) })} />
+                      )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">
-                      {editMode && d ? <EditCell value={d.min_quantity} onChange={(v) => updateDraft(p.id, "min_quantity", v)} /> : formatNumber(p.minQuantity)}
+                      {editMode && d ? <EditCell value={d.min_quantity} onChange={(v) => updateDraft(p.id, "min_quantity", v)} /> : (
+                        <EditableCell value={p.minQuantity} type="number" disabled={!canWrite}
+                          onSave={(v) => updateField(p.id, { min_quantity: Number(v) })} />
+                      )}
                     </td>
                     <td className="px-2 py-2 text-center nums">
-                      {editMode && d ? <EditCell value={d.cost_price} onChange={(v) => updateDraft(p.id, "cost_price", v)} /> : formatNumber(p.costPrice)}
+                      {editMode && d ? <EditCell value={d.cost_price} onChange={(v) => updateDraft(p.id, "cost_price", v)} /> : (
+                        <EditableCell value={p.costPrice} type="number" disabled={!canWrite}
+                          onSave={(v) => updateField(p.id, { cost_price: Number(v) })} />
+                      )}
                     </td>
                     <td className="px-2 py-2 text-center nums font-bold">
-                      {editMode && d ? <EditCell value={d.sale_price} onChange={(v) => updateDraft(p.id, "sale_price", v)} /> : formatNumber(p.salePrice)}
+                      {editMode && d ? <EditCell value={d.sale_price} onChange={(v) => updateDraft(p.id, "sale_price", v)} /> : (
+                        <EditableCell value={p.salePrice} type="number" disabled={!canWrite}
+                          onSave={(v) => updateField(p.id, { sale_price: Number(v) })} />
+                      )}
                     </td>
                     <td className="px-2 py-2 text-center nums text-muted-foreground">
                       {formatNumber(p.quantity * p.costPrice)}
@@ -704,6 +739,87 @@ function EditCell({ value, onChange }: { value: string; onChange: (v: string) =>
     />
   );
 }
+
+function EditableCell({
+  value, type = "text", onSave, disabled, className = "", placeholder = "—", prefix = "",
+}: {
+  value: string | number | null | undefined;
+  type?: "text" | "number";
+  onSave: (v: string) => Promise<void> | void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+  prefix?: string;
+}) {
+  const displayed = value === null || value === undefined || value === "" ? "" : String(value);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string>(displayed);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!editing) setDraft(displayed); }, [displayed, editing]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  async function commit() {
+    if (!editing) return;
+    if (draft === displayed) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(draft.trim());
+      setEditing(false);
+    } catch {
+      setDraft(displayed);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (disabled) {
+    return <span className={className}>{displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground">—</span>}</span>;
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "F2") {
+            e.preventDefault(); e.stopPropagation(); setEditing(true);
+          }
+        }}
+        className={`w-full text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
+        title="اضغط للتعديل"
+      >
+        {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type={type}
+      inputMode={type === "number" ? "decimal" : undefined}
+      value={draft}
+      autoFocus
+      disabled={saving}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") { e.preventDefault(); void commit(); }
+        else if (e.key === "Escape") { e.preventDefault(); setDraft(displayed); setEditing(false); }
+      }}
+      placeholder={placeholder}
+      className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
+    />
+  );
+}
+
 
 function StatCard({ icon, label, value, tone = "default" }: {
   icon: React.ReactNode; label: string; value: string; tone?: "default" | "warn";

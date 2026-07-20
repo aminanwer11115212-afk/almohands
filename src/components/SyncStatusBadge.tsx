@@ -70,9 +70,15 @@ function ConnectedBadge() {
   const downloading = status?.dataFlowStatus?.downloading ?? false;
   const lastSynced = status?.lastSyncedAt ?? null;
 
+  // Network status is the source of truth for "online".
+  // PowerSync `connected` reflects the local sync stream, not the internet — so we
+  // only show "offline" when the browser itself has no network.
   let variant: "ok" | "syncing" | "offline-queue" | "offline" = "ok";
-  if (!online || !connected) variant = pending > 0 ? "offline-queue" : "offline";
-  else if (uploading || downloading) variant = "syncing";
+  if (!online) {
+    variant = pending > 0 ? "offline-queue" : "offline";
+  } else if (uploading || downloading) {
+    variant = "syncing";
+  }
 
   const styles: Record<typeof variant, string> = {
     ok: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -82,7 +88,7 @@ function ConnectedBadge() {
   };
 
   const label: Record<typeof variant, string> = {
-    ok: "متصل",
+    ok: connected ? "متصل" : "متصل — بدون مزامنة",
     syncing: `يزامن${pending > 0 ? ` (${pending})` : ""}`,
     "offline-queue": `أوفلاين — ${pending} معلّق`,
     offline: "بدون إنترنت",

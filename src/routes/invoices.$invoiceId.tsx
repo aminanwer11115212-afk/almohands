@@ -2394,10 +2394,17 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
       {/* ===== HEADER — matches A4 tone ===== */}
       <div className="text-center pb-2 border-b-2 border-black">
         {showLogo && <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />}
-        <div className="font-extrabold text-base mt-1 tracking-wide">{storeName}</div>
-        {storeSubtitle && <div className="text-[11px] font-semibold text-black/80">{storeSubtitle}</div>}
-        {storeAddress && <div className="text-[10.5px] text-black/70">{storeAddress}</div>}
-        {storePhone && <div className="text-[11px] nums" dir="ltr">TEL: {storePhone}</div>}
+        <div className="font-extrabold text-base mt-1 tracking-wide">فاتورة مبدئية</div>
+        <div className="text-[11px] font-semibold text-black/80 truncate px-1">{storeSubtitle || storeName}</div>
+        {storeAddress && <div className="text-[10.5px] text-black/70 truncate px-1">{storeAddress}</div>}
+        {storePhone && (
+          <div className="mt-0.5 max-w-full overflow-x-auto scrollbar-thin">
+            <div className="inline-flex items-center gap-1 text-[11px] nums whitespace-nowrap" dir="ltr">
+              <Phone className="size-3 shrink-0" aria-hidden="true" />
+              <span>{storePhone}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===== INVOICE NUMBER (bordered, matches A4) ===== */}

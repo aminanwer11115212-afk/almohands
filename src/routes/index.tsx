@@ -182,19 +182,19 @@ function HomePage() {
 
       <InstallAppDialog open={installOpen} onClose={() => setInstallOpen(false)} />
 
-      {/* Daily mini reports strip — 6 tiles */}
+      {/* Daily mini reports strip — 6 tiles (all interactive with quick filters) */}
       <section aria-label="تقارير اليوم" className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-5">
-        <MiniStat icon={Coins} tone="emerald" label="مبيعات اليوم" value={formatSDG(stats?.today ?? 0)} />
-        <MiniStat icon={ReceiptIcon} tone="sky" label="عدد الفواتير" value={formatNumber(stats?.todayCount ?? 0)} />
-        <MiniStat icon={CreditCard} tone="brand" label="تحصيلات اليوم" value={formatSDG(stats?.todayPaid ?? 0)} />
-        <MiniStat icon={WalletIcon} tone="rose" label="مصروفات اليوم" value={formatSDG(stats?.todayExpenses ?? 0)} />
-        <MiniStat icon={Clock} tone="amber" label="فواتير معلّقة" value={formatNumber(stats?.pendingCount ?? 0)} to="/invoices" />
-        <MiniStat icon={AlertTriangle} tone="rose" label="مخزون منخفض" value={formatNumber(stats?.lowStockCount ?? 0)} to="/products" />
+        <MiniStat icon={Coins} tone="emerald" label="مبيعات اليوم" value={formatSDG(stats?.today ?? 0)} to="/invoices" search={{ range: "today" }} />
+        <MiniStat icon={ReceiptIcon} tone="sky" label="عدد الفواتير" value={formatNumber(stats?.todayCount ?? 0)} to="/invoices" search={{ range: "today" }} />
+        <MiniStat icon={CreditCard} tone="brand" label="تحصيلات اليوم" value={formatSDG(stats?.todayPaid ?? 0)} to="/reports" search={{ range: "today" }} />
+        <MiniStat icon={WalletIcon} tone="rose" label="مصروفات اليوم" value={formatSDG(stats?.todayExpenses ?? 0)} to="/expenses" search={{ range: "today" }} />
+        <MiniStat icon={Clock} tone="amber" label="فواتير معلّقة" value={formatNumber(stats?.pendingCount ?? 0)} to="/invoices" search={{ status: "pending" }} />
+        <MiniStat icon={AlertTriangle} tone="rose" label="مخزون منخفض" value={formatNumber(stats?.lowStockCount ?? 0)} to="/products" search={{ filter: "low-stock" }} />
       </section>
 
-      {/* Quick action buttons */}
+      {/* Quick action buttons — enhanced spacing + focus/press states */}
       <section aria-label="إجراءات سريعة" className="mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
           <QuickAction to="/cashier" icon={ShoppingCart} label="فاتورة جديدة" primary />
           <QuickAction to="/products/new" icon={Plus} label="منتج جديد" />
           <QuickAction to="/customers" icon={UserPlus} label="عميل جديد" />
@@ -262,15 +262,17 @@ function MiniStat({
   value,
   tone,
   to,
+  search,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   tone: Tone;
   to?: string;
+  search?: Record<string, string>;
 }) {
   const inner = (
-    <div className="min-w-0 rounded-xl bg-card border border-border shadow-card p-2.5 sm:p-3 flex items-center gap-2 hover:border-brand/30 transition">
+    <div className="min-w-0 rounded-xl bg-card border border-border shadow-card p-2.5 sm:p-3 flex items-center gap-2 hover:border-brand/40 hover:shadow-elevated active:scale-[0.98] transition">
       <div className={`size-8 sm:size-9 rounded-lg grid place-items-center shrink-0 ${TONE_BG[tone]}`}>
         <Icon className="size-4 sm:size-[18px]" />
       </div>
@@ -281,10 +283,15 @@ function MiniStat({
     </div>
   );
   if (to) {
+    const qs = search ? "?" + new URLSearchParams(search).toString() : "";
     return (
-      <Link to={to} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-xl">
+      <a
+        href={`${to}${qs}`}
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-xl block"
+        aria-label={`${label}: ${value}`}
+      >
         {inner}
-      </Link>
+      </a>
     );
   }
   return inner;
@@ -305,14 +312,15 @@ function QuickAction({
     <Link
       to={to}
       className={[
-        "flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold transition",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+        "group relative flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs sm:text-sm font-bold transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none",
         primary
-          ? "bg-brand-gradient text-brand-foreground shadow-elevated hover:opacity-95"
-          : "bg-card border border-border shadow-card text-foreground hover:border-brand/40 hover:text-brand",
+          ? "bg-brand-gradient text-brand-foreground shadow-elevated hover:shadow-lg hover:-translate-y-0.5"
+          : "bg-card border border-border shadow-card text-foreground hover:border-brand/50 hover:text-brand hover:-translate-y-0.5",
       ].join(" ")}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <Icon className="size-4 shrink-0 transition-transform group-hover:scale-110" aria-hidden="true" />
       <span className="truncate">{label}</span>
     </Link>
   );

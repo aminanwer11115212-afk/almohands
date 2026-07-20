@@ -182,19 +182,19 @@ function HomePage() {
 
       <InstallAppDialog open={installOpen} onClose={() => setInstallOpen(false)} />
 
-      {/* Daily mini reports strip — 6 tiles */}
+      {/* Daily mini reports strip — 6 tiles (all interactive with quick filters) */}
       <section aria-label="تقارير اليوم" className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-5">
-        <MiniStat icon={Coins} tone="emerald" label="مبيعات اليوم" value={formatSDG(stats?.today ?? 0)} />
-        <MiniStat icon={ReceiptIcon} tone="sky" label="عدد الفواتير" value={formatNumber(stats?.todayCount ?? 0)} />
-        <MiniStat icon={CreditCard} tone="brand" label="تحصيلات اليوم" value={formatSDG(stats?.todayPaid ?? 0)} />
-        <MiniStat icon={WalletIcon} tone="rose" label="مصروفات اليوم" value={formatSDG(stats?.todayExpenses ?? 0)} />
-        <MiniStat icon={Clock} tone="amber" label="فواتير معلّقة" value={formatNumber(stats?.pendingCount ?? 0)} to="/invoices" />
-        <MiniStat icon={AlertTriangle} tone="rose" label="مخزون منخفض" value={formatNumber(stats?.lowStockCount ?? 0)} to="/products" />
+        <MiniStat icon={Coins} tone="emerald" label="مبيعات اليوم" value={formatSDG(stats?.today ?? 0)} to="/invoices" search={{ range: "today" }} />
+        <MiniStat icon={ReceiptIcon} tone="sky" label="عدد الفواتير" value={formatNumber(stats?.todayCount ?? 0)} to="/invoices" search={{ range: "today" }} />
+        <MiniStat icon={CreditCard} tone="brand" label="تحصيلات اليوم" value={formatSDG(stats?.todayPaid ?? 0)} to="/reports" search={{ range: "today" }} />
+        <MiniStat icon={WalletIcon} tone="rose" label="مصروفات اليوم" value={formatSDG(stats?.todayExpenses ?? 0)} to="/expenses" search={{ range: "today" }} />
+        <MiniStat icon={Clock} tone="amber" label="فواتير معلّقة" value={formatNumber(stats?.pendingCount ?? 0)} to="/invoices" search={{ status: "pending" }} />
+        <MiniStat icon={AlertTriangle} tone="rose" label="مخزون منخفض" value={formatNumber(stats?.lowStockCount ?? 0)} to="/products" search={{ filter: "low-stock" }} />
       </section>
 
-      {/* Quick action buttons */}
+      {/* Quick action buttons — enhanced spacing + focus/press states */}
       <section aria-label="إجراءات سريعة" className="mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
           <QuickAction to="/cashier" icon={ShoppingCart} label="فاتورة جديدة" primary />
           <QuickAction to="/products/new" icon={Plus} label="منتج جديد" />
           <QuickAction to="/customers" icon={UserPlus} label="عميل جديد" />

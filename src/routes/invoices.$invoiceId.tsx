@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search, Download } from "lucide-react";
+import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search, Download, Phone } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
 import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
@@ -2249,10 +2249,17 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           <div className="flex justify-start">
             {showLogo && <img src={logo} alt={storeName} className="h-24 w-24 object-contain" />}
           </div>
-          <div className="text-center">
-            <h1 className="text-4xl font-extrabold tracking-wide">{storeName}</h1>
-            {storeSubtitle && <p className="text-lg font-semibold mt-1 text-black/80">{storeSubtitle}</p>}
-            {storePhone && <p className="text-sm mt-1 nums" dir="ltr">TEL: {storePhone}</p>}
+          <div className="text-center min-w-0">
+            <h1 className="text-4xl font-extrabold tracking-wide">فاتورة مبدئية</h1>
+            <p className="text-lg font-semibold mt-1 text-black/80 truncate">{storeSubtitle || storeName}</p>
+            {storePhone && (
+              <div className="mt-1.5 max-w-full overflow-x-auto scrollbar-thin">
+                <p className="inline-flex items-center gap-1.5 text-sm nums whitespace-nowrap" dir="ltr">
+                  <Phone className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{storePhone}</span>
+                </p>
+              </div>
+            )}
           </div>
           <div className="text-left">
             <div className="inline-block border-2 border-black px-4 py-2 rounded">

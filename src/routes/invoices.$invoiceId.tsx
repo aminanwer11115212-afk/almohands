@@ -2213,7 +2213,7 @@ function InvoiceDetailPage() {
           }
           ${format === "thermal"
             ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: 297mm 210mm; margin: 6mm; } @page :first { size: 297mm 210mm; margin: 6mm; } @page :left { size: 297mm 210mm; margin: 6mm; } @page :right { size: 297mm 210mm; margin: 6mm; }"}
+            : "@page { size: A4 landscape; margin: 6mm; } @page :first { size: A4 landscape; margin: 6mm; } @page :left { size: A4 landscape; margin: 6mm; } @page :right { size: A4 landscape; margin: 6mm; }"}
         }
       `}</style>
     </div>

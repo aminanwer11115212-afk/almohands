@@ -90,11 +90,11 @@ function ProductsPage() {
 
   const filtered = useMemo(() => {
     return rows.filter((p) => {
-      if (low && p.quantity > p.minQuantity) return false;
+      if (effectiveLow && p.quantity > p.minQuantity) return false;
       if (category && (p.category ?? "") !== category) return false;
       return true;
     });
-  }, [rows, low, category]);
+  }, [rows, effectiveLow, category]);
 
   // Pagination — slice filtered.
   const safePageSize = (PAGE_SIZES as readonly number[]).includes(pageSize) ? pageSize : 50;

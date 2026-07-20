@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useExpenses, useAddExpense, useDeleteExpense } from "@/hooks/use-expenses";
@@ -8,9 +10,15 @@ import { formatSDG } from "@/lib/format";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
+const rangeEnum = z.enum(["", "today", "week", "month"]);
+const searchSchema = z.object({
+  range: fallback(rangeEnum, "").default(""),
+});
+type ExpensesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "المصروفات — المهندس" }] }),
+  validateSearch: zodValidator(searchSchema),
   component: ExpensesPageGuarded,
 });
 

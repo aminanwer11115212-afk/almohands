@@ -165,7 +165,9 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
     });
     const xlsxName = `${base}.xlsx`;
 
-    // 4) Prefer silent write into the user-selected backup folder.
+    // 4) Silent write into a user-selected backup folder ONLY.
+    //    If no folder is configured, skip silently — never trigger a browser
+    //    download popup for AUTO backups. Manual backups can still download.
     let target: BackupTarget = "download";
     let folderName: string | undefined;
     const dir = await getStoredBackupFolder();
@@ -178,11 +180,37 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
           target = "folder";
           folderName = dir.name;
         } catch (e) {
-          console.warn("[backup] folder write failed, falling back to download", e);
+          console.warn("[backup] folder write failed", e);
+          if (kind !== "manual") {
+            const entry: BackupEntry = {
+              kind, ts: now.toISOString(), day,
+              filename: base, bytes: 0, ok: false,
+              error: "folder-write-failed (auto backup skipped)",
+            };
+            writeHistory([...readBackupHistory(), entry]);
+            return entry;
+          }
         }
+      } else if (kind !== "manual") {
+        const entry: BackupEntry = {
+          kind, ts: now.toISOString(), day,
+          filename: base, bytes: 0, ok: false,
+          error: "no-folder-permission (auto backup skipped)",
+        };
+        writeHistory([...readBackupHistory(), entry]);
+        return entry;
       }
+    } else if (kind !== "manual") {
+      const entry: BackupEntry = {
+        kind, ts: now.toISOString(), day,
+        filename: base, bytes: 0, ok: false,
+        error: "no-backup-folder (auto backup skipped)",
+      };
+      writeHistory([...readBackupHistory(), entry]);
+      return entry;
     }
     if (target === "download") {
+      // Only reached for manual backups without a folder.
       triggerDownload(jsonBlob, jsonName);
       triggerDownload(xlsxBlob, xlsxName);
     }

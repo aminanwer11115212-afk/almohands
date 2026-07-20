@@ -262,15 +262,17 @@ function MiniStat({
   value,
   tone,
   to,
+  search,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   tone: Tone;
   to?: string;
+  search?: Record<string, string>;
 }) {
   const inner = (
-    <div className="min-w-0 rounded-xl bg-card border border-border shadow-card p-2.5 sm:p-3 flex items-center gap-2 hover:border-brand/30 transition">
+    <div className="min-w-0 rounded-xl bg-card border border-border shadow-card p-2.5 sm:p-3 flex items-center gap-2 hover:border-brand/40 hover:shadow-elevated active:scale-[0.98] transition">
       <div className={`size-8 sm:size-9 rounded-lg grid place-items-center shrink-0 ${TONE_BG[tone]}`}>
         <Icon className="size-4 sm:size-[18px]" />
       </div>
@@ -281,10 +283,15 @@ function MiniStat({
     </div>
   );
   if (to) {
+    const qs = search ? "?" + new URLSearchParams(search).toString() : "";
     return (
-      <Link to={to} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-xl">
+      <a
+        href={`${to}${qs}`}
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-xl block"
+        aria-label={`${label}: ${value}`}
+      >
         {inner}
-      </Link>
+      </a>
     );
   }
   return inner;

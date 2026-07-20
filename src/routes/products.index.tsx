@@ -740,6 +740,87 @@ function EditCell({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
+function EditableCell({
+  value, type = "text", onSave, disabled, className = "", placeholder = "—", prefix = "",
+}: {
+  value: string | number | null | undefined;
+  type?: "text" | "number";
+  onSave: (v: string) => Promise<void> | void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+  prefix?: string;
+}) {
+  const displayed = value === null || value === undefined || value === "" ? "" : String(value);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string>(displayed);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!editing) setDraft(displayed); }, [displayed, editing]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  async function commit() {
+    if (!editing) return;
+    if (draft === displayed) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(draft.trim());
+      setEditing(false);
+    } catch {
+      setDraft(displayed);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (disabled) {
+    return <span className={className}>{displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground">—</span>}</span>;
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "F2") {
+            e.preventDefault(); e.stopPropagation(); setEditing(true);
+          }
+        }}
+        className={`w-full text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
+        title="اضغط للتعديل"
+      >
+        {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type={type}
+      inputMode={type === "number" ? "decimal" : undefined}
+      value={draft}
+      autoFocus
+      disabled={saving}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") { e.preventDefault(); void commit(); }
+        else if (e.key === "Escape") { e.preventDefault(); setDraft(displayed); setEditing(false); }
+      }}
+      placeholder={placeholder}
+      className={`w-full h-7 rounded border border-brand bg-background text-center px-1.5 text-xs nums outline-none ${className}`}
+    />
+  );
+}
+
+
 function StatCard({ icon, label, value, tone = "default" }: {
   icon: React.ReactNode; label: string; value: string; tone?: "default" | "warn";
 }) {

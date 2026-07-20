@@ -395,7 +395,7 @@ function ProductsPage() {
 
       {/* Keyboard hint + bulk actions */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم ↑/↓ للتنقل، Space للتحديد، Ctrl+A للكل، Delete للحذف، Enter للفتح</span>
+        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم للتنقل، Enter/F2 أو الكتابة للتحرير، ↑↓ داخل الخلية للحفظ التلقائي والانتقال، Escape للإلغاء، Delete للحذف</span>
         {selected.size > 0 && (
           <span className="ms-auto flex items-center gap-2">
             <span className="font-bold text-foreground">{formatNumber(selected.size)} محدد</span>

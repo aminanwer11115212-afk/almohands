@@ -50,10 +50,11 @@ type Draft = {
 };
 
 function ProductsPage() {
-  const { q, sort, asc, low, category, page, pageSize } = Route.useSearch();
+  const { q, sort, asc, low, category, page, pageSize, filter } = Route.useSearch();
   const navigate = useNavigate({ from: "/products/" });
   const queryClient = useQueryClient();
   const canWrite = useCan("products.write");
+  const effectiveLow = low || filter === "low-stock";
   const { data: rows = [], isLoading, isError, error } = useProducts({ q, sort, asc });
   const { data: store } = useStoreProfile();
 

@@ -22,20 +22,26 @@ import {
   UserCircle2,
   ShoppingBag,
   History,
+  Plus,
+  UserPlus,
+  Receipt as ReceiptIcon,
+  Wallet as WalletIcon,
+  AlertTriangle,
+  Clock,
+  Coins,
+  CreditCard,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { AppShell } from "@/components/AppShell";
 import { MenuTile } from "@/components/MenuTile";
 import { DashboardInsights } from "@/components/DashboardInsights";
 import { InstallAppDialog } from "@/components/InstallAppDialog";
-import { formatSDG } from "@/lib/format";
+import { formatSDG, formatNumber } from "@/lib/format";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
-
 import { useUnreadNotifications } from "@/hooks/use-notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -52,7 +58,6 @@ function HomePage() {
   const [installOpen, setInstallOpen] = useState(false);
   const { data: stats } = useDashboardStats();
   const { data: unread = 0 } = useUnreadNotifications();
-
 
   useEffect(() => {
     let alive = true;
@@ -77,7 +82,7 @@ function HomePage() {
   return (
     <AppShell
       title="لوحة التحكم"
-      subtitle="مرحباً بك مجدداً، إليك ملخص أداء اليوم"
+      subtitle="ملخص أداء اليوم مع اختصارات سريعة"
       rightAction={
         <div className="flex items-center gap-1">
           <Link
@@ -123,75 +128,80 @@ function HomePage() {
         </div>
       }
     >
-      {/* Mobile-only brand identity block (desktop shows brand in sidebar) */}
-      <section className="lg:hidden flex flex-col items-center text-center pt-1 pb-5" aria-label="هوية النظام">
+      {/* Compact brand + hero row (logo beside daily mini reports) */}
+      <section
+        aria-label="الملخص اليومي"
+        className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-4 mb-5"
+      >
+        {/* Brand block — logo + name (compact, always visible) */}
         <button
           type="button"
           onClick={() => setInstallOpen(true)}
-          className="group flex flex-col items-center rounded-3xl px-4 py-2 -mx-4 -my-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 transition"
+          className="group flex items-center gap-3 rounded-2xl bg-card border border-border shadow-card px-4 py-3 hover:border-brand/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
           aria-label="تثبيت تطبيق المهندس على جهازك"
         >
-          <div className="grid size-20 place-items-center rounded-3xl bg-card shadow-card ring-1 ring-border group-hover:ring-brand/40 group-active:scale-95 transition">
+          <div className="grid size-14 place-items-center rounded-2xl bg-brand-soft ring-1 ring-brand/20 shrink-0 group-active:scale-95 transition">
             <img
               src={logo}
-              alt="شعار المهندس لقطع غيار السيارات"
-              width={64}
-              height={64}
-              className="size-16 object-contain"
+              alt="شعار المهندس"
+              width={44}
+              height={44}
+              className="size-11 object-contain"
             />
           </div>
-          <h2 className="mt-3 text-2xl font-extrabold text-brand font-display">المهندس</h2>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Download className="size-3" aria-hidden="true" />
-            اضغط للتثبيت على الشاشة الرئيسية
-          </p>
+          <div className="text-start min-w-0">
+            <h2 className="text-lg font-extrabold text-brand font-display leading-tight truncate">المهندس</h2>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Download className="size-3" aria-hidden="true" />
+              اضغط للتثبيت
+            </p>
+          </div>
         </button>
+
+        {/* Hero KPI: month sales */}
+        <article className="rounded-2xl bg-brand-gradient text-brand-foreground px-4 py-3 shadow-elevated relative overflow-hidden">
+          <div className="absolute -top-10 -left-10 size-40 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <span className="text-[11px] opacity-85">مبيعات هذا الشهر</span>
+              <div className="mt-0.5 text-2xl sm:text-3xl font-extrabold nums leading-tight font-display break-words">
+                {formatSDG(stats?.thisMonth ?? 0)}
+              </div>
+              {growth !== null && (
+                <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] bg-white/15 rounded-full px-2 py-0.5">
+                  <TrendingUp className={`size-3 ${growth < 0 ? "rotate-180" : ""}`} aria-hidden="true" />
+                  <span className="nums">{growth >= 0 ? "+" : ""}{growth.toFixed(1)}%</span>
+                  <span className="opacity-80">عن الشهر الماضي</span>
+                </div>
+              )}
+            </div>
+            <span className="hidden sm:block text-[10px] font-semibold bg-white/15 rounded-full px-2 py-0.5 shrink-0">SDG</span>
+          </div>
+        </article>
       </section>
+
       <InstallAppDialog open={installOpen} onClose={() => setInstallOpen(false)} />
 
+      {/* Daily mini reports strip — 6 tiles */}
+      <section aria-label="تقارير اليوم" className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-5">
+        <MiniStat icon={Coins} tone="emerald" label="مبيعات اليوم" value={formatSDG(stats?.today ?? 0)} />
+        <MiniStat icon={ReceiptIcon} tone="sky" label="عدد الفواتير" value={formatNumber(stats?.todayCount ?? 0)} />
+        <MiniStat icon={CreditCard} tone="brand" label="تحصيلات اليوم" value={formatSDG(stats?.todayPaid ?? 0)} />
+        <MiniStat icon={WalletIcon} tone="rose" label="مصروفات اليوم" value={formatSDG(stats?.todayExpenses ?? 0)} />
+        <MiniStat icon={Clock} tone="amber" label="فواتير معلّقة" value={formatNumber(stats?.pendingCount ?? 0)} to="/invoices" />
+        <MiniStat icon={AlertTriangle} tone="rose" label="مخزون منخفض" value={formatNumber(stats?.lowStockCount ?? 0)} to="/products" />
+      </section>
 
-      {/* KPI row */}
-      <section aria-label="ملخص المبيعات" className="grid grid-cols-4 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
-        {/* Featured monthly */}
-        <article className="col-span-4 sm:col-span-3 lg:col-span-6 rounded-3xl bg-brand-gradient text-brand-foreground p-5 lg:p-7 shadow-elevated relative overflow-hidden">
-          <div
-            className="absolute -top-16 -left-16 size-48 rounded-full bg-white/10 blur-2xl"
-            aria-hidden="true"
-          />
-          <div className="relative">
-            <div className="flex items-center justify-between">
-              <span className="text-xs lg:text-sm opacity-85">مبيعات هذا الشهر</span>
-              <span className="text-[10px] font-semibold bg-white/15 rounded-full px-2 py-0.5">SDG</span>
-            </div>
-            <div className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold nums leading-tight font-display break-words">
-              {formatSDG(stats?.thisMonth ?? 0)}
-            </div>
-            {growth !== null && (
-              <div className="mt-3 inline-flex items-center gap-1 text-[11px] lg:text-xs bg-white/10 rounded-full px-2.5 py-1">
-                <TrendingUp className={`size-3 ${growth < 0 ? "rotate-180" : ""}`} aria-hidden="true" />
-                <span className="nums">
-                  {growth >= 0 ? "+" : ""}
-                  {growth.toFixed(1)}%
-                </span>
-                <span className="opacity-80">مقارنة بالشهر الماضي</span>
-              </div>
-            )}
-          </div>
-        </article>
-
-        <article className="col-span-2 sm:col-span-1 lg:col-span-3 min-w-0 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
-          <div className="text-[11px] lg:text-xs text-muted-foreground font-semibold">اليوم</div>
-          <div className="mt-1 lg:mt-2 text-base sm:text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display break-words">
-            {formatSDG(stats?.today ?? 0)}
-          </div>
-        </article>
-
-        <article className="col-span-2 sm:col-span-1 lg:col-span-3 min-w-0 rounded-3xl bg-card p-4 lg:p-5 shadow-card border border-border">
-          <div className="text-[11px] lg:text-xs text-muted-foreground font-semibold">الشهر الماضي</div>
-          <div className="mt-1 lg:mt-2 text-base sm:text-lg lg:text-2xl font-extrabold text-foreground nums leading-tight font-display break-words">
-            {formatSDG(stats?.lastMonth ?? 0)}
-          </div>
-        </article>
+      {/* Quick action buttons */}
+      <section aria-label="إجراءات سريعة" className="mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+          <QuickAction to="/cashier" icon={ShoppingCart} label="فاتورة جديدة" primary />
+          <QuickAction to="/products/new" icon={Plus} label="منتج جديد" />
+          <QuickAction to="/customers" icon={UserPlus} label="عميل جديد" />
+          <QuickAction to="/expenses" icon={Wallet} label="مصروف" />
+          <QuickAction to="/purchases" icon={ShoppingBag} label="مشتريات" />
+          <QuickAction to="/reports" icon={PieChart} label="التقارير" />
+        </div>
       </section>
 
       {/* Insights: chart + recent + pending + low-stock */}
@@ -230,7 +240,80 @@ function HomePage() {
       <p className="mt-8 text-center text-[11px] text-muted-foreground">
         © {new Date().getFullYear()} نظام المهندس — طوّره أمين أنور أحمد
       </p>
-
     </AppShell>
+  );
+}
+
+/* --------------------- helper components --------------------- */
+
+type Tone = "brand" | "emerald" | "sky" | "amber" | "rose";
+
+const TONE_BG: Record<Tone, string> = {
+  brand: "bg-brand/10 text-brand",
+  emerald: "bg-emerald-500/10 text-emerald-600",
+  sky: "bg-sky-500/10 text-sky-600",
+  amber: "bg-amber-500/10 text-amber-600",
+  rose: "bg-rose-500/10 text-rose-600",
+};
+
+function MiniStat({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  to,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  tone: Tone;
+  to?: string;
+}) {
+  const inner = (
+    <div className="min-w-0 rounded-xl bg-card border border-border shadow-card p-2.5 sm:p-3 flex items-center gap-2 hover:border-brand/30 transition">
+      <div className={`size-8 sm:size-9 rounded-lg grid place-items-center shrink-0 ${TONE_BG[tone]}`}>
+        <Icon className="size-4 sm:size-[18px]" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] sm:text-[11px] text-muted-foreground font-semibold truncate">{label}</div>
+        <div className="text-xs sm:text-sm font-extrabold nums leading-tight truncate">{value}</div>
+      </div>
+    </div>
+  );
+  if (to) {
+    return (
+      <Link to={to} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-xl">
+        {inner}
+      </Link>
+    );
+  }
+  return inner;
+}
+
+function QuickAction({
+  to,
+  icon: Icon,
+  label,
+  primary,
+}: {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      className={[
+        "flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold transition",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+        primary
+          ? "bg-brand-gradient text-brand-foreground shadow-elevated hover:opacity-95"
+          : "bg-card border border-border shadow-card text-foreground hover:border-brand/40 hover:text-brand",
+      ].join(" ")}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="truncate">{label}</span>
+    </Link>
   );
 }

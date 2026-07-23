@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -430,14 +430,15 @@ function InvoiceDetailPage() {
 
       // ---------- 2) Pre-flight stock check for INCREASED quantities (incl. new rows) ----------
       const increases = rowsWithFlags.filter((r) => r.product_id && r.quantity > r._origQty);
+      let stockMapLocal = new Map<string, any>();
       if (increases.length > 0) {
         const productIds = Array.from(new Set(increases.map((r) => r.product_id!) as string[]));
         const { data: prods, error: prodsErr } = await supabase
           .from("products")
-          .select("id, name, quantity")
+          .select("id, name, quantity, cost_price")
           .in("id", productIds);
         if (prodsErr) throw prodsErr;
-        const stockMapLocal = new Map((prods ?? []).map((p) => [p.id, p]));
+        stockMapLocal = new Map((prods ?? []).map((p) => [p.id, p]));
         for (const r of increases) {
           const p = stockMapLocal.get(r.product_id!);
           if (!p) continue;
@@ -464,6 +465,8 @@ function InvoiceDetailPage() {
       for (const row of rowsWithFlags) {
         if (!row._isNew) continue;
         const lineTotal = row.quantity * row.unit_price;
+        const p = row.product_id ? stockMapLocal.get(row.product_id) : null;
+        const costPrice = p ? (Number(p.cost_price) || 0) : 0;
         const { error: insErr } = await supabase.from("invoice_items").insert({
           invoice_id: inv.id,
           user_id: uid,
@@ -472,7 +475,7 @@ function InvoiceDetailPage() {
           unit: row.unit ?? "قطعة",
           quantity: row.quantity,
           unit_price: row.unit_price,
-          cost_price: 0,
+          cost_price: costPrice,
           line_total: lineTotal,
         });
         if (insErr) throw insErr;
@@ -2520,3 +2523,4 @@ function MiniKpi({
     </div>
   );
 }
+

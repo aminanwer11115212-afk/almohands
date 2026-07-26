@@ -54,17 +54,12 @@ export const Route = createFileRoute("/offline-pending")({
   ),
 });
 
-// usePowerSync throws when no PowerSyncContext is present. Wrap in try/catch
-// to detect provider availability without crashing the render.
+// usePowerSync does NOT throw without a provider — the context defaults to
+// null. Components that call useStatus() must therefore only render when the
+// context value is actually present.
 function useHasPowerSync(): boolean {
-  try {
-    usePowerSync();
-    return true;
-  } catch {
-    return false;
-  }
+  return usePowerSync() != null;
 }
-
 
 type OpKind = "PUT" | "PATCH" | "DELETE";
 
@@ -79,7 +74,11 @@ interface CrudRow {
 }
 
 const OP_LABELS: Record<string, { label: string; color: string; icon: typeof Plus }> = {
-  PUT: { label: "إضافة/تحديث", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: Plus },
+  PUT: {
+    label: "إضافة/تحديث",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    icon: Plus,
+  },
   PATCH: { label: "تعديل", color: "bg-sky-100 text-sky-700 border-sky-200", icon: Pencil },
   DELETE: { label: "حذف", color: "bg-rose-100 text-rose-700 border-rose-200", icon: X },
 };
@@ -140,12 +139,10 @@ function NotConfiguredCard() {
     <div className="p-6">
       <div className="max-w-xl mx-auto rounded-2xl border border-amber-200 bg-amber-50/60 p-6 text-center">
         <CloudOff className="mx-auto size-10 text-amber-600 mb-3" />
-        <h2 className="font-bold text-lg text-amber-900 mb-1">
-          المزامنة المحلية غير مفعّلة
-        </h2>
+        <h2 className="font-bold text-lg text-amber-900 mb-1">المزامنة المحلية غير مفعّلة</h2>
         <p className="text-sm text-amber-800">
-          لم يتم ضبط عنوان PowerSync بعد. سيعمل النظام بالوضع العادي (متصل بالإنترنت
-          مباشرةً) ولا توجد عمليات معلّقة محلياً.
+          لم يتم ضبط عنوان PowerSync بعد. سيعمل النظام بالوضع العادي (متصل بالإنترنت مباشرةً) ولا
+          توجد عمليات معلّقة محلياً.
         </p>
       </div>
     </div>
@@ -155,7 +152,6 @@ function NotConfiguredCard() {
 function PendingList() {
   const ps = usePowerSync();
   const status = useStatus();
-
 
   const [rows, setRows] = useState<CrudRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,18 +298,14 @@ function PendingList() {
       <div
         className={
           "rounded-xl border p-3 flex items-center justify-between gap-3 text-sm " +
-          (connected
-            ? "bg-emerald-50/60 border-emerald-200"
-            : "bg-amber-50/60 border-amber-200")
+          (connected ? "bg-emerald-50/60 border-emerald-200" : "bg-amber-50/60 border-amber-200")
         }
       >
         <div className="flex items-center gap-2">
           {connected ? (
             <>
               <CheckCircle2 className="size-4 text-emerald-600" />
-              <span className="text-emerald-800">
-                متصل بالخادم — سيتم رفع العمليات تلقائياً.
-              </span>
+              <span className="text-emerald-800">متصل بالخادم — سيتم رفع العمليات تلقائياً.</span>
             </>
           ) : (
             <>
@@ -464,7 +456,10 @@ function PendingList() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground mb-1">البيانات:</div>
-                <pre className="bg-muted rounded-lg p-3 text-[11px] overflow-auto max-h-80 font-mono" dir="ltr">
+                <pre
+                  className="bg-muted rounded-lg p-3 text-[11px] overflow-auto max-h-80 font-mono"
+                  dir="ltr"
+                >
                   {JSON.stringify(detail.data ?? {}, null, 2)}
                 </pre>
               </div>
@@ -488,8 +483,8 @@ function PendingList() {
             </DialogTitle>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
-            سيتم حذف جميع العمليات المعلّقة محلياً ({formatNumber(rows.length)} عملية) نهائياً
-            دون رفعها للخادم. لا يمكن التراجع عن هذا الإجراء.
+            سيتم حذف جميع العمليات المعلّقة محلياً ({formatNumber(rows.length)} عملية) نهائياً دون
+            رفعها للخادم. لا يمكن التراجع عن هذا الإجراء.
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmClear(false)}>

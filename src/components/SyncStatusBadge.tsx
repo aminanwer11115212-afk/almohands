@@ -49,9 +49,7 @@ function ConnectedBadge() {
     let mounted = true;
     const tick = async () => {
       try {
-        const rows = await powersync.getAll<{ n: number }>(
-          "SELECT COUNT(*) AS n FROM ps_crud",
-        );
+        const rows = await powersync.getAll<{ n: number }>("SELECT COUNT(*) AS n FROM ps_crud");
         if (mounted) setPending(rows[0]?.n ?? 0);
       } catch {
         /* schema not yet ready */
@@ -118,13 +116,20 @@ function ConnectedBadge() {
       <PopoverContent align="end" className="w-72 text-sm" dir="rtl">
         <div className="space-y-2">
           <div className="flex items-center gap-2 font-semibold">
-            {online ? <Wifi className="size-4 text-emerald-600" /> : <WifiOff className="size-4 text-muted-foreground" />}
+            {online ? (
+              <Wifi className="size-4 text-emerald-600" />
+            ) : (
+              <WifiOff className="size-4 text-muted-foreground" />
+            )}
             {online ? "متصل بالإنترنت" : "بدون إنترنت"}
           </div>
           <div className="text-xs text-muted-foreground space-y-1">
             <div>حالة المزامنة: {connected ? "نشطة" : "متوقفة"}</div>
             <div>آخر مزامنة: {timeAgo(lastSynced)}</div>
-            <div>عمليات في الانتظار: <span className="font-semibold nums text-foreground">{pending}</span></div>
+            <div>
+              عمليات في الانتظار:{" "}
+              <span className="font-semibold nums text-foreground">{pending}</span>
+            </div>
           </div>
           {powersync ? (
             <Button
@@ -170,11 +175,11 @@ function BasicBadge() {
 }
 
 export function SyncStatusBadge() {
-  // usePowerSync throws when there's no context. Try/catch is fine here
-  // because the presence of the provider is a boot-time decision.
-  try {
-    return <ConnectedBadge />;
-  } catch {
-    return <BasicBadge />;
-  }
+  // usePowerSync does NOT throw without a provider — it returns null
+  // (React.createContext(null)). Rendering <ConnectedBadge /> in that case
+  // would crash inside useStatus() ("Cannot read properties of null
+  // (reading 'currentStatus')"), so gate on the context value itself.
+  const powersync = usePowerSync();
+  if (!powersync) return <BasicBadge />;
+  return <ConnectedBadge />;
 }

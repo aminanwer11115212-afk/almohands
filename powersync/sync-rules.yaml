@@ -2,14 +2,17 @@
 # يُزامن بيانات المتجر كاملة لكل مستخدم مسجّل دخول.
 # مناسب لعدد مستخدمين قليل (مدير + كاشير) يتشاركون نفس بيانات المتجر.
 #
+# قاعدة التحقق في PowerSync: كل استعلام بيانات يجب أن يستخدم جميع معاملات
+# الحاوية (bucket parameters) — لذلك بيانات المتجر حاوية عامة بلا معاملات
+# (المصادقة عبر Supabase JWT مطلوبة أصلاً لفتح المزامنة)، وشرط المدير
+# مُعرّف كفلتر بدون أعمدة خرج.
+#
 # ملاحظة: عند نمو الفواتير القديمة يمكن لاحقاً تقييد نطاقها (مثلاً آخر 12 شهراً)
 # بإضافة WHERE created_at > now() - interval '365 days' على جدول invoices.
 
 bucket_definitions:
-  # كل الجداول للجميع (بشرط تسجيل الدخول عبر Supabase JWT)
+  # بيانات المتجر كاملة — حاوية عامة لكل مستخدم مسجّل دخول
   store_data:
-    parameters:
-      - SELECT request.user_id() AS user_id WHERE request.user_id() IS NOT NULL
     data:
       - SELECT * FROM products
       - SELECT * FROM customers
@@ -30,18 +33,13 @@ bucket_definitions:
 
   # إشعارات المستخدم الحالي فقط
   user_notifications:
-    parameters:
-      - SELECT request.user_id() AS user_id
+    parameters: SELECT request.user_id() AS user_id
     data:
       - SELECT * FROM notifications WHERE user_id = bucket.user_id
 
-  # سجلات التدقيق والاستيراد/التصدير للمديرين فقط
+  # سجلات التدقيق والاستيراد/التصدير للمديرين فقط (فلتر بدون أعمدة خرج)
   admin_logs:
-    parameters:
-      - SELECT user_id
-        FROM user_roles
-        WHERE user_id = request.user_id()
-          AND role = 'admin'
+    parameters: SELECT FROM user_roles WHERE user_id = request.user_id() AND role = 'admin'
     data:
       - SELECT * FROM audit_logs
       - SELECT * FROM import_logs

@@ -4,6 +4,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  localDelete,
+  localInsert,
+  localQuery,
+  requireUserId,
+} from "@/lib/data/local";
 import { toast } from "sonner";
 import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw, StopCircle, Loader2 } from "lucide-react";
 import { exportPdfFromRows } from "@/lib/pdf-html-export";
@@ -130,6 +139,35 @@ async function streamTablePages(
   const meta = TABLES.find((t) => t.key === name)!;
   const PAGE = 1000;
   const MAX_ROWS = 200000;
+  if (canUseLocalData()) {
+    // Local mirror column names: expenses stores its date in `date`.
+    const dateCol = name === "expenses" ? "date" : meta.dateCol;
+    const dateOnly = name === "expenses"; // Postgres `date` mirrors as YYYY-MM-DD text
+    for (let off = 0; off < MAX_ROWS; off += PAGE) {
+      const conds: string[] = [];
+      const args: unknown[] = [];
+      if (from) {
+        conds.push(`${dateCol} >= ?`);
+        args.push(dateOnly ? from : new Date(from).toISOString());
+      }
+      if (to) {
+        const end = new Date(to);
+        end.setHours(23, 59, 59, 999);
+        conds.push(`${dateCol} <= ?`);
+        args.push(dateOnly ? to : end.toISOString());
+      }
+      const sql =
+        `SELECT * FROM ${name}` +
+        (conds.length ? ` WHERE ${conds.join(" AND ")}` : "") +
+        ` ORDER BY created_at LIMIT ? OFFSET ?`;
+      const rows = await localQuery<Record<string, unknown>>(sql, [...args, PAGE, off]);
+      const batch = rows.map((r) => fromLocalRow(name, r));
+      const cont = await onPage(batch, off);
+      if (cont === false) return;
+      if (batch.length < PAGE) return;
+    }
+    return;
+  }
   for (let off = 0; off < MAX_ROWS; off += PAGE) {
     let q: any = supabase.from(name).select("*");
     if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
@@ -185,6 +223,14 @@ function ExportPage() {
   const { data: logs = [] } = useQuery({
     queryKey: ["export_logs", logStatus],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        let sql = `SELECT * FROM export_logs`;
+        const args: unknown[] = [];
+        if (logStatus !== "all") { sql += ` WHERE status = ?`; args.push(logStatus); }
+        sql += ` ORDER BY created_at DESC LIMIT 100`;
+        const rows = await localQuery<Record<string, unknown>>(sql, args);
+        return rows.map((r) => fromLocalRow<Tables<"export_logs">>("export_logs", r));
+      }
       let q = supabase.from("export_logs").select("*").order("created_at", { ascending: false }).limit(100);
       if (logStatus !== "all") q = q.eq("status", logStatus);
       const { data, error } = await q;
@@ -195,6 +241,11 @@ function ExportPage() {
 
   const logMut = useMutation({
     mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        await localInsert("export_logs", { ...entry, user_id: userId });
+        return;
+      }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("no user");
       const { error } = await supabase.from("export_logs").insert({ ...entry, user_id: u.user.id });
@@ -205,6 +256,10 @@ function ExportPage() {
 
   const deleteLog = useMutation({
     mutationFn: async (id: string) => {
+      if (canUseLocalData()) {
+        await localDelete("export_logs", id);
+        return;
+      }
       const { error } = await supabase.from("export_logs").delete().eq("id", id);
       if (error) throw error;
     },
@@ -342,11 +397,21 @@ function ExportPage() {
         notes: from || to ? `فلترة تاريخ: ${from || "?"} → ${to || "?"}` : undefined,
         payload: partialPayload,
       });
-      const { data: au } = await supabase.auth.getUser();
-      if (au?.user) await supabase.from("audit_logs").insert({
-        user_id: au.user.id, action: "data.export", table_name: [...selected].join(","),
-        details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
-      }).then(() => undefined, () => undefined);
+      if (canUseLocalData()) {
+        try {
+          const uid = await requireUserId();
+          await localInsert("audit_logs", {
+            user_id: uid, action: "data.export", table_name: [...selected].join(","),
+            details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
+          });
+        } catch { /* audit best-effort */ }
+      } else {
+        const { data: au } = await supabase.auth.getUser();
+        if (au?.user) await supabase.from("audit_logs").insert({
+          user_id: au.user.id, action: "data.export", table_name: [...selected].join(","),
+          details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
+        }).then(() => undefined, () => undefined);
+      }
       toast.success(`تم تصدير ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({
@@ -354,11 +419,21 @@ function ExportPage() {
         status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
         payload: { export_type: "partial", format, tables: [...selected], from, to },
       }).catch(() => {});
-      const { data: au } = await supabase.auth.getUser();
-      if (au?.user) await supabase.from("audit_logs").insert({
-        user_id: au.user.id, action: "data.export.failed", table_name: [...selected].join(","),
-        details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
-      }).then(() => undefined, () => undefined);
+      if (canUseLocalData()) {
+        try {
+          const uid = await requireUserId();
+          await localInsert("audit_logs", {
+            user_id: uid, action: "data.export.failed", table_name: [...selected].join(","),
+            details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
+          });
+        } catch { /* audit best-effort */ }
+      } else {
+        const { data: au } = await supabase.auth.getUser();
+        if (au?.user) await supabase.from("audit_logs").insert({
+          user_id: au.user.id, action: "data.export.failed", table_name: [...selected].join(","),
+          details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
+        }).then(() => undefined, () => undefined);
+      }
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
       setBusy(false);
@@ -403,11 +478,21 @@ function ExportPage() {
         notes: "نسخة احتياطية كاملة (streaming)",
         payload: { export_type: "full_backup", format: "json" },
       });
-      const { data: au } = await supabase.auth.getUser();
-      if (au?.user) await supabase.from("audit_logs").insert({
-        user_id: au.user.id, action: "data.export.backup", table_name: "*",
-        details: { row_count: total, duration_ms: Date.now() - started },
-      }).then(() => undefined, () => undefined);
+      if (canUseLocalData()) {
+        try {
+          const uid = await requireUserId();
+          await localInsert("audit_logs", {
+            user_id: uid, action: "data.export.backup", table_name: "*",
+            details: { row_count: total, duration_ms: Date.now() - started },
+          });
+        } catch { /* audit best-effort */ }
+      } else {
+        const { data: au } = await supabase.auth.getUser();
+        if (au?.user) await supabase.from("audit_logs").insert({
+          user_id: au.user.id, action: "data.export.backup", table_name: "*",
+          details: { row_count: total, duration_ms: Date.now() - started },
+        }).then(() => undefined, () => undefined);
+      }
       toast.success(`نسخة احتياطية: ${formatNumber(total)} سجل`);
     } catch (e: any) {
       await logMut.mutateAsync({

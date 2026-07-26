@@ -6,10 +6,19 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { toProduct } from "@/types/product";
+import { toProduct, type ProductRow } from "@/types/product";
 import { getErrorMessage, parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { logProductAudit, diffProduct, PRODUCT_AUDIT_FIELDS } from "@/lib/product-audit";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  localDelete,
+  localInsert,
+  localQueryOne,
+  localUpdate,
+  requireUserId,
+} from "@/lib/data/local";
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({ meta: [{ title: "تعديل منتج — المهندس" }] }),
@@ -40,6 +49,15 @@ function EditProductPage() {
   const { data: product, isLoading: loadingProduct, error: loadError } = useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const row = await localQueryOne<Record<string, unknown>>(
+          `SELECT * FROM products WHERE id = ?`,
+          [productId],
+        );
+        if (!row) return null;
+        return toProduct(fromLocalRow<ProductRow>("products", row));
+      }
+
       const { data, error } = await supabase
         .from("products")
         .select("*")
@@ -124,6 +142,56 @@ function EditProductPage() {
         sale_price: p.salePrice,
         notes: p.notes ?? null,
       };
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        await localUpdate("products", productId, nextRow, { touchUpdatedAt: true });
+        // The remote path logs manual cost_price changes via a DB trigger —
+        // replicate that write against the local mirror.
+        if (product && product.costPrice !== p.costPrice) {
+          await localInsert("price_history", {
+            user_id: userId,
+            product_id: productId,
+            old_price: product.costPrice,
+            new_price: p.costPrice,
+            source: "manual",
+          });
+        }
+        // Diff previous vs next and audit only the actually-changed columns.
+        if (product) {
+          const prevRow: Record<string, unknown> = {
+            name: product.name,
+            barcode: product.barcode ?? null,
+            part_number: (product as { partNumber?: string | null }).partNumber ?? null,
+            category: product.category ?? null,
+            unit: product.unit,
+            location: (product as { location?: string | null }).location ?? null,
+            quantity: product.quantity,
+            min_quantity: product.minQuantity,
+            cost_price: product.costPrice,
+            sale_price: product.salePrice,
+            notes: product.notes ?? null,
+          };
+          const changes = diffProduct(prevRow, nextRow, PRODUCT_AUDIT_FIELDS);
+          if (Object.keys(changes).length > 0) {
+            await localInsert("audit_logs", {
+              user_id: userId,
+              action: "product.updated",
+              table_name: "products",
+              record_id: productId,
+              details: {
+                name: p.name,
+                barcode: p.barcode ?? null,
+                changes,
+              },
+            });
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["product", productId] });
+        toast.success("تم حفظ التعديلات");
+        navigate({ to: "/products" });
+        return;
+      }
       const { error } = await supabase
         .from("products")
         .update(nextRow as never)
@@ -176,8 +244,12 @@ function EditProductPage() {
     setDeleting(true);
     setError(null);
     try {
-      const { error } = await supabase.from("products").delete().eq("id", productId);
-      if (error) throw error;
+      if (canUseLocalData()) {
+        await localDelete("products", productId);
+      } else {
+        const { error } = await supabase.from("products").delete().eq("id", productId);
+        if (error) throw error;
+      }
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("تم حذف المنتج");
       navigate({ to: "/products" });

@@ -6,6 +6,18 @@ import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localDelete,
+  localInsert,
+  localQuery,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
 import { logger, newRequestId } from "@/lib/logger";
@@ -135,6 +147,12 @@ function ImportPage() {
   const { data: importLogs = [] } = useQuery({
     queryKey: ["import_logs"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM import_logs ORDER BY created_at DESC LIMIT 30`,
+        );
+        return rows.map((r) => fromLocalRow<Tables<"import_logs">>("import_logs", r));
+      }
       const { data, error } = await supabase
         .from("import_logs")
         .select("*")
@@ -147,6 +165,11 @@ function ImportPage() {
 
   const logMut = useMutation({
     mutationFn: async (entry: { file_name?: string; total_rows: number; imported_rows: number; invalid_rows: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        await localInsert("import_logs", { ...entry, user_id: userId, source: "products", format: "xlsx" });
+        return;
+      }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       await supabase.from("import_logs").insert({ ...entry, user_id: u.user.id, source: "products", format: "xlsx" });
@@ -156,6 +179,10 @@ function ImportPage() {
 
   const deleteLog = useMutation({
     mutationFn: async (id: string) => {
+      if (canUseLocalData()) {
+        await localDelete("import_logs", id);
+        return;
+      }
       await supabase.from("import_logs").delete().eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["import_logs"] }),
@@ -268,11 +295,23 @@ function ImportPage() {
       // مطابقة مع قاعدة البيانات (على دفعات لتجاوز حد PostgREST)
       const existing = new Set<string>();
       const CHUNK = 500;
-      for (let i = 0; i < barcodes.length; i += CHUNK) {
-        const slice = barcodes.slice(i, i + CHUNK);
-        const { data, error } = await supabase.from("products").select("barcode").in("barcode", slice);
-        if (error) throw error;
-        (data ?? []).forEach((r: any) => r.barcode && existing.add(String(r.barcode)));
+      if (canUseLocalData()) {
+        for (let i = 0; i < barcodes.length; i += CHUNK) {
+          const slice = barcodes.slice(i, i + CHUNK);
+          const placeholders = slice.map(() => "?").join(", ");
+          const data = await localQuery<{ barcode: string | null }>(
+            `SELECT barcode FROM products WHERE barcode IN (${placeholders})`,
+            slice,
+          );
+          data.forEach((r) => r.barcode && existing.add(String(r.barcode)));
+        }
+      } else {
+        for (let i = 0; i < barcodes.length; i += CHUNK) {
+          const slice = barcodes.slice(i, i + CHUNK);
+          const { data, error } = await supabase.from("products").select("barcode").in("barcode", slice);
+          if (error) throw error;
+          (data ?? []).forEach((r: any) => r.barcode && existing.add(String(r.barcode)));
+        }
       }
 
       const existingRows = validRows.filter((r) => r.barcode && existing.has(r.barcode));
@@ -307,9 +346,14 @@ function ImportPage() {
     const reqId = newRequestId("imp");
     logger.info("import_start", { context: { reqId, rows: validRows.length, pricePct } });
     try {
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !authData?.user) throw new Error("جلسة المستخدم غير صالحة");
-      const uid = authData.user.id;
+      let uid: string;
+      if (canUseLocalData()) {
+        uid = await requireUserId();
+      } else {
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !authData?.user) throw new Error("جلسة المستخدم غير صالحة");
+        uid = authData.user.id;
+      }
 
       const payload = validRows.map((r) => ({
         user_id: uid, name: r.name, barcode: r.barcode, part_number: r.part_number,
@@ -322,16 +366,38 @@ function ImportPage() {
       // مهمة خلفية مع تقدم قابل للإلغاء بين الدفعات.
       const CHUNK = 500;
       let inserted = 0;
-      for (let i = 0; i < payload.length; i += CHUNK) {
-        if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
-        const chunk = payload.slice(i, i + CHUNK);
-        const { error } = await supabase.from("products").insert(chunk);
-        if (error) throw error;
-        inserted += chunk.length;
-        setProgress({ done: inserted, total: payload.length });
-        toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
-        // إفساح المجال للـ UI للاستجابة وزر الإلغاء
-        await new Promise((r) => setTimeout(r, 0));
+      if (canUseLocalData()) {
+        for (let i = 0; i < payload.length; i += CHUNK) {
+          if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
+          const chunk = payload.slice(i, i + CHUNK);
+          await localTransaction(async (tx) => {
+            for (const p of chunk) {
+              const ts = nowIso();
+              await tx.execute(
+                `INSERT INTO products (id, user_id, name, barcode, part_number, category, unit, location, quantity, min_quantity, cost_price, sale_price, notes, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [genId(), p.user_id, p.name, p.barcode, p.part_number, p.category, p.unit, p.location, p.quantity, p.min_quantity, p.cost_price, p.sale_price, p.notes, 1, ts, ts],
+              );
+            }
+          });
+          inserted += chunk.length;
+          setProgress({ done: inserted, total: payload.length });
+          toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
+          // إفساح المجال للـ UI للاستجابة وزر الإلغاء
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      } else {
+        for (let i = 0; i < payload.length; i += CHUNK) {
+          if (abortRef.current?.cancelled) throw new Error("ألغيت العملية بواسطة المستخدم");
+          const chunk = payload.slice(i, i + CHUNK);
+          const { error } = await supabase.from("products").insert(chunk);
+          if (error) throw error;
+          inserted += chunk.length;
+          setProgress({ done: inserted, total: payload.length });
+          toast.message(`جارٍ الاستيراد… ${formatNumber(inserted)} / ${formatNumber(payload.length)}`, { id: "import-progress" });
+          // إفساح المجال للـ UI للاستجابة وزر الإلغاء
+          await new Promise((r) => setTimeout(r, 0));
+        }
       }
 
 
@@ -351,16 +417,29 @@ function ImportPage() {
       }).catch(() => {});
 
       // Audit log for later review
-      await supabase.from("audit_logs").insert({
-        user_id: uid,
-        action: "data.import",
-        table_name: "products",
-        details: {
-          req_id: reqId, file_name: fileName, imported: inserted,
-          invalid: invalidRows.length, total: rows.length,
-          mapping, price_pct: pricePct, duration_ms: Date.now() - started,
-        },
-      }).then(() => undefined, () => undefined);
+      if (canUseLocalData()) {
+        await localInsert("audit_logs", {
+          user_id: uid,
+          action: "data.import",
+          table_name: "products",
+          details: {
+            req_id: reqId, file_name: fileName, imported: inserted,
+            invalid: invalidRows.length, total: rows.length,
+            mapping, price_pct: pricePct, duration_ms: Date.now() - started,
+          },
+        }).catch(() => undefined);
+      } else {
+        await supabase.from("audit_logs").insert({
+          user_id: uid,
+          action: "data.import",
+          table_name: "products",
+          details: {
+            req_id: reqId, file_name: fileName, imported: inserted,
+            invalid: invalidRows.length, total: rows.length,
+            mapping, price_pct: pricePct, duration_ms: Date.now() - started,
+          },
+        }).then(() => undefined, () => undefined);
+      }
 
 
       toast.success(`تم استيراد ${inserted} منتج بنجاح${pricePct !== 0 ? ` (بعد زيادة ${pricePct}%)` : ""}`);
@@ -379,11 +458,21 @@ function ImportPage() {
       }).catch(() => {});
 
       // Audit failure too
-      const { data: au } = await supabase.auth.getUser();
-      if (au?.user) await supabase.from("audit_logs").insert({
-        user_id: au.user.id, action: "data.import.failed", table_name: "products",
-        details: { req_id: reqId, file_name: fileName, error: e?.message ?? "unknown", mapping, duration_ms: Date.now() - started },
-      }).then(() => undefined, () => undefined);
+      if (canUseLocalData()) {
+        try {
+          const uid = await requireUserId();
+          await localInsert("audit_logs", {
+            user_id: uid, action: "data.import.failed", table_name: "products",
+            details: { req_id: reqId, file_name: fileName, error: e?.message ?? "unknown", mapping, duration_ms: Date.now() - started },
+          });
+        } catch { /* audit best-effort */ }
+      } else {
+        const { data: au } = await supabase.auth.getUser();
+        if (au?.user) await supabase.from("audit_logs").insert({
+          user_id: au.user.id, action: "data.import.failed", table_name: "products",
+          details: { req_id: reqId, file_name: fileName, error: e?.message ?? "unknown", mapping, duration_ms: Date.now() - started },
+        }).then(() => undefined, () => undefined);
+      }
 
 
       handleError(e, "تعذّر إتمام الاستيراد", {

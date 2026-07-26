@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { formatSDG } from "@/lib/format";
 import { XCircle, Receipt, Eye, Search, FileSpreadsheet, FileText, ArrowUpDown, FileJson, FileDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -68,6 +69,20 @@ function CancelledInvoicesPage() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["invoices-cancelled", quick, dFrom, dTo],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const range = computeRange(quick);
+        const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+        const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+        const where: string[] = ["status = ?"];
+        const args: unknown[] = ["cancelled"];
+        if (fromIso) { where.push("cancelled_at >= ?"); args.push(fromIso); }
+        if (toIso) { where.push("cancelled_at <= ?"); args.push(toIso); }
+        const sql =
+          "SELECT id, invoice_number, total, customer_name, cancellation_reason, cancelled_at, cancelled_by, user_id, created_at, status FROM invoices" +
+          ` WHERE ${where.join(" AND ")} ORDER BY cancelled_at DESC LIMIT 2000`;
+        return (await localQuery<Row>(sql, args));
+      }
+
       let q = supabase
         .from("invoices")
         .select("id, invoice_number, total, customer_name, cancellation_reason, cancelled_at, cancelled_by, user_id, created_at, status")
@@ -88,6 +103,20 @@ function CancelledInvoicesPage() {
   const { data: returns = [] } = useQuery({
     queryKey: ["invoices-cancelled-returns", quick, dFrom, dTo],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const range = computeRange(quick);
+        const fromIso = range ? range.from : (dFrom ? new Date(dFrom).toISOString() : null);
+        const toIso = range ? range.to : (dTo ? (() => { const d = new Date(dTo); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+        const where: string[] = ["status = ?"];
+        const args: unknown[] = ["accepted"];
+        if (fromIso) { where.push("created_at >= ?"); args.push(fromIso); }
+        if (toIso) { where.push("created_at <= ?"); args.push(toIso); }
+        const sql =
+          "SELECT id, invoice_id, product_name, quantity, reason, status, created_at, user_id FROM returns" +
+          ` WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT 1000`;
+        return (await localQuery<{ id: string; invoice_id: string | null; product_name: string; quantity: number; reason: string | null; status: string; created_at: string; user_id: string }>(sql, args));
+      }
+
       let q = supabase
         .from("returns")
         .select("id, invoice_id, product_name, quantity, reason, status, created_at, user_id")
@@ -111,6 +140,19 @@ function CancelledInvoicesPage() {
     queryKey: ["invoices-cancelled-items", cancelledIds.slice(0, 300).join(",")],
     enabled: cancelledIds.length > 0,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = cancelledIds.map(() => "?").join(", ");
+        const items = await localQuery<{ invoice_id: string; quantity: number }>(
+          `SELECT invoice_id, quantity FROM invoice_items WHERE invoice_id IN (${placeholders})`,
+          cancelledIds,
+        );
+        const m = new Map<string, number>();
+        items.forEach((it) => {
+          m.set(it.invoice_id, (m.get(it.invoice_id) ?? 0) + Number(it.quantity || 0));
+        });
+        return m;
+      }
+
       const { data } = await supabase
         .from("invoice_items")
         .select("invoice_id, quantity")
@@ -125,14 +167,26 @@ function CancelledInvoicesPage() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: usersList }, { data: roles }] = await Promise.all([
-        supabase.rpc("admin_list_users"),
-        supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
-      ]);
-      const map = new Map<string, string>();
-      (usersList ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
-      setUsers(map);
-      setAdminIds(new Set((roles ?? []).map((r: { user_id: string }) => r.user_id)));
+      // admin_list_users has no local mirror — keep the network call but degrade
+      // to an empty list offline (labels fall back to ids).
+      try {
+        const { data: usersList } = await supabase.rpc("admin_list_users");
+        const map = new Map<string, string>();
+        (usersList ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
+        setUsers(map);
+      } catch { /* offline — keep empty map */ }
+      try {
+        if (canUseLocalData()) {
+          const roles = await localQuery<{ user_id: string }>(
+            `SELECT user_id FROM user_roles WHERE role = ?`,
+            ["admin"],
+          );
+          setAdminIds(new Set(roles.map((r) => r.user_id)));
+        } else {
+          const { data: roles } = await supabase.from("user_roles").select("user_id, role").eq("role", "admin");
+          setAdminIds(new Set((roles ?? []).map((r: { user_id: string }) => r.user_id)));
+        }
+      } catch { /* offline — keep empty set */ }
     })();
   }, []);
 

@@ -4,6 +4,8 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { canUseLocalData, fromLocalRow, localQuery } from "@/lib/data/local";
 import { Activity, Upload, Download, TrendingUp, TrendingDown, CheckCircle2, XCircle, Filter, Radio, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import { toast } from "sonner";
@@ -59,6 +61,16 @@ function ActivityLogPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
 
   const imports = useInfiniteQuery(buildInfiniteQuery(["activity", "import"], async (from, to) => {
+    if (canUseLocalData()) {
+      const rows = await localQuery<Record<string, unknown>>(
+        `SELECT id, file_name, status, imported_rows, total_rows, invalid_rows, error_message, created_at, notes
+         FROM import_logs ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [to - from + 1, from],
+      );
+      return rows.map((r) =>
+        fromLocalRow<Pick<Tables<"import_logs">, "id" | "file_name" | "status" | "imported_rows" | "total_rows" | "invalid_rows" | "error_message" | "created_at" | "notes">>("import_logs", r),
+      );
+    }
     const { data, error } = await supabase.from("import_logs")
       .select("id, file_name, status, imported_rows, total_rows, invalid_rows, error_message, created_at, notes")
       .order("created_at", { ascending: false }).range(from, to);
@@ -67,6 +79,16 @@ function ActivityLogPage() {
   }));
 
   const exports = useInfiniteQuery(buildInfiniteQuery(["activity", "export"], async (from, to) => {
+    if (canUseLocalData()) {
+      const rows = await localQuery<Record<string, unknown>>(
+        `SELECT id, export_type, format, tables, row_count, status, error_message, created_at, notes
+         FROM export_logs ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [to - from + 1, from],
+      );
+      return rows.map((r) =>
+        fromLocalRow<Pick<Tables<"export_logs">, "id" | "export_type" | "format" | "tables" | "row_count" | "status" | "error_message" | "created_at" | "notes">>("export_logs", r),
+      );
+    }
     const { data, error } = await supabase.from("export_logs")
       .select("id, export_type, format, tables, row_count, status, error_message, created_at, notes")
       .order("created_at", { ascending: false }).range(from, to);
@@ -75,6 +97,18 @@ function ActivityLogPage() {
   }));
 
   const prices = useInfiniteQuery(buildInfiniteQuery(["activity", "price"], async (from, to) => {
+    if (canUseLocalData()) {
+      const rows = await localQuery<{ id: string; old_price: number; new_price: number; source: string; created_at: string; product_name: string | null }>(
+        `SELECT ph.id, ph.old_price, ph.new_price, ph.source, ph.created_at, p.name AS product_name
+         FROM price_history ph LEFT JOIN products p ON p.id = ph.product_id
+         ORDER BY ph.created_at DESC LIMIT ? OFFSET ?`,
+        [to - from + 1, from],
+      );
+      return rows.map(({ product_name, ...rest }) => ({
+        ...rest,
+        products: product_name != null ? { name: product_name } : null,
+      }));
+    }
     const { data, error } = await supabase.from("price_history")
       .select("id, old_price, new_price, source, created_at, products(name)")
       .order("created_at", { ascending: false }).range(from, to);

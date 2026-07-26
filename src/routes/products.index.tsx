@@ -19,6 +19,18 @@ import { handleError } from "@/lib/errors";
 import logo from "@/assets/logo.png";
 import type { Product } from "@/types/product";
 import { buildInventoryReportHtml } from "@/lib/inventory-print";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localInsert,
+  localQuery,
+  localQueryOne,
+  localTransaction,
+  localUpdate,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
 const PAGE_SIZES = [50, 100, 200, 300, 500] as const;
 
@@ -281,6 +293,32 @@ function ProductsPage() {
         if (Object.keys(patch).length) updates.push({ id: p.id, patch });
       }
       if (!updates.length) return 0;
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        const byId = new Map(pageRows.map((p) => [p.id, p]));
+        await localTransaction(async (tx) => {
+          const ts = nowIso();
+          for (const u of updates) {
+            const cols = Object.keys(u.patch);
+            const sets = cols.map((c) => `${c} = ?`).join(", ");
+            await tx.execute(
+              `UPDATE products SET ${sets}, updated_at = ? WHERE id = ?`,
+              [...cols.map((c) => u.patch[c]), ts, u.id],
+            );
+            // Remote relies on a DB trigger to log manual cost_price changes —
+            // mirror that price_history write locally.
+            if (u.patch.cost_price !== undefined) {
+              const prev = byId.get(u.id);
+              await tx.execute(
+                `INSERT INTO price_history (id, user_id, product_id, old_price, new_price, source, created_at)
+                 VALUES (?, ?, ?, ?, ?, 'manual', ?)`,
+                [genId(), userId, u.id, prev?.costPrice ?? 0, u.patch.cost_price, ts],
+              );
+            }
+          }
+        });
+        return updates.length;
+      }
       for (const u of updates) {
         const { error } = await supabase.from("products").update(u.patch as never).eq("id", u.id);
         if (error) throw error;
@@ -297,6 +335,37 @@ function ProductsPage() {
 
   // Excel-like inline single-cell save (no bulk-edit mode).
   async function updateField(id: string, patch: Record<string, unknown>) {
+    if (canUseLocalData()) {
+      try {
+        if ("cost_price" in patch) {
+          const prev = await localQueryOne<{ cost_price: number | null }>(
+            `SELECT cost_price FROM products WHERE id = ?`,
+            [id],
+          );
+          const oldPrice = Number(prev?.cost_price ?? 0);
+          const newPrice = Number(patch.cost_price);
+          await localUpdate("products", id, patch, { touchUpdatedAt: true });
+          // Mirror the remote DB trigger that logs manual cost_price changes.
+          if (Number.isFinite(newPrice) && oldPrice !== newPrice) {
+            const userId = await requireUserId();
+            await localInsert("price_history", {
+              user_id: userId,
+              product_id: id,
+              old_price: oldPrice,
+              new_price: newPrice,
+              source: "manual",
+            });
+          }
+        } else {
+          await localUpdate("products", id, patch, { touchUpdatedAt: true });
+        }
+      } catch (error) {
+        handleError(error, "تعذّر الحفظ");
+        throw error;
+      }
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      return;
+    }
     const { error } = await supabase.from("products").update(patch as never).eq("id", id);
     if (error) { handleError(error, "تعذّر الحفظ"); throw error; }
     queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -693,8 +762,18 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
     try {
       const ids = products.map((p) => p.id);
       // Snapshot raw rows for potential Undo before deletion.
-      const { data: snapshot } = await supabase.from("products").select("*").in("id", ids);
-      const rawRows = snapshot ?? [];
+      let rawRows: unknown[];
+      if (canUseLocalData()) {
+        const placeholders = ids.map(() => "?").join(", ");
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM products WHERE id IN (${placeholders})`,
+          ids,
+        );
+        rawRows = rows.map((r) => fromLocalRow("products", r));
+      } else {
+        const { data: snapshot } = await supabase.from("products").select("*").in("id", ids);
+        rawRows = snapshot ?? [];
+      }
 
       let ok = 0; const failed: string[] = [];
       for (const p of products) {
@@ -711,8 +790,14 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
               label: "تراجع",
               onClick: async () => {
                 try {
-                  const { error } = await supabase.from("products").insert(rawRows as never);
-                  if (error) throw error;
+                  if (canUseLocalData()) {
+                    for (const r of rawRows) {
+                      await localInsert("products", r as Record<string, unknown>);
+                    }
+                  } else {
+                    const { error } = await supabase.from("products").insert(rawRows as never);
+                    if (error) throw error;
+                  }
                   qc.invalidateQueries({ queryKey: ["products"] });
                   toast.success(isBulk ? `تم استرجاع ${rawRows.length} منتج` : "تم استرجاع المنتج");
                 } catch (e) {

@@ -11,6 +11,7 @@ import { parseNumber } from "@/lib/errors";
 import { toast } from "sonner";
 import { useSafeMutation } from "@/hooks/useSafeMutation";
 import { logProductAudit } from "@/lib/product-audit";
+import { canUseLocalData, localInsert, requireUserId } from "@/lib/data/local";
 
 export const Route = createFileRoute("/products/new")({
   head: () => ({ meta: [{ title: "إضافة منتج — المهندس" }] }),
@@ -73,6 +74,44 @@ function NewProductPage() {
     errorFallback: "تعذّر حفظ المنتج",
     successMessage: "تم حفظ المنتج",
     mutationFn: async (p) => {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        const id = await localInsert(
+          "products",
+          {
+            user_id: userId,
+            name: p.name,
+            barcode: p.barcode ?? null,
+            part_number: p.partNumber ?? null,
+            category: p.category ?? null,
+            unit: p.unit,
+            location: p.location ?? null,
+            quantity: p.quantity,
+            min_quantity: p.minQuantity,
+            cost_price: p.costPrice,
+            sale_price: p.salePrice,
+            notes: p.notes ?? null,
+            is_active: 1,
+          },
+          { withUpdatedAt: true },
+        );
+        // Audit locally — remote path logs via logProductAudit in onSuccess.
+        await localInsert("audit_logs", {
+          user_id: userId,
+          action: "product.created",
+          table_name: "products",
+          record_id: id,
+          details: {
+            name: p.name,
+            barcode: p.barcode ?? null,
+            quantity: p.quantity,
+            cost_price: p.costPrice,
+            sale_price: p.salePrice,
+          },
+        });
+        return { id };
+      }
+
       const { data: userData, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw authErr;
       const userId = userData.user?.id;
@@ -96,7 +135,8 @@ function NewProductPage() {
     },
     onSuccess: (inserted, p) => {
       const newId = (inserted as { id?: string } | null)?.id;
-      if (newId) {
+      // In local mode the audit row is inserted inside mutationFn already.
+      if (newId && !canUseLocalData()) {
         void logProductAudit(supabase as never, "product.created", newId, {
           name: p.name,
           barcode: p.barcode ?? null,

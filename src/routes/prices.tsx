@@ -8,6 +8,15 @@ import { formatSDG, formatNumber } from "@/lib/format";
 import { toast } from "sonner";
 import { Loader2, TrendingUp, TrendingDown, Calculator, AlertTriangle, Search, Package, ChevronLeft, ChevronRight, Radio } from "lucide-react";
 import { useEffect } from "react";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localQuery,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
 
 export const Route = createFileRoute("/prices")({
@@ -51,6 +60,13 @@ function PricesPage() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["prices-products"],
     queryFn: async (): Promise<MiniProduct[]> => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT id, name, category, sale_price, cost_price FROM products ORDER BY name`,
+        );
+        return rows.map((r) => fromLocalRow<MiniProduct>("products", r));
+      }
+
       const { data, error } = await supabase
         .from("products")
         .select("id, name, category, sale_price, cost_price")
@@ -95,6 +111,37 @@ function PricesPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!preview || preview.count === 0) throw new Error("لا توجد منتجات للتحديث");
+      if (canUseLocalData()) {
+        // Same optimistic locking as the remote path: only update rows whose
+        // old price still matches the preview. All writes in one transaction.
+        const userId = await requireUserId();
+        return localTransaction(async (tx) => {
+          const ts = nowIso();
+          let updated = 0;
+          let stale = 0;
+          for (const r of preview.rows) {
+            const res = (await tx.execute(
+              `UPDATE products SET ${target} = ?, updated_at = ? WHERE id = ? AND ${target} = ?`,
+              [r.newPrice, ts, r.id, r.oldPrice],
+            )) as { rowsAffected?: number } | undefined;
+            if ((res?.rowsAffected ?? 0) === 0) {
+              stale++;
+              continue;
+            }
+            updated++;
+            // Remote logs manual cost_price changes via a DB trigger — mirror
+            // that price_history write locally (sale_price is not logged).
+            if (target === "cost_price" && r.oldPrice !== r.newPrice) {
+              await tx.execute(
+                `INSERT INTO price_history (id, user_id, product_id, old_price, new_price, source, created_at)
+                 VALUES (?, ?, ?, ?, ?, 'manual', ?)`,
+                [genId(), userId, r.id, r.oldPrice, r.newPrice, ts],
+              );
+            }
+          }
+          return { updated, stale };
+        });
+      }
       // Optimistic locking: only update rows where the old price still matches
       // what we previewed. Prevents overwriting concurrent edits by another user.
       const results = await Promise.all(

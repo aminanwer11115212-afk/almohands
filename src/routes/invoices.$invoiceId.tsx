@@ -4,6 +4,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localQuery,
+  localQueryOne,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 import { formatSDG, formatSDGShort } from "@/lib/format";
 import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search, Download, Phone } from "lucide-react";
 import logo from "@/assets/logo.png";
@@ -21,7 +31,10 @@ import { useMyRole } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/invoices/$invoiceId")({
   head: () => ({ meta: [{ title: "فاتورة — المهندس" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
+  // Optional in the type so links may pass any subset (or none) of the flags.
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { autoprint?: number; autopdf?: number; autoshare?: number } => ({
     autoprint: s.autoprint === "1" || s.autoprint === 1 || s.autoprint === true ? 1 : 0,
     autopdf: s.autopdf === "1" || s.autopdf === 1 || s.autopdf === true ? 1 : 0,
     autoshare: s.autoshare === "1" || s.autoshare === 1 || s.autoshare === true ? 1 : 0,
@@ -85,7 +98,7 @@ type PrintFormat = "a4" | "thermal";
 
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams();
-  const { autoprint, autopdf, autoshare } = Route.useSearch();
+  const { autoprint = 0, autopdf = 0, autoshare = 0 } = Route.useSearch();
   const { data: storeProfile } = useStoreProfile();
   const saveProfile = useSaveStoreProfile();
 
@@ -200,6 +213,23 @@ function InvoiceDetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const inv = await localQueryOne<any>(`SELECT * FROM invoices WHERE id = ?`, [invoiceId]);
+        const items = await localQuery<any>(
+          `SELECT * FROM invoice_items WHERE invoice_id = ?`,
+          [invoiceId],
+        );
+        let paymentMethod: any = null;
+        if (inv?.payment_method_id) {
+          const pm = await localQueryOne<Record<string, unknown>>(
+            `SELECT * FROM payment_methods WHERE id = ?`,
+            [inv.payment_method_id],
+          );
+          paymentMethod = pm ? fromLocalRow("payment_methods", pm) : null;
+        }
+        return { inv, items, paymentMethod };
+      }
+
       const { data: inv, error } = await supabase
         .from("invoices")
         .select("*")
@@ -228,6 +258,13 @@ function InvoiceDetailPage() {
     queryKey: ["invoice-returns", invoiceId],
     enabled: !!invoiceId,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        return await localQuery<any>(
+          `SELECT product_id, product_name, quantity, status FROM returns WHERE invoice_id = ? AND status = ?`,
+          [invoiceId, "accepted"],
+        );
+      }
+
       const { data, error } = await supabase
         .from("returns")
         .select("product_id, product_name, quantity, status")
@@ -317,6 +354,17 @@ function InvoiceDetailPage() {
     queryKey: ["invoice-edit-stock", invoiceId, editProductIds.sort().join(",")],
     enabled: editMode && editProductIds.length > 0,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = editProductIds.map(() => "?").join(", ");
+        const prods = await localQuery<{ id: string; name: string; quantity: number }>(
+          `SELECT id, name, quantity FROM products WHERE id IN (${placeholders})`,
+          editProductIds,
+        );
+        const map = new Map<string, { id: string; name: string; quantity: number }>();
+        for (const p of prods) map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
+        return map;
+      }
+
       const { data: prods, error } = await supabase
         .from("products").select("id, name, quantity").in("id", editProductIds);
       if (error) throw error;
@@ -406,6 +454,172 @@ function InvoiceDetailPage() {
       logger.info("invoice_edit_save_start", {
         context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: visible.length, added: visible.filter((r) => r._isNew).length, deleted: deletedRows.length, reqId },
       });
+
+      if (canUseLocalData()) {
+        // ---------- L1) Zod validation of visible rows (same rules as remote) ----------
+        const parsed = invoiceEditRowsSchema.safeParse(visible);
+        if (!parsed.success) {
+          const firstIssue = parsed.error.issues[0];
+          const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
+          const field = firstIssue?.path?.[1];
+          const label = field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
+          const msg = rowIdx
+            ? `الصف ${rowIdx} — ${label}: ${firstIssue?.message ?? "قيمة غير صالحة"}`
+            : firstIssue?.message ?? "بيانات غير صالحة";
+          logger.warn("invoice_edit_validation_failed", { message: msg, context: { reqId, invoiceId: inv.id } });
+          throw new Error(msg);
+        }
+        const rowsWithFlags = parsed.data.map((r, i) => ({
+          ...r,
+          _isNew: !!visible[i]._isNew,
+          unit: visible[i].unit ?? "قطعة",
+        }));
+
+        // ---------- L2) Pre-flight stock check for INCREASED quantities ----------
+        const increases = rowsWithFlags.filter((r) => r.product_id && r.quantity > r._origQty);
+        let stockMapLocal = new Map<string, any>();
+        if (increases.length > 0) {
+          const productIds = Array.from(new Set(increases.map((r) => r.product_id!) as string[]));
+          const placeholders = productIds.map(() => "?").join(", ");
+          const prods = await localQuery<any>(
+            `SELECT id, name, quantity, cost_price FROM products WHERE id IN (${placeholders})`,
+            productIds,
+          );
+          stockMapLocal = new Map(prods.map((p) => [p.id, p]));
+          for (const r of increases) {
+            const p = stockMapLocal.get(r.product_id!);
+            if (!p) continue;
+            const delta = r.quantity - r._origQty;
+            const available = Number(p.quantity) || 0;
+            if (available < delta) {
+              const shortage = delta - available;
+              const msg = `الكمية المطلوبة للصنف "${p.name}" تتجاوز المخزون المتاح (متبقٍ ${available}، النقص ${shortage}).`;
+              logger.warn("invoice_edit_insufficient_stock", {
+                message: msg,
+                context: { reqId, productId: p.id, available, requestedDelta: delta },
+              });
+              throw new Error(msg);
+            }
+          }
+        }
+
+        const uid = await requireUserId();
+
+        // ---------- L3) Net stock change per product ----------
+        // Kept rows consume (quantity - _origQty); deleted rows restore their qty.
+        const stockChanges = new Map<string, number>();
+        for (const row of rowsWithFlags) {
+          const delta = row.quantity - row._origQty;
+          if (delta !== 0 && row.product_id) {
+            stockChanges.set(row.product_id, (stockChanges.get(row.product_id) ?? 0) - delta);
+          }
+        }
+        for (const it of deletedRows as any[]) {
+          if (it.product_id) {
+            stockChanges.set(it.product_id, (stockChanges.get(it.product_id) ?? 0) + (Number(it.quantity) || 0));
+          }
+        }
+        // Re-check current stock so no product goes negative (mirrors remote race guard).
+        if (stockChanges.size > 0) {
+          const ids = Array.from(stockChanges.keys());
+          const placeholders = ids.map(() => "?").join(", ");
+          const prods = await localQuery<any>(
+            `SELECT id, quantity FROM products WHERE id IN (${placeholders})`,
+            ids,
+          );
+          const current = new Map(prods.map((p) => [p.id as string, Number(p.quantity) || 0]));
+          for (const [pid, change] of stockChanges) {
+            if (!current.has(pid)) {
+              // Product no longer exists — remote skips it too.
+              stockChanges.delete(pid);
+              continue;
+            }
+            if ((current.get(pid) ?? 0) + change < 0) {
+              const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
+              logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: pid, currentQty: current.get(pid), delta: -change } });
+              throw new Error(msg);
+            }
+          }
+        }
+
+        // ---------- L4) Recompute invoice totals ----------
+        const newTotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+        const paid = Math.min(Number(inv.paid) || 0, newTotal);
+        const remaining = Math.max(0, newTotal - paid);
+        const status: "paid" | "partial" | "pending" =
+          newTotal === 0 ? "paid" : remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
+        const changes = rowsWithFlags.map((r) => ({
+          item_id: r._isNew ? null : r.id,
+          product_id: r.product_id,
+          product_name: r.product_name,
+          qty_from: r._origQty,
+          qty_to: r.quantity,
+          unit_price: r.unit_price,
+          added: !!r._isNew,
+        }));
+        const deletions = deletedRows.map((it: any) => ({
+          item_id: it.id, product_id: it.product_id, product_name: it.product_name,
+          qty_removed: Number(it.quantity) || 0,
+        }));
+        const now = nowIso();
+
+        // ---------- L5) All writes in ONE local transaction ----------
+        await localTransaction(async (tx) => {
+          // Insert NEW rows
+          for (const row of rowsWithFlags) {
+            if (!row._isNew) continue;
+            const lineTotal = row.quantity * row.unit_price;
+            const p = row.product_id ? stockMapLocal.get(row.product_id) : null;
+            const costPrice = p ? (Number(p.cost_price) || 0) : 0;
+            await tx.execute(
+              `INSERT INTO invoice_items (id, invoice_id, user_id, product_id, product_name, unit, quantity, unit_price, cost_price, line_total, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [genId(), inv.id, uid, row.product_id ?? null, row.product_name, row.unit ?? "قطعة", row.quantity, row.unit_price, costPrice, lineTotal, now],
+            );
+          }
+          // Update existing rows
+          for (const row of rowsWithFlags) {
+            if (row._isNew) continue;
+            const lineTotal = row.quantity * row.unit_price;
+            await tx.execute(
+              `UPDATE invoice_items SET quantity = ?, unit_price = ?, line_total = ? WHERE id = ?`,
+              [row.quantity, row.unit_price, lineTotal, row.id],
+            );
+          }
+          // Delete removed rows
+          for (const it of deletedRows as any[]) {
+            await tx.execute(`DELETE FROM invoice_items WHERE id = ?`, [it.id]);
+          }
+          // Apply net stock deltas
+          for (const [pid, change] of stockChanges) {
+            if (change === 0) continue;
+            await tx.execute(
+              `UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?`,
+              [change, now, pid],
+            );
+          }
+          // Invoice totals
+          await tx.execute(
+            `UPDATE invoices SET total = ?, paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+            [newTotal, paid, remaining, status, now, inv.id],
+          );
+          // Audit log
+          await tx.execute(
+            `INSERT INTO audit_logs (id, user_id, action, table_name, record_id, details, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              genId(), uid, "invoice.items.updated", "invoices", inv.id,
+              JSON.stringify({ req_id: reqId, invoice_number: inv.invoice_number, changes, deletions, new_total: newTotal, paid, remaining, status }),
+              now,
+            ],
+          );
+        });
+
+        logger.info("invoice_edit_save_success", {
+          context: { reqId, invoiceId: inv.id, newTotal, paid, remaining, status },
+        });
+        return { reqId, newTotal, paid, remaining, status };
+      }
 
       // ---------- 1) Zod validation of visible rows ----------
       const parsed = invoiceEditRowsSchema.safeParse(visible);
@@ -665,6 +879,38 @@ function InvoiceDetailPage() {
       if (amount > remaining + 0.001) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
       const method = paymentMethods.find((m) => m.id === payMethodId);
       if (!method) throw new Error("اختر حساب الدفع");
+
+      if (canUseLocalData()) {
+        const uid = await requireUserId();
+        const notesParts: string[] = [];
+        if (method.type === "bank" && payReference.trim()) notesParts.push(`رقم العملية: ${payReference.trim()}`);
+        if (payNotes.trim()) notesParts.push(payNotes.trim());
+        const newPaid = (Number(inv.paid) || 0) + amount;
+        const newRemaining = Math.max(0, (Number(inv.total) || 0) - newPaid);
+        const newStatus: "paid" | "partial" | "pending" =
+          newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+        const now = nowIso();
+        await localTransaction(async (tx) => {
+          await tx.execute(
+            `INSERT INTO payments (id, user_id, party_type, party_id, amount, method, account_id, invoice_id, notes, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              genId(), uid,
+              inv.customer_id ? "customer" : null,
+              inv.customer_id ?? null,
+              amount, method.type, method.id, inv.id,
+              notesParts.join(" — ") || null,
+              now,
+            ],
+          );
+          await tx.execute(
+            `UPDATE invoices SET paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+            [newPaid, newRemaining, newStatus, now, inv.id],
+          );
+        });
+        return { amount, newRemaining, newStatus };
+      }
+
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData?.user?.id;
       if (!uid) throw new Error("يجب تسجيل الدخول");
@@ -718,6 +964,13 @@ function InvoiceDetailPage() {
   const { data: invoicePayments = [] } = useQuery({
     queryKey: ["invoice-payments", invoiceId],
     queryFn: async (): Promise<InvPayment[]> => {
+      if (canUseLocalData()) {
+        return await localQuery<InvPayment>(
+          `SELECT id, amount, method, account_id, notes, created_at FROM payments WHERE invoice_id = ? ORDER BY created_at DESC`,
+          [invoiceId],
+        );
+      }
+
       const { data: rows, error } = await supabase
         .from("payments")
         .select("id, amount, method, account_id, notes, created_at")
@@ -741,6 +994,25 @@ function InvoiceDetailPage() {
   const deletePaymentMutation = useMutation({
     mutationFn: async (p: InvPayment) => {
       if (!data?.inv) throw new Error("لا توجد فاتورة");
+
+      if (canUseLocalData()) {
+        const inv = data.inv;
+        const newPaid = Math.max(0, (Number(inv.paid) || 0) - Number(p.amount));
+        const total = Number(inv.total) || 0;
+        const newRemaining = Math.max(0, total - newPaid);
+        const status: "paid" | "partial" | "pending" =
+          total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+        const now = nowIso();
+        await localTransaction(async (tx) => {
+          await tx.execute(`DELETE FROM payments WHERE id = ?`, [p.id]);
+          await tx.execute(
+            `UPDATE invoices SET paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+            [newPaid, newRemaining, status, now, inv.id],
+          );
+        });
+        return { status, newRemaining };
+      }
+
       const { error } = await supabase.from("payments").delete().eq("id", p.id);
       if (error) throw error;
       const inv = data.inv;
@@ -775,6 +1047,23 @@ function InvoiceDetailPage() {
       const otherPaid = Math.max(0, (Number(inv.paid) || 0) - Number(editingPayment.amount));
       const maxAllowed = Math.max(0, total - otherPaid);
       if (newAmt > maxAllowed + 0.001) throw new Error(`المبلغ يتجاوز الحد الأقصى (${formatSDG(maxAllowed)})`);
+
+      if (canUseLocalData()) {
+        const newPaid = otherPaid + newAmt;
+        const newRemaining = Math.max(0, total - newPaid);
+        const status: "paid" | "partial" | "pending" =
+          total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
+        const now = nowIso();
+        await localTransaction(async (tx) => {
+          await tx.execute(`UPDATE payments SET amount = ? WHERE id = ?`, [newAmt, editingPayment.id]);
+          await tx.execute(
+            `UPDATE invoices SET paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+            [newPaid, newRemaining, status, now, inv.id],
+          );
+        });
+        return { status, newRemaining };
+      }
+
       const { error } = await supabase.from("payments").update({ amount: newAmt }).eq("id", editingPayment.id);
       if (error) throw error;
       const newPaid = otherPaid + newAmt;
@@ -809,6 +1098,31 @@ function InvoiceDetailPage() {
     mutationFn: async (reason: string) => {
       const trimmed = reason.trim();
       if (trimmed.length < 3) throw new Error("يرجى إدخال سبب واضح للإلغاء (3 أحرف على الأقل)");
+
+      if (canUseLocalData()) {
+        let cancelUid: string | null = null;
+        try { cancelUid = await requireUserId(); } catch { cancelUid = null; }
+        const now = new Date().toISOString();
+        await localTransaction(async (tx) => {
+          await tx.execute(
+            `UPDATE invoices SET status = 'cancelled', cancellation_reason = ?, cancelled_at = ?, cancelled_by = ?, updated_at = ? WHERE id = ?`,
+            [trimmed, now, cancelUid, now, invoiceId],
+          );
+          if (cancelUid) {
+            await tx.execute(
+              `INSERT INTO audit_logs (id, user_id, action, table_name, record_id, details, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                genId(), cancelUid, "invoice.cancelled", "invoices", invoiceId,
+                JSON.stringify({ reason: trimmed, invoice_number: data?.inv?.invoice_number ?? null }),
+                now,
+              ],
+            );
+          }
+        });
+        return;
+      }
+
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData?.user?.id ?? null;
       const nowIso = new Date().toISOString();

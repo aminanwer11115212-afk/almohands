@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, Receipt, Calendar, MoreVertical, Printer, Eye } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { formatSDG } from "@/lib/format";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { useMyRole } from "@/hooks/use-permissions";
@@ -68,7 +69,7 @@ export const Route = createFileRoute("/invoices/")({
 
 function InvoicesPage() {
   const { q, status, from, to, sort, range } = Route.useSearch();
-  const navigate = useNavigate({ from: "/invoices" });
+  const navigate = useNavigate({ from: Route.fullPath });
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 
   // Derive effective from/to from `range` shortcut (today/week/month) unless explicit from/to set
@@ -86,6 +87,33 @@ function InvoicesPage() {
   const query = useQuery({
     queryKey: ["invoices", { q, status, effFrom, effTo }],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const where: string[] = [];
+        const args: unknown[] = [];
+        if (status !== "all") { where.push("status = ?"); args.push(status); }
+        if (effFrom) { where.push("created_at >= ?"); args.push(effFrom); }
+        if (effTo) { where.push("created_at <= ?"); args.push(effTo); }
+        if (q.trim()) {
+          const term = sanitizeOrTerm(q);
+          if (term) {
+            const like = `%${term}%`;
+            const asNum = Number(term);
+            if (Number.isInteger(asNum) && asNum > 0) {
+              where.push("(invoice_number = ? OR customer_name LIKE ? OR customer_phone LIKE ?)");
+              args.push(asNum, like, like);
+            } else {
+              where.push("(customer_name LIKE ? OR customer_phone LIKE ?)");
+              args.push(like, like);
+            }
+          }
+        }
+        const sql =
+          "SELECT id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at FROM invoices" +
+          (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
+          " ORDER BY created_at DESC LIMIT 200";
+        return (await localQuery<InvoiceRow>(sql, args));
+      }
+
       let req = supabase
         .from("invoices")
         .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at")
@@ -122,6 +150,28 @@ function InvoicesPage() {
     queryKey: ["invoices-profit", invoiceIds],
     enabled: isAdmin && invoiceIds.length > 0,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = invoiceIds.map(() => "?").join(", ");
+        const items = await localQuery<any>(
+          `SELECT invoice_id, quantity, unit_price, cost_price FROM invoice_items WHERE invoice_id IN (${placeholders})`,
+          invoiceIds,
+        );
+        const map = new Map<string, number>();
+        for (const it of items) {
+          const qty = Number(it.quantity) || 0;
+          const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
+          map.set(it.invoice_id, (map.get(it.invoice_id) ?? 0) + p);
+        }
+        // subtract invoice-level discount to get net line profit
+        for (const inv of query.data ?? []) {
+          if (map.has(inv.id)) {
+            const disc = Number((inv as any).discount) || 0;
+            if (disc) map.set(inv.id, (map.get(inv.id) ?? 0) - disc);
+          }
+        }
+        return map;
+      }
+
       const { data, error } = await supabase
         .from("invoice_items")
         .select("invoice_id, quantity, unit_price, cost_price")

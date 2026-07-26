@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatNumber } from "@/lib/format";
+import { canUseLocalData, localQuery, localQueryOne } from "@/lib/data/local";
 
 export const Route = createFileRoute("/price-history")({
   head: () => ({ meta: [{ title: "سجل تغيير الأسعار — المهندس" }] }),
@@ -42,6 +43,47 @@ function PriceHistoryPage() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["price-history", { from, to, source, page }],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const where: string[] = [];
+        const args: unknown[] = [];
+        if (from) {
+          where.push("ph.created_at >= ?");
+          args.push(new Date(from).toISOString());
+        }
+        if (to) {
+          const end = new Date(to); end.setHours(23, 59, 59, 999);
+          where.push("ph.created_at <= ?");
+          args.push(end.toISOString());
+        }
+        if (source !== "all") {
+          where.push("ph.source = ?");
+          args.push(source);
+        }
+        const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+        const countRow = await localQueryOne<{ n: number }>(
+          `SELECT COUNT(*) as n FROM price_history ph${whereSql}`,
+          args,
+        );
+        const data = await localQuery<Record<string, unknown>>(
+          `SELECT ph.id, ph.product_id, ph.old_price, ph.new_price, ph.source, ph.created_at, p.name AS product_name
+           FROM price_history ph
+           LEFT JOIN products p ON p.id = ph.product_id${whereSql}
+           ORDER BY ph.created_at DESC
+           LIMIT ? OFFSET ?`,
+          [...args, PAGE_SIZE, page * PAGE_SIZE],
+        );
+        const rows: Row[] = data.map((r) => ({
+          id: String(r.id),
+          product_id: (r.product_id as string | null) ?? null,
+          old_price: Number(r.old_price) || 0,
+          new_price: Number(r.new_price) || 0,
+          source: String(r.source ?? "manual"),
+          created_at: String(r.created_at ?? ""),
+          products: r.product_name != null ? { name: String(r.product_name) } : null,
+        }));
+        return { rows, count: Number(countRow?.n ?? 0) };
+      }
+
       let query = supabase
         .from("price_history")
         .select("id, product_id, old_price, new_price, source, created_at, products(name)", { count: "exact" })

@@ -5,6 +5,7 @@ import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, fromLocalRow, localQuery, localQueryOne } from "@/lib/data/local";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
 import { useStoreProfile, useSaveStoreProfile, type StoreProfile } from "@/hooks/use-store-profile";
@@ -113,29 +114,51 @@ function SettingsPage() {
   async function backupNow() {
     setBusy(true);
     try {
-      const [products, invoices, items, methods, storeRes] = await Promise.all([
-        supabase.from("products").select("*"),
-        supabase.from("invoices").select("*"),
-        supabase.from("invoice_items").select("*"),
-        supabase.from("payment_methods").select("*"),
-        supabase.from("store_profile").select("*").maybeSingle(),
-      ]);
-      if (products.error) throw products.error;
-      if (invoices.error) throw invoices.error;
-      if (items.error) throw items.error;
-      if (methods.error) throw methods.error;
+      let payload: Record<string, unknown>;
+      if (canUseLocalData()) {
+        const [products, invoices, items, methods, storeRow] = await Promise.all([
+          localQuery<Record<string, unknown>>(`SELECT * FROM products`),
+          localQuery<Record<string, unknown>>(`SELECT * FROM invoices`),
+          localQuery<Record<string, unknown>>(`SELECT * FROM invoice_items`),
+          localQuery<Record<string, unknown>>(`SELECT * FROM payment_methods`),
+          localQueryOne<Record<string, unknown>>(`SELECT * FROM store_profile LIMIT 1`),
+        ]);
+        payload = {
+          exportedAt: new Date().toISOString(),
+          version: 2,
+          store_profile: storeRow ? fromLocalRow("store_profile", storeRow) : null,
+          data: {
+            products: products.map((r) => fromLocalRow("products", r)),
+            invoices,
+            invoice_items: items,
+            payment_methods: methods.map((r) => fromLocalRow("payment_methods", r)),
+          },
+        };
+      } else {
+        const [products, invoices, items, methods, storeRes] = await Promise.all([
+          supabase.from("products").select("*"),
+          supabase.from("invoices").select("*"),
+          supabase.from("invoice_items").select("*"),
+          supabase.from("payment_methods").select("*"),
+          supabase.from("store_profile").select("*").maybeSingle(),
+        ]);
+        if (products.error) throw products.error;
+        if (invoices.error) throw invoices.error;
+        if (items.error) throw items.error;
+        if (methods.error) throw methods.error;
 
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        version: 2,
-        store_profile: storeRes.data ?? null,
-        data: {
-          products: products.data ?? [],
-          invoices: invoices.data ?? [],
-          invoice_items: items.data ?? [],
-          payment_methods: methods.data ?? [],
-        },
-      };
+        payload = {
+          exportedAt: new Date().toISOString(),
+          version: 2,
+          store_profile: storeRes.data ?? null,
+          data: {
+            products: products.data ?? [],
+            invoices: invoices.data ?? [],
+            invoice_items: items.data ?? [],
+            payment_methods: methods.data ?? [],
+          },
+        };
+      }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       try {

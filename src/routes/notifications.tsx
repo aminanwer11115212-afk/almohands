@@ -3,6 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  localDelete,
+  localExecute,
+  localQuery,
+  localUpdate,
+} from "@/lib/data/local";
 import { AlertTriangle, Check, Trash2, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
@@ -18,6 +27,13 @@ function NotificationsPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM notifications ORDER BY created_at DESC LIMIT 100`,
+        );
+        return rows.map((r) => fromLocalRow<Tables<"notifications">>("notifications", r));
+      }
+
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
@@ -43,6 +59,11 @@ function NotificationsPage() {
 
   const markRead = useMutation({
     mutationFn: async (id: string) => {
+      if (canUseLocalData()) {
+        await localUpdate("notifications", id, { read: true });
+        return;
+      }
+
       const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
       if (error) throw error;
     },
@@ -55,6 +76,11 @@ function NotificationsPage() {
 
   const markAll = useMutation({
     mutationFn: async () => {
+      if (canUseLocalData()) {
+        await localExecute(`UPDATE notifications SET read = 1 WHERE read = 0`);
+        return;
+      }
+
       const { error } = await supabase.from("notifications").update({ read: true }).eq("read", false);
       if (error) throw error;
     },
@@ -68,6 +94,11 @@ function NotificationsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      if (canUseLocalData()) {
+        await localDelete("notifications", id);
+        return;
+      }
+
       const { error } = await supabase.from("notifications").delete().eq("id", id);
       if (error) throw error;
     },

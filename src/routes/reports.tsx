@@ -25,6 +25,7 @@ import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyRole, ROLE_LABELS, type AppRole } from "@/hooks/use-permissions";
 import { toast } from "sonner";
+import { canUseLocalData, localQuery, localQueryOne } from "@/lib/data/local";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "التقارير — المهندس" }] }),
@@ -171,11 +172,52 @@ function exportInvoicesPDF(
 
 /* ------------------------ shared data ------------------------ */
 
+/** Offline-first read of the report bundle from the PowerSync mirror. */
+async function fetchReportBundleLocal(from: string | null, to: string | null) {
+  const parts: string[] = [];
+  const args: unknown[] = [];
+  if (from) { parts.push("created_at >= ?"); args.push(from); }
+  if (to) { parts.push("created_at < ?"); args.push(to); }
+  const clause = parts.length ? ` WHERE ${parts.join(" AND ")}` : "";
+
+  const [invoices, items, expenses, returns, products, custRow] = await Promise.all([
+    localQuery<Row>(
+      `SELECT id, user_id, invoice_number, total, subtotal, discount, paid, remaining, payment_method, reference_number, status, customer_name, created_at, cancellation_reason, cancelled_at, cancelled_by FROM invoices${clause} ORDER BY created_at DESC`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at FROM invoice_items${clause}`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT user_id, amount, target, date, notes, created_at FROM expenses${clause}`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT user_id, invoice_id, product_id, product_name, quantity, status, created_at FROM returns${clause}`,
+      args,
+    ),
+    localQuery<Row>(`SELECT id, user_id, name, quantity, min_quantity, sale_price FROM products`),
+    localQueryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM customers`),
+  ]);
+
+  return {
+    invoices,
+    items,
+    expenses,
+    returns,
+    products,
+    customerCount: Number(custRow?.c ?? 0),
+  };
+}
+
 function useReportBundle(period: Period) {
   const { from, to } = periodRange(period);
   return useQuery({
     queryKey: ["reports-bundle", period],
     queryFn: async () => {
+      if (canUseLocalData()) return fetchReportBundleLocal(from, to);
+
       // Invoices
       let qInv = supabase
         .from("invoices")
@@ -240,6 +282,32 @@ function useUserDirectory(enabled: boolean) {
     queryKey: ["admin-user-directory"],
     enabled,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        // Display names come from a network RPC — degrade to an empty
+        // directory when offline; roles are synced locally.
+        let userList: { user_id: string; email: string | null }[] = [];
+        try {
+          const { data, error } = await supabase.rpc("admin_list_users");
+          if (!error) userList = (data ?? []) as { user_id: string; email: string | null }[];
+        } catch {
+          /* offline — no directory available */
+        }
+        const roleList = await localQuery<{ user_id: string; role: string }>(
+          `SELECT user_id, role FROM user_roles`,
+        );
+        const roles = new Map<string, AppRole[]>();
+        for (const r of roleList) {
+          const arr = roles.get(r.user_id) ?? [];
+          arr.push(r.role as AppRole);
+          roles.set(r.user_id, arr);
+        }
+        return userList.map((u) => ({
+          id: u.user_id,
+          email: u.email ?? "—",
+          roles: roles.get(u.user_id) ?? [],
+        }));
+      }
+
       const [{ data: userList, error: uErr }, { data: roleList, error: rErr }] = await Promise.all([
         supabase.rpc("admin_list_users"),
         supabase.from("user_roles").select("user_id, role"),

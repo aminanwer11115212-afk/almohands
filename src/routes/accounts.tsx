@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { useAccountBalances, type AccountBalance } from "@/hooks/use-account-balances";
 import { useExpenses, useAddExpense } from "@/hooks/use-expenses";
 import { toast } from "sonner";
@@ -57,15 +58,30 @@ function useAccountStats() {
       const lastMonthStart = toLocalDateStr(lastMonth);
       const lastMonthEnd = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 0));
 
-      const [invRes, expRes] = await Promise.all([
-        supabase.from("invoices").select("total, created_at").gte("created_at", lastMonthStart),
-        supabase.from("expenses").select("amount, date").gte("date", lastMonthStart),
-      ]);
-      if (invRes.error) throw invRes.error;
-      if (expRes.error) throw expRes.error;
+      let inv: { total: number | null; created_at: string | null }[];
+      let exp: { amount: number | null; date: string | null }[];
+      if (canUseLocalData()) {
+        [inv, exp] = await Promise.all([
+          localQuery<{ total: number | null; created_at: string | null }>(
+            `SELECT total, created_at FROM invoices WHERE created_at >= ?`,
+            [lastMonthStart],
+          ),
+          localQuery<{ amount: number | null; date: string | null }>(
+            `SELECT amount, date FROM expenses WHERE date >= ?`,
+            [lastMonthStart],
+          ),
+        ]);
+      } else {
+        const [invRes, expRes] = await Promise.all([
+          supabase.from("invoices").select("total, created_at").gte("created_at", lastMonthStart),
+          supabase.from("expenses").select("amount, date").gte("date", lastMonthStart),
+        ]);
+        if (invRes.error) throw invRes.error;
+        if (expRes.error) throw expRes.error;
 
-      const inv = invRes.data ?? [];
-      const exp = expRes.data ?? [];
+        inv = invRes.data ?? [];
+        exp = expRes.data ?? [];
+      }
 
       const sumInv = (f: (d: string) => boolean) =>
         inv.filter((i) => f(i.created_at ? toLocalDateStr(new Date(i.created_at)) : ""))

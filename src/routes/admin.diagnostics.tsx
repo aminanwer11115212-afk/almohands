@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { useEffect, useState } from "react";
 import { RefreshCw, Camera, Activity, Bell, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, fromLocalRow, localQuery } from "@/lib/data/local";
 import { readLastScannerStatus, type ScannerStatus } from "@/lib/scanner-status";
 import { toast } from "sonner";
 
@@ -35,6 +36,20 @@ function DiagnosticsPage() {
     setLoading(true);
     setStatus(readLastScannerStatus());
     try {
+      if (canUseLocalData()) {
+        const [a, n] = await Promise.all([
+          localQuery<Record<string, unknown>>(
+            `SELECT id, action, table_name, record_id, created_at, details FROM audit_logs ORDER BY created_at DESC LIMIT 10`,
+          ),
+          localQuery<Record<string, unknown>>(
+            `SELECT id, type, title, message, created_at, read, invoice_id, product_id FROM notifications ORDER BY created_at DESC LIMIT 10`,
+          ),
+        ]);
+        setAudits(a.map((r) => fromLocalRow<AuditRow>("audit_logs", r)));
+        setNotifs(n.map((r) => fromLocalRow<NotifRow>("notifications", r)));
+        return;
+      }
+
       const [{ data: a }, { data: n }] = await Promise.all([
         supabase.from("audit_logs").select("id,action,table_name,record_id,created_at,details")
           .order("created_at", { ascending: false }).limit(10),

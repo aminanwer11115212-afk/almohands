@@ -20,6 +20,13 @@ import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import {
+  canUseLocalData,
+  genId,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -44,6 +51,22 @@ type CartItem = {
   quantity: number;
   maxQty: number;
 };
+
+/** Extract plain row objects from a PowerSync tx.execute() query result. */
+function txRows(res: unknown): Record<string, unknown>[] {
+  const rows = (res as {
+    rows?: { _array?: unknown[]; length?: number; item?: (i: number) => unknown };
+  } | null)?.rows;
+  if (!rows) return [];
+  if (Array.isArray(rows._array)) return rows._array as Record<string, unknown>[];
+  if (typeof rows.item === "function" && typeof rows.length === "number") {
+    return Array.from({ length: rows.length }, (_, i) => rows.item!(i)) as Record<
+      string,
+      unknown
+    >[];
+  }
+  return [];
+}
 
 function CashierPage() {
   const navigate = useNavigate();
@@ -361,6 +384,211 @@ function CashierPage() {
     setError(null);
     setSaving(true);
     try {
+      if (canUseLocalData()) {
+        // -------- Offline-first path: whole sale in ONE local transaction --------
+        const userId = await requireUserId();
+        const status = remaining <= 0 ? "paid" : paidNum > 0 ? "partial" : "pending";
+        const trimmedName = customerName.trim();
+
+        const saved = await localTransaction(async (tx) => {
+          // Resolve/save customer: reuse selected, or auto-create when a name is entered.
+          let customerId: string | null = selectedCustomerId;
+          if (!customerId && trimmedName) {
+            const existing = txRows(
+              await tx.execute(
+                `SELECT id FROM customers WHERE user_id = ? AND name = ? COLLATE NOCASE LIMIT 1`,
+                [userId, trimmedName],
+              ),
+            )[0] as { id: string } | undefined;
+            if (existing?.id) {
+              customerId = existing.id;
+              if (phone) {
+                await tx.execute(
+                  `UPDATE customers SET phone = ?, updated_at = ? WHERE id = ?`,
+                  [phone, nowIso(), existing.id],
+                );
+              }
+            } else {
+              customerId = genId();
+              const ts = nowIso();
+              await tx.execute(
+                `INSERT INTO customers (id, user_id, name, phone, workshop, address, notes, balance, credit_limit, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, NULL, NULL, NULL, 0, 0, ?, ?)`,
+                [customerId, userId, trimmedName, phone || null, ts, ts],
+              );
+            }
+          }
+
+          // Next invoice number — computed inside the same transaction
+          // (mirrors the assign_invoice_number trigger).
+          const numRow = txRows(
+            await tx.execute(
+              `SELECT COALESCE(MAX(invoice_number),0)+1 AS n FROM invoices`,
+            ),
+          )[0] as { n: number } | undefined;
+          const invoiceNumber = Number(numRow?.n) || 1;
+
+          const invoiceId = genId();
+          const invTs = nowIso();
+          await tx.execute(
+            `INSERT INTO invoices (id, user_id, invoice_number, customer_id, customer_name, customer_phone, source, status, subtotal, discount, total, paid, remaining, payment_method, payment_method_id, reference_number, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              invoiceId,
+              userId,
+              invoiceNumber,
+              customerId,
+              trimmedName || null,
+              phone || null,
+              "pos",
+              status,
+              subtotalAfterMarkup,
+              discountNum,
+              total,
+              paidNum,
+              remaining,
+              paymentType,
+              paymentMethodId || null,
+              paymentType === "bank" ? (referenceNumber.trim() || null) : null,
+              invTs,
+              invTs,
+            ],
+          );
+
+          for (const i of cart) {
+            const adjustedPrice = i.unitPrice * markupMultiplier;
+            const productId = i.productId.startsWith("custom-") ? null : i.productId;
+            await tx.execute(
+              `INSERT INTO invoice_items (id, user_id, invoice_id, product_id, product_name, unit, quantity, unit_price, cost_price, line_total, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                genId(),
+                userId,
+                invoiceId,
+                productId,
+                i.name,
+                i.unit,
+                i.quantity,
+                adjustedPrice,
+                i.costPrice,
+                adjustedPrice * i.quantity,
+                nowIso(),
+              ],
+            );
+            // Stock decrement with availability guard
+            // (mirrors the decrement_product_stock trigger).
+            if (productId) {
+              const prod = txRows(
+                await tx.execute(`SELECT quantity, name FROM products WHERE id = ?`, [
+                  productId,
+                ]),
+              )[0] as { quantity: number | null; name: string | null } | undefined;
+              if (!prod) throw new Error("المنتج غير موجود");
+              const currentQty = Number(prod.quantity) || 0;
+              if (currentQty < i.quantity) {
+                throw new Error(`الكمية غير كافية للصنف: ${prod.name ?? i.name}`);
+              }
+              await tx.execute(
+                `UPDATE products SET quantity = quantity - ?, updated_at = ? WHERE id = ?`,
+                [i.quantity, nowIso(), productId],
+              );
+            }
+          }
+
+          // Initial POS payment row so offline account balances stay correct.
+          if (paidNum > 0) {
+            await tx.execute(
+              `INSERT INTO payments (id, user_id, invoice_id, purchase_id, account_id, party_type, party_id, amount, method, notes, created_at)
+               VALUES (?, ?, ?, NULL, ?, 'customer', ?, ?, ?, NULL, ?)`,
+              [
+                genId(),
+                userId,
+                invoiceId,
+                paymentMethodId || null,
+                customerId,
+                paidNum,
+                paymentType,
+                nowIso(),
+              ],
+            );
+          }
+
+          // Link the sale back to the originating special order (if any) —
+          // mirrors the remote update + its status-history trigger.
+          let linkedOrder = false;
+          if (pendingOrderId) {
+            const order = txRows(
+              await tx.execute(`SELECT status FROM special_orders WHERE id = ?`, [
+                pendingOrderId,
+              ]),
+            )[0] as { status: string | null } | undefined;
+            if (order) {
+              await tx.execute(
+                `UPDATE special_orders SET invoice_id = ?, status = 'delivered', updated_at = ? WHERE id = ?`,
+                [invoiceId, nowIso(), pendingOrderId],
+              );
+              if (order.status !== "delivered") {
+                await tx.execute(
+                  `INSERT INTO special_order_history (id, user_id, order_id, changed_by, from_status, to_status, reason, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'delivered', NULL, ?)`,
+                  [genId(), userId, pendingOrderId, userId, order.status ?? null, nowIso()],
+                );
+              }
+              linkedOrder = true;
+            }
+          }
+
+          return { invoiceId, invoiceNumber, linkedOrder };
+        });
+
+        const shareText = buildInvoiceText(
+          { invoice_number: saved.invoiceNumber, customer_name: trimmedName || null, total, paid: paidNum, remaining, created_at: new Date().toISOString() },
+          cart.map((i) => {
+            const adjustedPrice = i.unitPrice * markupMultiplier;
+            return { product_name: i.name, quantity: i.quantity, unit_price: adjustedPrice, line_total: adjustedPrice * i.quantity };
+          }),
+          storeProfile?.name || "المتجر",
+          { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
+        );
+        const savedInvoice = { id: saved.invoiceId, number: saved.invoiceNumber, phone, text: shareText };
+        setLastInvoice(savedInvoice);
+
+        setCart([]);
+        setCustomerName("");
+        setCustomerPhone("");
+        setSelectedCustomerId(null);
+        setDiscount("0");
+        setMarkupPct("0");
+        setPaid("");
+        setReferenceNumber("");
+        setQuery("");
+
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+        if (pendingOrderId) {
+          setPendingOrderId(null);
+          if (saved.linkedOrder) {
+            queryClient.invalidateQueries({ queryKey: ["special-orders"] });
+          }
+        }
+
+        toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+
+        // Auto-print: navigate directly to preview with autoprint flag
+        if (storeProfile?.auto_print) {
+          navigate({
+            to: "/invoices/$invoiceId",
+            params: { invoiceId: savedInvoice.id },
+            search: { autoprint: 1 },
+          });
+          return;
+        }
+        // Otherwise open the actions modal (print / WhatsApp / preview / return)
+        setActionsModalId(savedInvoice.id);
+        searchRef.current?.focus();
+        return;
+      }
+
       const { data: u, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw authErr;
       const userId = u.user?.id;

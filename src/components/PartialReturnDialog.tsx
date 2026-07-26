@@ -13,6 +13,14 @@ import { formatSDG } from "@/lib/format";
 import { RotateCcw, Loader2, Package, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  canUseLocalData,
+  genId,
+  localQuery,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
 type InvoiceItem = {
   id: string;
@@ -57,13 +65,22 @@ export function PartialReturnDialog({
     setQtyMap({});
     setReason("");
     (async () => {
-      const { data } = await supabase
-        .from("returns")
-        .select("product_id, quantity")
-        .eq("invoice_id", invoiceId)
-        .eq("status", "accepted");
+      let rows: Array<{ product_id: string | null; quantity: number }>;
+      if (canUseLocalData()) {
+        rows = await localQuery<{ product_id: string | null; quantity: number }>(
+          `SELECT product_id, quantity FROM returns WHERE invoice_id = ? AND status = 'accepted'`,
+          [invoiceId],
+        );
+      } else {
+        const { data } = await supabase
+          .from("returns")
+          .select("product_id, quantity")
+          .eq("invoice_id", invoiceId)
+          .eq("status", "accepted");
+        rows = data ?? [];
+      }
       const map: Record<string, number> = {};
-      (data ?? []).forEach((r: any) => {
+      rows.forEach((r: any) => {
         if (!r.product_id) return;
         map[r.product_id] = (map[r.product_id] ?? 0) + Number(r.quantity || 0);
       });
@@ -104,21 +121,53 @@ export function PartialReturnDialog({
     }
     setSubmitting(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("غير مسجّل الدخول");
-      const rows = eligibleItems
-        .filter((it) => (qtyMap[it.id] || 0) > 0)
-        .map((it) => ({
-          user_id: u.user!.id,
-          invoice_id: invoiceId,
-          product_id: it.product_id!,
-          product_name: it.product_name,
-          quantity: qtyMap[it.id],
-          reason: reason.trim() || `إرجاع جزئي من فاتورة #${invoiceNumber}`,
-          status: "accepted" as const,
-        }));
-      const { error } = await supabase.from("returns").insert(rows);
-      if (error) throw error;
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        const toReturn = eligibleItems.filter((it) => (qtyMap[it.id] || 0) > 0);
+        // Return rows + stock restore in one local transaction
+        // (mirrors the restore_stock_on_return_accepted trigger).
+        await localTransaction(async (tx) => {
+          for (const it of toReturn) {
+            const q = qtyMap[it.id];
+            const ts = nowIso();
+            await tx.execute(
+              `INSERT INTO returns (id, user_id, invoice_id, product_id, product_name, quantity, status, reason, notes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'accepted', ?, NULL, ?, ?)`,
+              [
+                genId(),
+                userId,
+                invoiceId,
+                it.product_id!,
+                it.product_name,
+                q,
+                reason.trim() || `إرجاع جزئي من فاتورة #${invoiceNumber}`,
+                ts,
+                ts,
+              ],
+            );
+            await tx.execute(
+              `UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?`,
+              [q, nowIso(), it.product_id!],
+            );
+          }
+        });
+      } else {
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) throw new Error("غير مسجّل الدخول");
+        const rows = eligibleItems
+          .filter((it) => (qtyMap[it.id] || 0) > 0)
+          .map((it) => ({
+            user_id: u.user!.id,
+            invoice_id: invoiceId,
+            product_id: it.product_id!,
+            product_name: it.product_name,
+            quantity: qtyMap[it.id],
+            reason: reason.trim() || `إرجاع جزئي من فاتورة #${invoiceNumber}`,
+            status: "accepted" as const,
+          }));
+        const { error } = await supabase.from("returns").insert(rows);
+        if (error) throw error;
+      }
 
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["returns"] });

@@ -31,7 +31,32 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localQuery,
+  localQueryOne,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
+/** Extract plain row objects from a PowerSync tx.execute() query result. */
+function txRows(res: unknown): Record<string, unknown>[] {
+  const rows = (res as {
+    rows?: { _array?: unknown[]; length?: number; item?: (i: number) => unknown };
+  } | null)?.rows;
+  if (!rows) return [];
+  if (Array.isArray(rows._array)) return rows._array as Record<string, unknown>[];
+  if (typeof rows.item === "function" && typeof rows.length === "number") {
+    return Array.from({ length: rows.length }, (_, i) => rows.item!(i)) as Record<
+      string,
+      unknown
+    >[];
+  }
+  return [];
+}
 
 type Props = {
   invoiceId: string | null;
@@ -62,6 +87,23 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     enabled: !!invoiceId && open,
 
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const [invRow, itemRows] = await Promise.all([
+          localQueryOne<Record<string, unknown>>(
+            `SELECT * FROM invoices WHERE id = ?`,
+            [invoiceId!],
+          ),
+          localQuery<Record<string, unknown>>(
+            `SELECT * FROM invoice_items WHERE invoice_id = ?`,
+            [invoiceId!],
+          ),
+        ]);
+        return {
+          inv: invRow ? fromLocalRow<any>("invoices", invRow) : null,
+          items: itemRows.map((r) => fromLocalRow<any>("invoice_items", r)),
+        };
+      }
+
       const [invRes, itemsRes] = await Promise.all([
         supabase.from("invoices").select("*").eq("id", invoiceId!).maybeSingle(),
         supabase.from("invoice_items").select("*").eq("invoice_id", invoiceId!),
@@ -104,6 +146,40 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
 
     setReturning(true);
     try {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        // Return rows + stock restore in one local transaction
+        // (mirrors the restore_stock_on_return_accepted trigger).
+        await localTransaction(async (tx) => {
+          for (const it of eligibleItems as any[]) {
+            const ts = nowIso();
+            await tx.execute(
+              `INSERT INTO returns (id, user_id, invoice_id, product_id, product_name, quantity, status, reason, notes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'accepted', ?, NULL, ?, ?)`,
+              [
+                genId(),
+                userId,
+                inv.id,
+                it.product_id,
+                it.product_name,
+                Number(it.quantity),
+                `إرجاع فاتورة #${inv.invoice_number}`,
+                ts,
+                ts,
+              ],
+            );
+            await tx.execute(
+              `UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?`,
+              [Number(it.quantity), nowIso(), it.product_id],
+            );
+          }
+        });
+        invalidateAll();
+        toast.success("تم إرجاع الأصناف إلى المخزن");
+        onOpenChange(false);
+        return;
+      }
+
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("غير مسجّل الدخول");
       const rows = eligibleItems.map((it: any) => ({
@@ -131,10 +207,20 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     if (!inv || deleting) return;
 
     // Read any payments linked to this invoice so the confirmation is honest.
-    const { data: linkedPays } = await supabase
-      .from("payments")
-      .select("id, amount, account_id")
-      .eq("invoice_id", inv.id);
+    let linkedPays: Array<{ id: string; amount: number; account_id: string | null }> | null =
+      null;
+    if (canUseLocalData()) {
+      linkedPays = await localQuery<{ id: string; amount: number; account_id: string | null }>(
+        `SELECT id, amount, account_id FROM payments WHERE invoice_id = ?`,
+        [inv.id],
+      );
+    } else {
+      const { data } = await supabase
+        .from("payments")
+        .select("id, amount, account_id")
+        .eq("invoice_id", inv.id);
+      linkedPays = data;
+    }
     const paysCount = linkedPays?.length ?? 0;
     const paysTotal = (linkedPays ?? []).reduce(
       (s: number, p: any) => s + Number(p.amount || 0),
@@ -157,20 +243,166 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
 
     setDeleting(true);
     try {
-      // One atomic DB call: locks the invoice, restores stock, deletes payments,
-      // deletes the invoice, writes a rich audit_logs row, then verifies.
-      // Any failure rolls the whole transaction back — no partial states.
-      const { data: verify, error } = await supabase.rpc("delete_invoice_atomic", {
-        _invoice_id: inv.id,
-        _reason: reason.trim() || undefined,
-      });
-      if (error) throw error;
-
-      const v = (verify ?? {}) as {
+      let v: {
         payments_deleted?: number;
         payments_total?: number;
         stock_restored?: Array<{ product_name?: string; restored_qty?: number }>;
       };
+
+      if (canUseLocalData()) {
+        // Local replica of the delete_invoice_atomic RPC: one transaction that
+        // restores stock (net of accepted returns), deletes payments, detaches
+        // returns, deletes items + invoice, and writes the rich audit row.
+        const actor = await requireUserId();
+        v = await localTransaction(async (tx) => {
+          const invRow = txRows(
+            await tx.execute(`SELECT * FROM invoices WHERE id = ?`, [inv.id]),
+          )[0] as Record<string, unknown> | undefined;
+          if (!invRow) throw new Error("الفاتورة غير موجودة");
+
+          const adminRow = txRows(
+            await tx.execute(
+              `SELECT 1 AS ok FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1`,
+              [actor],
+            ),
+          )[0];
+          const isAdminActor = !!adminRow;
+          if (!isAdminActor && invRow.user_id !== actor) {
+            throw new Error("ممنوع — لا تملك صلاحية حذف هذه الفاتورة");
+          }
+
+          const itemRows = txRows(
+            await tx.execute(
+              `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY created_at`,
+              [inv.id],
+            ),
+          );
+          const payRows = txRows(
+            await tx.execute(
+              `SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at`,
+              [inv.id],
+            ),
+          );
+          const paymentsTotal = payRows.reduce(
+            (s, p) => s + (Number((p as any).amount) || 0),
+            0,
+          );
+
+          const accountsImpactMap = new Map<string, number>();
+          for (const p of payRows as any[]) {
+            if (!p.account_id) continue;
+            accountsImpactMap.set(
+              p.account_id,
+              (accountsImpactMap.get(p.account_id) ?? 0) + (Number(p.amount) || 0),
+            );
+          }
+          const accountsImpact = Array.from(accountsImpactMap, ([account_id, deducted]) => ({
+            account_id,
+            deducted,
+          }));
+
+          // Restore stock net of already-accepted returns.
+          const sold = new Map<string, { name: string; qty: number }>();
+          for (const it of itemRows as any[]) {
+            if (!it.product_id) continue;
+            const cur = sold.get(it.product_id) ?? { name: it.product_name, qty: 0 };
+            cur.qty += Number(it.quantity) || 0;
+            sold.set(it.product_id, cur);
+          }
+          const stockRestored: Array<{
+            product_id: string;
+            product_name: string;
+            restored_qty: number;
+          }> = [];
+          for (const [productId, s] of sold) {
+            const retRow = txRows(
+              await tx.execute(
+                `SELECT COALESCE(SUM(quantity), 0) AS q FROM returns WHERE invoice_id = ? AND product_id = ? AND status = 'accepted'`,
+                [inv.id, productId],
+              ),
+            )[0] as { q: number } | undefined;
+            const netQty = s.qty - (Number(retRow?.q) || 0);
+            if (netQty > 0) {
+              await tx.execute(
+                `UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?`,
+                [netQty, nowIso(), productId],
+              );
+              stockRestored.push({
+                product_id: productId,
+                product_name: s.name,
+                restored_qty: netQty,
+              });
+            }
+          }
+
+          await tx.execute(`DELETE FROM payments WHERE invoice_id = ?`, [inv.id]);
+          // Detach returns rows (invoice_id becomes NULL — history preserved).
+          await tx.execute(
+            `UPDATE returns SET invoice_id = NULL, updated_at = ? WHERE invoice_id = ?`,
+            [nowIso(), inv.id],
+          );
+          await tx.execute(`DELETE FROM invoice_items WHERE invoice_id = ?`, [inv.id]);
+          await tx.execute(`DELETE FROM invoices WHERE id = ?`, [inv.id]);
+
+          const invSnapshot = fromLocalRow<Record<string, any>>("invoices", invRow);
+          await tx.execute(
+            `INSERT INTO audit_logs (id, user_id, action, table_name, record_id, details, created_at)
+             VALUES (?, ?, 'invoice_delete_atomic', 'invoices', ?, ?, ?)`,
+            [
+              genId(),
+              actor,
+              inv.id,
+              JSON.stringify({
+                deleted_by: actor,
+                is_admin_actor: isAdminActor,
+                reason: reason.trim() || null,
+                invoice_owner: invSnapshot.user_id,
+                invoice_number: invSnapshot.invoice_number,
+                invoice_total: invSnapshot.total,
+                invoice_paid: invSnapshot.paid,
+                invoice_remaining: invSnapshot.remaining,
+                customer_id: invSnapshot.customer_id,
+                customer_name: invSnapshot.customer_name,
+                created_at: invSnapshot.created_at,
+                deleted_at: nowIso(),
+                items_count: itemRows.length,
+                items: itemRows.map((r) =>
+                  fromLocalRow("invoice_items", r as Record<string, unknown>),
+                ),
+                payments_count: payRows.length,
+                payments_total: paymentsTotal,
+                payments: payRows.map((r) =>
+                  fromLocalRow("payments", r as Record<string, unknown>),
+                ),
+                accounts_impact: accountsImpact,
+                stock_restored: stockRestored,
+              }),
+              nowIso(),
+            ],
+          );
+
+          return {
+            payments_deleted: payRows.length,
+            payments_total: paymentsTotal,
+            stock_restored: stockRestored,
+          };
+        });
+      } else {
+        // One atomic DB call: locks the invoice, restores stock, deletes payments,
+        // deletes the invoice, writes a rich audit_logs row, then verifies.
+        // Any failure rolls the whole transaction back — no partial states.
+        const { data: verify, error } = await supabase.rpc("delete_invoice_atomic", {
+          _invoice_id: inv.id,
+          _reason: reason.trim() || undefined,
+        });
+        if (error) throw error;
+
+        v = (verify ?? {}) as {
+          payments_deleted?: number;
+          payments_total?: number;
+          stock_restored?: Array<{ product_name?: string; restored_qty?: number }>;
+        };
+      }
 
       invalidateAll();
       toast.success(

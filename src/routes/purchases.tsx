@@ -8,6 +8,7 @@ import { usePurchases, useCreatePurchase, usePurchase, type PurchaseItemInput } 
 import { useSuppliers } from "@/hooks/use-suppliers";
 import { useProducts } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -167,6 +168,14 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
     enabled: productIds.length > 0,
     queryKey: ["purchase-stock", id, productIds],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = productIds.map(() => "?").join(", ");
+        return localQuery<Record<string, unknown>>(
+          `SELECT id, name, quantity, min_quantity, cost_price FROM products WHERE id IN (${placeholders})`,
+          productIds,
+        );
+      }
+
       const { data, error } = await supabase
         .from("products")
         .select("id, name, quantity, min_quantity, cost_price")

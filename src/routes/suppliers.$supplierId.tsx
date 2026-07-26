@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Phone, MapPin, Truck, Loader2, AlertCircle, Printer, Info } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { canUseLocalData, fromLocalRow, localQuery, localQueryOne } from "@/lib/data/local";
 import { formatSDG } from "@/lib/format";
 
 export const Route = createFileRoute("/suppliers/$supplierId")({
@@ -45,6 +47,31 @@ function SupplierStatementPage() {
       const range = computeRange(quick);
       const fromIso = range ? range.from : (from ? new Date(from).toISOString() : null);
       const toIso = range ? range.to : (to ? (() => { const d = new Date(to); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+
+      if (canUseLocalData()) {
+        let dateSql = "";
+        const dateArgs: unknown[] = [];
+        if (fromIso) { dateSql += ` AND created_at >= ?`; dateArgs.push(fromIso); }
+        if (toIso) { dateSql += ` AND created_at <= ?`; dateArgs.push(toIso); }
+
+        const [supplierRow, purchases, payments] = await Promise.all([
+          localQueryOne<Record<string, unknown>>(`SELECT * FROM suppliers WHERE id = ?`, [supplierId]),
+          localQuery<Record<string, unknown>>(
+            `SELECT * FROM purchases WHERE supplier_id = ?${dateSql} ORDER BY created_at DESC LIMIT 500`,
+            [supplierId, ...dateArgs],
+          ),
+          localQuery<Record<string, unknown>>(
+            `SELECT * FROM payments WHERE party_type = 'supplier' AND party_id = ?${dateSql} ORDER BY created_at DESC LIMIT 500`,
+            [supplierId, ...dateArgs],
+          ),
+        ]);
+        return {
+          supplier: supplierRow ? fromLocalRow<Tables<"suppliers">>("suppliers", supplierRow) : null,
+          purchases,
+          payments,
+        };
+      }
+
       let pq = supabase.from("purchases").select("*").eq("supplier_id", supplierId).order("created_at", { ascending: false }).limit(500);
       let payq = supabase.from("payments").select("*").eq("party_type", "supplier").eq("party_id", supplierId).order("created_at", { ascending: false }).limit(500);
       if (fromIso) { pq = pq.gte("created_at", fromIso); payq = payq.gte("created_at", fromIso); }

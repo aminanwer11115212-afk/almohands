@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown, Info, MapPin } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { canUseLocalData, fromLocalRow, localQuery, localQueryOne } from "@/lib/data/local";
 import { formatSDG } from "@/lib/format";
 import { openWhatsAppShare } from "@/lib/invoice-share";
 import { useStoreProfile } from "@/hooks/use-store-profile";
@@ -60,6 +62,36 @@ function CustomerLedgerPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["customer-ledger", customerId, invFrom, invTo, invQuick],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const custRow = await localQueryOne<Record<string, unknown>>(
+          `SELECT * FROM customers WHERE id = ?`,
+          [customerId],
+        );
+        if (!custRow) return { customer: null, invoices: [] as InvoiceRow[] };
+        const customer = fromLocalRow<Tables<"customers">>("customers", custRow);
+
+        let sql = `SELECT id, invoice_number, total, paid, remaining, status, payment_method, created_at FROM invoices WHERE customer_id = ?`;
+        const args: unknown[] = [customerId];
+        if (invRange) {
+          sql += ` AND created_at >= ? AND created_at <= ?`;
+          args.push(invRange.from, invRange.to);
+        } else {
+          if (invFrom) {
+            sql += ` AND created_at >= ?`;
+            args.push(new Date(invFrom).toISOString());
+          }
+          if (invTo) {
+            const end = new Date(invTo);
+            end.setHours(23, 59, 59, 999);
+            sql += ` AND created_at <= ?`;
+            args.push(end.toISOString());
+          }
+        }
+        sql += ` ORDER BY created_at DESC LIMIT 500`;
+        const invs = await localQuery<InvoiceRow>(sql, args);
+        return { customer, invoices: invs };
+      }
+
       const { data: cust, error: cErr } = await supabase
         .from("customers")
         .select("*")
@@ -337,6 +369,48 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["customer-products", customerId, from, to, quick],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        let invSql = `SELECT id, invoice_number, status, created_at FROM invoices WHERE customer_id = ? AND status != 'cancelled'`;
+        const args: unknown[] = [customerId];
+        if (range) {
+          invSql += ` AND created_at >= ? AND created_at <= ?`;
+          args.push(range.from, range.to);
+        } else {
+          if (from) {
+            invSql += ` AND created_at >= ?`;
+            args.push(new Date(from).toISOString());
+          }
+          if (to) {
+            const end = new Date(to);
+            end.setHours(23, 59, 59, 999);
+            invSql += ` AND created_at <= ?`;
+            args.push(end.toISOString());
+          }
+        }
+        invSql += ` ORDER BY created_at DESC LIMIT 500`;
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT ii.id AS id, ii.product_name AS product_name, ii.quantity AS quantity, ii.unit AS unit,
+                  ii.unit_price AS unit_price, ii.line_total AS line_total,
+                  inv.created_at AS created_at, inv.id AS invoice_id, inv.invoice_number AS invoice_number, inv.status AS invoice_status
+           FROM invoice_items ii
+           JOIN (${invSql}) inv ON inv.id = ii.invoice_id
+           ORDER BY inv.created_at DESC`,
+          args,
+        );
+        return rows.map((r): PurchasedItem => ({
+          id: String(r.id),
+          product_name: String(r.product_name ?? ""),
+          quantity: Number(r.quantity) || 0,
+          unit: String(r.unit ?? ""),
+          unit_price: Number(r.unit_price) || 0,
+          line_total: Number(r.line_total) || 0,
+          created_at: String(r.created_at ?? ""),
+          invoice_id: String(r.invoice_id),
+          invoice_number: r.invoice_number == null ? null : Number(r.invoice_number),
+          invoice_status: r.invoice_status == null ? null : String(r.invoice_status),
+        }));
+      }
+
       let q = supabase
         .from("invoices")
         .select("id, invoice_number, status, created_at, invoice_items(id, product_name, quantity, unit, unit_price, line_total, created_at)")

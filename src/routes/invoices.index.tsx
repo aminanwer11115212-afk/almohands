@@ -7,12 +7,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, Receipt, Calendar, MoreVertical, Printer, Eye } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { formatSDG } from "@/lib/format";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { useMyRole } from "@/hooks/use-permissions";
 
 const statusEnum = z.enum(["all", "paid", "partial", "pending"]);
-const sortEnum = z.enum(["date_desc", "date_asc", "profit_desc", "profit_asc", "total_desc", "total_asc"]);
+const sortEnum = z.enum([
+  "date_desc",
+  "date_asc",
+  "profit_desc",
+  "profit_asc",
+  "total_desc",
+  "total_asc",
+]);
 const rangeEnum = z.enum(["", "today", "week", "month"]);
 
 const searchSchema = z.object({
@@ -25,7 +33,6 @@ const searchSchema = z.object({
 });
 
 type InvoicesSearch = z.infer<typeof searchSchema>;
-
 
 type InvoiceRow = {
   id: string;
@@ -57,18 +64,25 @@ const statusClasses: Record<string, string> = {
  * filter or be abused; strip them and cap length.
  */
 function sanitizeOrTerm(raw: string): string {
-  return raw.replace(/[,()*:%\\]/g, " ").trim().slice(0, 80);
+  return raw
+    .replace(/[,()*:%\\]/g, " ")
+    .trim()
+    .slice(0, 80);
 }
 
 export const Route = createFileRoute("/invoices/")({
   head: () => ({ meta: [{ title: "الفواتير — المهندس" }] }),
   validateSearch: zodValidator(searchSchema),
-  component: () => (<PermissionGate perm="invoices.view"><InvoicesPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="invoices.view">
+      <InvoicesPage />
+    </PermissionGate>
+  ),
 });
 
 function InvoicesPage() {
   const { q, status, from, to, sort, range } = Route.useSearch();
-  const navigate = useNavigate({ from: "/invoices" });
+  const navigate = useNavigate({ from: Route.fullPath });
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
 
   // Derive effective from/to from `range` shortcut (today/week/month) unless explicit from/to set
@@ -78,17 +92,60 @@ function InvoicesPage() {
     const now = new Date();
     const start = new Date(now);
     if (range === "today") start.setHours(0, 0, 0, 0);
-    else if (range === "week") { start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0); }
-    else if (range === "month") { start.setDate(now.getDate() - 29); start.setHours(0, 0, 0, 0); }
+    else if (range === "week") {
+      start.setDate(now.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+    } else if (range === "month") {
+      start.setDate(now.getDate() - 29);
+      start.setHours(0, 0, 0, 0);
+    }
     return { effFrom: start.toISOString(), effTo: now.toISOString() };
   }, [from, to, range]);
 
   const query = useQuery({
     queryKey: ["invoices", { q, status, effFrom, effTo }],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const where: string[] = [];
+        const args: unknown[] = [];
+        if (status !== "all") {
+          where.push("status = ?");
+          args.push(status);
+        }
+        if (effFrom) {
+          where.push("created_at >= ?");
+          args.push(effFrom);
+        }
+        if (effTo) {
+          where.push("created_at <= ?");
+          args.push(effTo);
+        }
+        if (q.trim()) {
+          const term = sanitizeOrTerm(q);
+          if (term) {
+            const like = `%${term}%`;
+            const asNum = Number(term);
+            if (Number.isInteger(asNum) && asNum > 0) {
+              where.push("(invoice_number = ? OR customer_name LIKE ? OR customer_phone LIKE ?)");
+              args.push(asNum, like, like);
+            } else {
+              where.push("(customer_name LIKE ? OR customer_phone LIKE ?)");
+              args.push(like, like);
+            }
+          }
+        }
+        const sql =
+          "SELECT id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at FROM invoices" +
+          (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
+          " ORDER BY created_at DESC LIMIT 200";
+        return await localQuery<InvoiceRow>(sql, args);
+      }
+
       let req = supabase
         .from("invoices")
-        .select("id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at")
+        .select(
+          "id, invoice_number, customer_name, customer_phone, total, paid, remaining, status, discount, created_at",
+        )
         .order("created_at", { ascending: false })
         .limit(200);
 
@@ -122,6 +179,28 @@ function InvoicesPage() {
     queryKey: ["invoices-profit", invoiceIds],
     enabled: isAdmin && invoiceIds.length > 0,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = invoiceIds.map(() => "?").join(", ");
+        const items = await localQuery<any>(
+          `SELECT invoice_id, quantity, unit_price, cost_price FROM invoice_items WHERE invoice_id IN (${placeholders})`,
+          invoiceIds,
+        );
+        const map = new Map<string, number>();
+        for (const it of items) {
+          const qty = Number(it.quantity) || 0;
+          const p = ((Number(it.unit_price) || 0) - (Number(it.cost_price) || 0)) * qty;
+          map.set(it.invoice_id, (map.get(it.invoice_id) ?? 0) + p);
+        }
+        // subtract invoice-level discount to get net line profit
+        for (const inv of query.data ?? []) {
+          if (map.has(inv.id)) {
+            const disc = Number((inv as any).discount) || 0;
+            if (disc) map.set(inv.id, (map.get(inv.id) ?? 0) - disc);
+          }
+        }
+        return map;
+      }
+
       const { data, error } = await supabase
         .from("invoice_items")
         .select("invoice_id, quantity, unit_price, cost_price")
@@ -154,7 +233,6 @@ function InvoicesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-     
   }, []);
 
   const sortedInvoices = useMemo(() => {
@@ -222,7 +300,9 @@ function InvoicesPage() {
             {(["all", "paid", "partial", "pending"] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => navigate({ search: (prev: InvoicesSearch) => ({ ...prev, status: s }) })}
+                onClick={() =>
+                  navigate({ search: (prev: InvoicesSearch) => ({ ...prev, status: s }) })
+                }
                 className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
                   status === s
                     ? "bg-primary text-primary-foreground border-primary"
@@ -235,15 +315,21 @@ function InvoicesPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {([
-              ["", "كل الفترات"],
-              ["today", "اليوم"],
-              ["week", "آخر 7 أيام"],
-              ["month", "آخر 30 يوم"],
-            ] as const).map(([r, label]) => (
+            {(
+              [
+                ["", "كل الفترات"],
+                ["today", "اليوم"],
+                ["week", "آخر 7 أيام"],
+                ["month", "آخر 30 يوم"],
+              ] as const
+            ).map(([r, label]) => (
               <button
                 key={r || "all"}
-                onClick={() => navigate({ search: (prev: InvoicesSearch) => ({ ...prev, range: r, from: "", to: "" }) })}
+                onClick={() =>
+                  navigate({
+                    search: (prev: InvoicesSearch) => ({ ...prev, range: r, from: "", to: "" }),
+                  })
+                }
                 className={`px-3 h-8 rounded-full text-xs font-medium border transition ${
                   range === r && !from && !to
                     ? "bg-emerald-600 text-white border-emerald-600"
@@ -255,10 +341,11 @@ function InvoicesPage() {
             ))}
           </div>
 
-
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-muted-foreground flex flex-col gap-1">
-              <span className="flex items-center gap-1"><Calendar className="size-3" /> من</span>
+              <span className="flex items-center gap-1">
+                <Calendar className="size-3" /> من
+              </span>
               <input
                 type="date"
                 value={from}
@@ -270,7 +357,9 @@ function InvoicesPage() {
               />
             </label>
             <label className="text-xs text-muted-foreground flex flex-col gap-1">
-              <span className="flex items-center gap-1"><Calendar className="size-3" /> إلى</span>
+              <span className="flex items-center gap-1">
+                <Calendar className="size-3" /> إلى
+              </span>
               <input
                 type="date"
                 value={to}
@@ -305,7 +394,11 @@ function InvoicesPage() {
 
             {(q || status !== "all" || from || to || sort !== "date_desc") && (
               <button
-                onClick={() => navigate({ search: { q: "", status: "all", from: "", to: "", sort: "date_desc" } })}
+                onClick={() =>
+                  navigate({
+                    search: { q: "", status: "all", from: "", to: "", sort: "date_desc" },
+                  })
+                }
                 className="text-xs text-primary hover:underline"
               >
                 مسح الفلاتر
@@ -314,13 +407,19 @@ function InvoicesPage() {
           </div>
         </div>
 
-        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}>
+        <div
+          className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2 text-center`}
+        >
           <SummaryCard label="فواتير" value={String(totals.count)} />
           <SummaryCard label="الإجمالي" value={formatSDG(totals.total)} />
           <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="emerald" />
           <SummaryCard label="المتبقي" value={formatSDG(totals.remaining)} tone="rose" />
           {isAdmin && (
-            <SummaryCard label="صافي الربح" value={formatSDG(totals.profit)} tone={totals.profit >= 0 ? "emerald" : "rose"} />
+            <SummaryCard
+              label="صافي الربح"
+              value={formatSDG(totals.profit)}
+              tone={totals.profit >= 0 ? "emerald" : "rose"}
+            />
           )}
         </div>
 
@@ -360,8 +459,12 @@ function InvoicesPage() {
                       <div className="flex-1 min-w-0 text-right p-3 flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-primary nums">#{inv.invoice_number}</span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}>
+                            <span className="font-bold text-primary nums">
+                              #{inv.invoice_number}
+                            </span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[inv.status] ?? "bg-muted text-muted-foreground"}`}
+                            >
                               {statusLabels[inv.status] ?? inv.status}
                             </span>
                           </div>
@@ -370,16 +473,25 @@ function InvoicesPage() {
                             {inv.customer_phone ? ` · ${inv.customer_phone}` : ""}
                           </div>
                           <div className="text-[11px] text-muted-foreground nums">
-                            {new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                            {new Date(inv.created_at).toLocaleString("ar-EG", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
                           </div>
                         </div>
                         <div className="text-left shrink-0">
-                          <div className="text-sm font-semibold nums">{formatSDG(Number(inv.total))}</div>
+                          <div className="text-sm font-semibold nums">
+                            {formatSDG(Number(inv.total))}
+                          </div>
                           {Number(inv.remaining) > 0 && (
-                            <div className="text-[11px] text-rose-600 nums">متبقي {formatSDG(Number(inv.remaining))}</div>
+                            <div className="text-[11px] text-rose-600 nums">
+                              متبقي {formatSDG(Number(inv.remaining))}
+                            </div>
                           )}
                           {isAdmin && profitQuery.data?.has(inv.id) && (
-                            <div className={`text-[11px] nums font-semibold ${(profitQuery.data.get(inv.id) ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                            <div
+                              className={`text-[11px] nums font-semibold ${(profitQuery.data.get(inv.id) ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+                            >
                               ربح {formatSDG(profitQuery.data.get(inv.id) ?? 0)}
                             </div>
                           )}
@@ -391,7 +503,10 @@ function InvoicesPage() {
                       >
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); goDetail(1); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goDetail(1);
+                          }}
                           title="طباعة"
                           aria-label="طباعة"
                           className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
@@ -400,7 +515,10 @@ function InvoicesPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); goDetail(0); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goDetail(0);
+                          }}
                           title="عرض التفاصيل"
                           aria-label="عرض التفاصيل"
                           className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground hidden sm:inline-flex"
@@ -409,7 +527,10 @@ function InvoicesPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setOpenInvoiceId(inv.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenInvoiceId(inv.id);
+                          }}
                           title="إجراءات"
                           aria-label="إجراءات"
                           className="p-2 rounded-md hover:bg-background text-muted-foreground hover:text-foreground"
@@ -422,7 +543,6 @@ function InvoicesPage() {
                 );
               })}
             </ul>
-
           )}
         </div>
       </div>
@@ -430,13 +550,23 @@ function InvoicesPage() {
       <InvoiceActionsModal
         invoiceId={openInvoiceId}
         open={openInvoiceId !== null}
-        onOpenChange={(v) => { if (!v) setOpenInvoiceId(null); }}
+        onOpenChange={(v) => {
+          if (!v) setOpenInvoiceId(null);
+        }}
       />
     </AppShell>
   );
 }
 
-function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: "emerald" | "rose" }) {
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "emerald" | "rose";
+}) {
   const toneClass =
     tone === "emerald" ? "text-emerald-600" : tone === "rose" ? "text-rose-600" : "text-foreground";
   return (

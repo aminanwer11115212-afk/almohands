@@ -1,6 +1,8 @@
 /* Product audit-log helpers. Extracted so tests can drive them against a
  * hand-rolled Supabase mock without spinning up the real client. */
 
+import { canUseLocalData, localInsert, requireUserId } from "@/lib/data/local";
+
 export type MinimalAuditSupabase = {
   auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> };
   from: (table: string) => {
@@ -29,6 +31,18 @@ export async function logProductAudit(
   details: ProductAuditDetails,
 ): Promise<boolean> {
   try {
+    if (canUseLocalData()) {
+      const userId = await requireUserId();
+      await localInsert("audit_logs", {
+        user_id: userId,
+        action,
+        table_name: "products",
+        record_id: productId,
+        details,
+      });
+      return true;
+    }
+
     const { data } = await supabase.auth.getUser();
     const uid = data.user?.id;
     if (!uid) return false;
@@ -61,6 +75,15 @@ export function diffProduct(
 }
 
 export const PRODUCT_AUDIT_FIELDS = [
-  "name", "barcode", "part_number", "category", "unit", "location",
-  "quantity", "min_quantity", "cost_price", "sale_price", "notes",
+  "name",
+  "barcode",
+  "part_number",
+  "category",
+  "unit",
+  "location",
+  "quantity",
+  "min_quantity",
+  "cost_price",
+  "sale_price",
+  "notes",
 ] as const;

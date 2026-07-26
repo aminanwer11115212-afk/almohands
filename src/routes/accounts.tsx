@@ -5,17 +5,30 @@ import { AppShell } from "@/components/AppShell";
 import { formatSDG } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { useAccountBalances, type AccountBalance } from "@/hooks/use-account-balances";
 import { useExpenses, useAddExpense } from "@/hooks/use-expenses";
 import { toast } from "sonner";
 import {
-  Wallet, Landmark, Smartphone, CreditCard, TrendingUp, TrendingDown,
-  Plus, ArrowDownCircle, ArrowUpCircle, Receipt,
+  Wallet,
+  Landmark,
+  Smartphone,
+  CreditCard,
+  TrendingUp,
+  TrendingDown,
+  Plus,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Receipt,
 } from "lucide-react";
 
 export const Route = createFileRoute("/accounts")({
   head: () => ({ meta: [{ title: "إدارة الحسابات — المهندس" }] }),
-  component: () => (<PermissionGate perm="accounts.view"><AccountsPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="accounts.view">
+      <AccountsPage />
+    </PermissionGate>
+  ),
 });
 
 const mainTabs = ["نظرة عامة", "الحسابات", "المصروفات", "التقارير"] as const;
@@ -29,7 +42,10 @@ function toLocalDateStr(d: Date): string {
 }
 
 function accountIcon(type: string, bank?: string | null) {
-  if (type === "bank") return bank?.toLowerCase().includes("wallet") || bank?.toLowerCase().includes("mobile") ? Smartphone : Landmark;
+  if (type === "bank")
+    return bank?.toLowerCase().includes("wallet") || bank?.toLowerCase().includes("mobile")
+      ? Smartphone
+      : Landmark;
   if (type === "cash") return Wallet;
   return CreditCard;
 }
@@ -57,18 +73,34 @@ function useAccountStats() {
       const lastMonthStart = toLocalDateStr(lastMonth);
       const lastMonthEnd = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 0));
 
-      const [invRes, expRes] = await Promise.all([
-        supabase.from("invoices").select("total, created_at").gte("created_at", lastMonthStart),
-        supabase.from("expenses").select("amount, date").gte("date", lastMonthStart),
-      ]);
-      if (invRes.error) throw invRes.error;
-      if (expRes.error) throw expRes.error;
+      let inv: { total: number | null; created_at: string | null }[];
+      let exp: { amount: number | null; date: string | null }[];
+      if (canUseLocalData()) {
+        [inv, exp] = await Promise.all([
+          localQuery<{ total: number | null; created_at: string | null }>(
+            `SELECT total, created_at FROM invoices WHERE created_at >= ?`,
+            [lastMonthStart],
+          ),
+          localQuery<{ amount: number | null; date: string | null }>(
+            `SELECT amount, date FROM expenses WHERE date >= ?`,
+            [lastMonthStart],
+          ),
+        ]);
+      } else {
+        const [invRes, expRes] = await Promise.all([
+          supabase.from("invoices").select("total, created_at").gte("created_at", lastMonthStart),
+          supabase.from("expenses").select("amount, date").gte("date", lastMonthStart),
+        ]);
+        if (invRes.error) throw invRes.error;
+        if (expRes.error) throw expRes.error;
 
-      const inv = invRes.data ?? [];
-      const exp = expRes.data ?? [];
+        inv = invRes.data ?? [];
+        exp = expRes.data ?? [];
+      }
 
       const sumInv = (f: (d: string) => boolean) =>
-        inv.filter((i) => f(i.created_at ? toLocalDateStr(new Date(i.created_at)) : ""))
+        inv
+          .filter((i) => f(i.created_at ? toLocalDateStr(new Date(i.created_at)) : ""))
           .reduce((s, i) => s + (Number(i.total) || 0), 0);
       const sumExp = (f: (d: string) => boolean) =>
         exp.filter((e) => f(e.date || "")).reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -79,9 +111,24 @@ function useAccountStats() {
       const isLastMonth = (d: string) => d >= lastMonthStart && d <= lastMonthEnd;
 
       return {
-        sales: { today: sumInv(isToday), yesterday: sumInv(isYesterday), thisMonth: sumInv(isThisMonth), lastMonth: sumInv(isLastMonth) },
-        profit: { today: sumInv(isToday) - sumExp(isToday), yesterday: sumInv(isYesterday) - sumExp(isYesterday), thisMonth: sumInv(isThisMonth) - sumExp(isThisMonth), lastMonth: sumInv(isLastMonth) - sumExp(isLastMonth) },
-        expenses: { today: sumExp(isToday), yesterday: sumExp(isYesterday), thisMonth: sumExp(isThisMonth), lastMonth: sumExp(isLastMonth) },
+        sales: {
+          today: sumInv(isToday),
+          yesterday: sumInv(isYesterday),
+          thisMonth: sumInv(isThisMonth),
+          lastMonth: sumInv(isLastMonth),
+        },
+        profit: {
+          today: sumInv(isToday) - sumExp(isToday),
+          yesterday: sumInv(isYesterday) - sumExp(isYesterday),
+          thisMonth: sumInv(isThisMonth) - sumExp(isThisMonth),
+          lastMonth: sumInv(isLastMonth) - sumExp(isLastMonth),
+        },
+        expenses: {
+          today: sumExp(isToday),
+          yesterday: sumExp(isYesterday),
+          thisMonth: sumExp(isThisMonth),
+          lastMonth: sumExp(isLastMonth),
+        },
       };
     },
   });
@@ -104,7 +151,7 @@ function AccountsPage() {
         if (a.type === "bank") acc.bank += Number(a.balance) || 0;
         return acc;
       },
-      { balance: 0, incoming: 0, outgoing: 0, cash: 0, bank: 0 }
+      { balance: 0, incoming: 0, outgoing: 0, cash: 0, bank: 0 },
     );
   }, [balances]);
 
@@ -115,7 +162,13 @@ function AccountsPage() {
         <SummaryTile label="إجمالي الرصيد" value={totals.balance} icon={Wallet} tone="brand" />
         <SummaryTile label="واردات" value={totals.incoming} icon={ArrowDownCircle} tone="ok" />
         <SummaryTile label="صادرات" value={totals.outgoing} icon={ArrowUpCircle} tone="warn" />
-        <SummaryTile label={`نقدي / بنك`} value={totals.cash} value2={totals.bank} icon={Landmark} tone="neutral" />
+        <SummaryTile
+          label={`نقدي / بنك`}
+          value={totals.cash}
+          value2={totals.bank}
+          icon={Landmark}
+          tone="neutral"
+        />
       </div>
 
       {/* Tabs */}
@@ -126,7 +179,9 @@ function AccountsPage() {
               key={t}
               onClick={() => setMainTab(t)}
               className={`py-3 font-bold border-b-2 transition ${
-                mainTab === t ? "border-[var(--accent-gold)] text-[var(--accent-gold)]" : "border-transparent text-header-foreground/80"
+                mainTab === t
+                  ? "border-[var(--accent-gold)] text-[var(--accent-gold)]"
+                  : "border-transparent text-header-foreground/80"
               }`}
             >
               {t}
@@ -140,7 +195,9 @@ function AccountsPage() {
       {mainTab === "المصروفات" && <ExpensesShortcutTab balances={balances} />}
       {mainTab === "التقارير" && (
         <div className="mt-8 text-center text-muted-foreground text-sm">
-          <Link to="/reports" className="underline text-brand font-bold">افتح التقارير المفصلة</Link>
+          <Link to="/reports" className="underline text-brand font-bold">
+            افتح التقارير المفصلة
+          </Link>
         </div>
       )}
     </AppShell>
@@ -154,7 +211,11 @@ function OverviewTab() {
   const [sub, setSub] = useState<"المبيعات" | "الأرباح" | "المصروفات">("المبيعات");
   const { data: stats, isLoading } = useAccountStats();
   const values = stats
-    ? sub === "الأرباح" ? stats.profit : sub === "المصروفات" ? stats.expenses : stats.sales
+    ? sub === "الأرباح"
+      ? stats.profit
+      : sub === "المصروفات"
+        ? stats.expenses
+        : stats.sales
     : { today: 0, yesterday: 0, thisMonth: 0, lastMonth: 0 };
 
   return (
@@ -166,7 +227,9 @@ function OverviewTab() {
               key={t}
               onClick={() => setSub(t)}
               className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                sub === t ? "border-[var(--accent-gold)] text-brand" : "border-transparent text-muted-foreground"
+                sub === t
+                  ? "border-[var(--accent-gold)] text-brand"
+                  : "border-transparent text-muted-foreground"
               }`}
             >
               {t}
@@ -195,7 +258,8 @@ function OverviewTab() {
 /* Accounts tab — list every bank/cash account with balance            */
 /* ------------------------------------------------------------------ */
 function AccountsTab({ balances, loading }: { balances: AccountBalance[]; loading: boolean }) {
-  if (loading) return <p className="mt-6 text-center text-muted-foreground text-sm">جاري التحميل...</p>;
+  if (loading)
+    return <p className="mt-6 text-center text-muted-foreground text-sm">جاري التحميل...</p>;
   if (balances.length === 0) {
     return (
       <div className="mt-8 text-center space-y-3">
@@ -233,7 +297,9 @@ function AccountsTab({ balances, loading }: { balances: AccountBalance[]; loadin
           >
             <div className="flex items-start justify-between gap-3">
               <div className="text-end">
-                <div className={`text-2xl font-extrabold nums ${negative ? "text-destructive" : "text-brand"}`}>
+                <div
+                  className={`text-2xl font-extrabold nums ${negative ? "text-destructive" : "text-brand"}`}
+                >
                   {formatSDG(Number(a.balance) || 0)}
                 </div>
                 <div className="text-[11px] text-muted-foreground">الرصيد الحالي</div>
@@ -254,15 +320,36 @@ function AccountsTab({ balances, loading }: { balances: AccountBalance[]; loadin
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-center">
-              <MiniStat icon={Receipt} label="فواتير مدفوعة" value={Number(a.invoice_paid) || 0} tone="ok" />
-              <MiniStat icon={TrendingUp} label="دفعات عملاء" value={Number(a.customer_payments) || 0} tone="ok" />
-              <MiniStat icon={Receipt} label="للموردين" value={Number(a.outgoing_supplier) || 0} tone="neutral" />
-              <MiniStat icon={TrendingDown} label="مصروفات" value={Number(a.outgoing_expense) || 0} tone="warn" />
+              <MiniStat
+                icon={Receipt}
+                label="فواتير مدفوعة"
+                value={Number(a.invoice_paid) || 0}
+                tone="ok"
+              />
+              <MiniStat
+                icon={TrendingUp}
+                label="دفعات عملاء"
+                value={Number(a.customer_payments) || 0}
+                tone="ok"
+              />
+              <MiniStat
+                icon={Receipt}
+                label="للموردين"
+                value={Number(a.outgoing_supplier) || 0}
+                tone="neutral"
+              />
+              <MiniStat
+                icon={TrendingDown}
+                label="مصروفات"
+                value={Number(a.outgoing_expense) || 0}
+                tone="warn"
+              />
             </div>
 
             {Number(a.opening_balance) !== 0 && (
               <div className="text-[11px] text-muted-foreground text-end">
-                رصيد افتتاحي: <span className="nums">{formatSDG(Number(a.opening_balance) || 0)}</span>
+                رصيد افتتاحي:{" "}
+                <span className="nums">{formatSDG(Number(a.opening_balance) || 0)}</span>
               </div>
             )}
           </div>
@@ -284,9 +371,7 @@ function ExpensesShortcutTab({ balances }: { balances: AccountBalance[] }) {
   const [accountId, setAccountId] = useState<string>(defaultAcc?.account_id ?? "");
 
   const addExpense = useAddExpense();
-  const { data: recent = [], isLoading } = useExpenses(
-    accountId ? { accountId } : undefined
-  );
+  const { data: recent = [], isLoading } = useExpenses(accountId ? { accountId } : undefined);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,7 +390,7 @@ function ExpensesShortcutTab({ balances }: { balances: AccountBalance[] }) {
           setAmount("");
         },
         onError: () => toast.error("فشل الحفظ"),
-      }
+      },
     );
   };
 
@@ -363,14 +448,19 @@ function ExpensesShortcutTab({ balances }: { balances: AccountBalance[] }) {
           <h3 className="text-sm font-bold">
             {accountId ? "آخر مصروفات هذا الحساب" : "آخر المصروفات"}
           </h3>
-          <Link to="/expenses" className="text-xs text-brand font-bold">عرض الكل</Link>
+          <Link to="/expenses" className="text-xs text-brand font-bold">
+            عرض الكل
+          </Link>
         </div>
         {isLoading && <p className="text-center text-muted-foreground text-xs">جاري التحميل...</p>}
         {!isLoading && recent.length === 0 && (
           <p className="text-center text-muted-foreground text-xs py-4">لا توجد مصروفات</p>
         )}
         {recent.slice(0, 10).map((ex) => (
-          <div key={ex.id} className="flex items-center justify-between rounded-xl bg-card border border-border p-3">
+          <div
+            key={ex.id}
+            className="flex items-center justify-between rounded-xl bg-card border border-border p-3"
+          >
             <span className="font-bold text-destructive nums">- {formatSDG(ex.amount)}</span>
             <div className="flex-1 text-end px-2">
               <div className="text-sm font-semibold">{ex.target}</div>
@@ -387,7 +477,11 @@ function ExpensesShortcutTab({ balances }: { balances: AccountBalance[] }) {
 /* Tiny display helpers                                                */
 /* ------------------------------------------------------------------ */
 function SummaryTile({
-  label, value, value2, icon: Icon, tone,
+  label,
+  value,
+  value2,
+  icon: Icon,
+  tone,
 }: {
   label: string;
   value: number;
@@ -396,19 +490,29 @@ function SummaryTile({
   tone: "brand" | "ok" | "warn" | "neutral";
 }) {
   const toneClass =
-    tone === "brand" ? "text-brand" :
-    tone === "ok" ? "text-emerald-600" :
-    tone === "warn" ? "text-rose-600" : "text-foreground";
+    tone === "brand"
+      ? "text-brand"
+      : tone === "ok"
+        ? "text-emerald-600"
+        : tone === "warn"
+          ? "text-rose-600"
+          : "text-foreground";
   return (
     <div className="rounded-xl bg-card border border-border p-3 shadow-card">
       <div className="flex items-center justify-between">
         <Icon className={`w-4 h-4 ${toneClass}`} />
         <div className="text-[11px] text-muted-foreground">{label}</div>
       </div>
-      <div className={`mt-1 text-end font-extrabold nums ${toneClass} ${value2 !== undefined ? "text-sm" : "text-lg"}`}>
-        {value2 !== undefined
-          ? <>{formatSDG(value)} <span className="text-muted-foreground">/</span> {formatSDG(value2)}</>
-          : formatSDG(value)}
+      <div
+        className={`mt-1 text-end font-extrabold nums ${toneClass} ${value2 !== undefined ? "text-sm" : "text-lg"}`}
+      >
+        {value2 !== undefined ? (
+          <>
+            {formatSDG(value)} <span className="text-muted-foreground">/</span> {formatSDG(value2)}
+          </>
+        ) : (
+          formatSDG(value)
+        )}
       </div>
     </div>
   );
@@ -418,13 +522,18 @@ function PeriodCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl bg-card shadow-card border border-border p-4">
       <div className="text-sm text-muted-foreground text-end">{label}</div>
-      <div className="mt-1 text-end text-2xl font-extrabold text-brand nums">{formatSDG(value)}</div>
+      <div className="mt-1 text-end text-2xl font-extrabold text-brand nums">
+        {formatSDG(value)}
+      </div>
     </div>
   );
 }
 
 function MiniStat({
-  icon: Icon, label, value, tone,
+  icon: Icon,
+  label,
+  value,
+  tone,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -432,8 +541,11 @@ function MiniStat({
   tone: "ok" | "warn" | "neutral";
 }) {
   const toneClass =
-    tone === "ok" ? "text-emerald-600" :
-    tone === "warn" ? "text-rose-600" : "text-muted-foreground";
+    tone === "ok"
+      ? "text-emerald-600"
+      : tone === "warn"
+        ? "text-rose-600"
+        : "text-muted-foreground";
   return (
     <div className="rounded-lg bg-muted/40 p-2">
       <div className="flex items-center justify-center gap-1">

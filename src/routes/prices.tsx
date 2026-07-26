@@ -6,9 +6,28 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG, formatNumber } from "@/lib/format";
 import { toast } from "sonner";
-import { Loader2, TrendingUp, TrendingDown, Calculator, AlertTriangle, Search, Package, ChevronLeft, ChevronRight, Radio } from "lucide-react";
+import {
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+  Calculator,
+  AlertTriangle,
+  Search,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  Radio,
+} from "lucide-react";
 import { useEffect } from "react";
-
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localQuery,
+  localTransaction,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
 export const Route = createFileRoute("/prices")({
   head: () => ({ meta: [{ title: "تعديل الأسعار — المهندس" }] }),
@@ -51,6 +70,13 @@ function PricesPage() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["prices-products"],
     queryFn: async (): Promise<MiniProduct[]> => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT id, name, category, sale_price, cost_price FROM products ORDER BY name`,
+        );
+        return rows.map((r) => fromLocalRow<MiniProduct>("products", r));
+      }
+
       const { data, error } = await supabase
         .from("products")
         .select("id, name, category, sale_price, cost_price")
@@ -95,14 +121,43 @@ function PricesPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!preview || preview.count === 0) throw new Error("لا توجد منتجات للتحديث");
+      if (canUseLocalData()) {
+        // Same optimistic locking as the remote path: only update rows whose
+        // old price still matches the preview. All writes in one transaction.
+        const userId = await requireUserId();
+        return localTransaction(async (tx) => {
+          const ts = nowIso();
+          let updated = 0;
+          let stale = 0;
+          for (const r of preview.rows) {
+            const res = (await tx.execute(
+              `UPDATE products SET ${target} = ?, updated_at = ? WHERE id = ? AND ${target} = ?`,
+              [r.newPrice, ts, r.id, r.oldPrice],
+            )) as { rowsAffected?: number } | undefined;
+            if ((res?.rowsAffected ?? 0) === 0) {
+              stale++;
+              continue;
+            }
+            updated++;
+            // Remote logs manual cost_price changes via a DB trigger — mirror
+            // that price_history write locally (sale_price is not logged).
+            if (target === "cost_price" && r.oldPrice !== r.newPrice) {
+              await tx.execute(
+                `INSERT INTO price_history (id, user_id, product_id, old_price, new_price, source, created_at)
+                 VALUES (?, ?, ?, ?, ?, 'manual', ?)`,
+                [genId(), userId, r.id, r.oldPrice, r.newPrice, ts],
+              );
+            }
+          }
+          return { updated, stale };
+        });
+      }
       // Optimistic locking: only update rows where the old price still matches
       // what we previewed. Prevents overwriting concurrent edits by another user.
       const results = await Promise.all(
         preview.rows.map(async (r) => {
           const patch =
-            target === "sale_price"
-              ? { sale_price: r.newPrice }
-              : { cost_price: r.newPrice };
+            target === "sale_price" ? { sale_price: r.newPrice } : { cost_price: r.newPrice };
           const { data, error } = await supabase
             .from("products")
             .update(patch)
@@ -285,9 +340,7 @@ function PricesPage() {
               )}
             </div>
           ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              لا توجد معاينة بعد
-            </div>
+            <div className="p-8 text-center text-sm text-muted-foreground">لا توجد معاينة بعد</div>
           )}
         </div>
       </div>
@@ -306,8 +359,8 @@ function PricesPage() {
               <div>
                 <h3 className="font-bold">تأكيد التحديث</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  سيتم تحديث <span className="font-bold text-foreground">{preview.count}</span>{" "}
-                  منتج ({target === "sale_price" ? "سعر البيع" : "سعر الشراء"})
+                  سيتم تحديث <span className="font-bold text-foreground">{preview.count}</span> منتج
+                  ({target === "sale_price" ? "سعر البيع" : "سعر الشراء"})
                   {dir === "inc" ? " بالزيادة " : " بالنقصان "}
                   <span className="font-bold text-foreground nums">{percent}%</span> مع التقريب
                   لأعلى لأقرب 100. لا يمكن التراجع تلقائياً.
@@ -339,14 +392,24 @@ function PricesPage() {
 
 const LIST_PAGE_SIZE = 20;
 
-function CurrentPricesList({ allProducts, allCategories, loading }: { allProducts: MiniProduct[]; allCategories: string[]; loading: boolean }) {
+function CurrentPricesList({
+  allProducts,
+  allCategories,
+  loading,
+}: {
+  allProducts: MiniProduct[];
+  allCategories: string[];
+  loading: boolean;
+}) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("__all__");
   const [sort, setSort] = useState<"name" | "sale_desc" | "sale_asc" | "margin_desc">("name");
   const [page, setPage] = useState(0);
 
-  useEffect(() => { setPage(0); }, [q, cat, sort]);
+  useEffect(() => {
+    setPage(0);
+  }, [q, cat, sort]);
 
   // Realtime updates for products
   useEffect(() => {
@@ -356,7 +419,9 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
         qc.invalidateQueries({ queryKey: ["prices-products"] });
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [qc]);
 
   const filtered = useMemo(() => {
@@ -370,7 +435,13 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
     if (sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name, "ar"));
     else if (sort === "sale_desc") arr.sort((a, b) => Number(b.sale_price) - Number(a.sale_price));
     else if (sort === "sale_asc") arr.sort((a, b) => Number(a.sale_price) - Number(b.sale_price));
-    else if (sort === "margin_desc") arr.sort((a, b) => (Number(b.sale_price) - Number(b.cost_price)) - (Number(a.sale_price) - Number(a.cost_price)));
+    else if (sort === "margin_desc")
+      arr.sort(
+        (a, b) =>
+          Number(b.sale_price) -
+          Number(b.cost_price) -
+          (Number(a.sale_price) - Number(a.cost_price)),
+      );
     return arr;
   }, [allProducts, cat, q, sort]);
 
@@ -392,15 +463,31 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
       <div className="p-3 space-y-2 border-b border-border">
         <div className="relative">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث باسم المنتج"
-            className="w-full h-10 rounded-lg border border-border bg-background pr-9 pl-3 text-sm outline-none focus:border-brand" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="بحث باسم المنتج"
+            className="w-full h-10 rounded-lg border border-border bg-background pr-9 pl-3 text-sm outline-none focus:border-brand"
+          />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <select value={cat} onChange={(e) => setCat(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm">
+          <select
+            value={cat}
+            onChange={(e) => setCat(e.target.value)}
+            className="h-10 rounded-lg border border-border bg-background px-2 text-sm"
+          >
             <option value="__all__">كل التصنيفات</option>
-            {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {allCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="h-10 rounded-lg border border-border bg-background px-2 text-sm">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as any)}
+            className="h-10 rounded-lg border border-border bg-background px-2 text-sm"
+          >
             <option value="name">ترتيب: الاسم</option>
             <option value="sale_desc">الأعلى سعراً</option>
             <option value="sale_asc">الأقل سعراً</option>
@@ -410,7 +497,9 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
       </div>
 
       {loading ? (
-        <div className="py-10 grid place-items-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+        <div className="py-10 grid place-items-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
       ) : pageRows.length === 0 ? (
         <div className="py-10 text-center text-sm text-muted-foreground">لا توجد نتائج</div>
       ) : (
@@ -427,16 +516,25 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
             <tbody className="divide-y divide-border">
               {pageRows.map((p) => {
                 const margin = Number(p.sale_price) - Number(p.cost_price);
-                const marginPct = Number(p.cost_price) > 0 ? (margin / Number(p.cost_price)) * 100 : 0;
+                const marginPct =
+                  Number(p.cost_price) > 0 ? (margin / Number(p.cost_price)) * 100 : 0;
                 return (
                   <tr key={p.id}>
                     <td className="p-2">
                       <div className="truncate max-w-[200px]">{p.name}</div>
-                      {p.category && <div className="text-[10px] text-muted-foreground">{p.category}</div>}
+                      {p.category && (
+                        <div className="text-[10px] text-muted-foreground">{p.category}</div>
+                      )}
                     </td>
-                    <td className="p-2 text-center nums text-muted-foreground">{formatSDG(Number(p.cost_price))}</td>
-                    <td className="p-2 text-center nums font-bold">{formatSDG(Number(p.sale_price))}</td>
-                    <td className={`p-2 text-center nums text-xs ${margin >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <td className="p-2 text-center nums text-muted-foreground">
+                      {formatSDG(Number(p.cost_price))}
+                    </td>
+                    <td className="p-2 text-center nums font-bold">
+                      {formatSDG(Number(p.sale_price))}
+                    </td>
+                    <td
+                      className={`p-2 text-center nums text-xs ${margin >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+                    >
                       {formatSDG(margin)}
                       <div className="text-[10px] opacity-70">{marginPct.toFixed(0)}%</div>
                     </td>
@@ -449,21 +547,27 @@ function CurrentPricesList({ allProducts, allCategories, loading }: { allProduct
       )}
 
       <div className="p-3 flex items-center justify-between gap-2 border-t border-border">
-        <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
-          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40">
+        <button
+          disabled={page === 0}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40"
+        >
           <ChevronRight className="size-3.5" /> السابق
         </button>
-        <span className="text-xs text-muted-foreground nums">صفحة {page + 1} من {totalPages}</span>
-        <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}
-          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40">
+        <span className="text-xs text-muted-foreground nums">
+          صفحة {page + 1} من {totalPages}
+        </span>
+        <button
+          disabled={page >= totalPages - 1}
+          onClick={() => setPage((p) => p + 1)}
+          className="h-9 px-3 rounded-lg border border-border text-xs font-bold flex items-center gap-1 disabled:opacity-40"
+        >
           التالي <ChevronLeft className="size-3.5" />
         </button>
       </div>
     </section>
   );
 }
-
-
 
 function Pill({
   active,

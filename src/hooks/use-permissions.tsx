@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReactNode } from "react";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  localInsert,
+  localQuery,
+  requireUserId,
+} from "@/lib/data/local";
 
 /* =========================================================================
  * Role-based permissions (client-side UI gating).
@@ -9,10 +16,10 @@ import type { ReactNode } from "react";
 
 export type Permission =
   | "products.view"
-  | "products.write"    // create / edit / delete / bulk price update
+  | "products.write" // create / edit / delete / bulk price update
   | "cashier.use"
   | "invoices.view"
-  | "invoices.write"    // edit or delete existing invoices
+  | "invoices.write" // edit or delete existing invoices
   | "customers.view"
   | "customers.write"
   | "suppliers.view"
@@ -37,17 +44,20 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
   seller: [
     "cashier.use",
     "products.view",
-    "invoices.view",             // view own invoices (no write/delete)
-    "customers.view", "customers.write",
+    "invoices.view", // view own invoices (no write/delete)
+    "customers.view",
+    "customers.write",
     "payment_methods.view",
-    "special_orders.view", "special_orders.write",
+    "special_orders.view",
+    "special_orders.write",
   ],
   accountant: [
     "products.view",
     "invoices.view",
     "customers.view",
     "suppliers.view",
-    "expenses.view", "expenses.write",
+    "expenses.view",
+    "expenses.write",
     "payment_methods.view",
     "returns.view",
     "reports.view",
@@ -55,14 +65,16 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
     "special_orders.view",
   ],
   warehouse: [
-    "products.view", "products.write",
-    "suppliers.view", "suppliers.write",
-    "returns.view", "returns.write",
+    "products.view",
+    "products.write",
+    "suppliers.view",
+    "suppliers.write",
+    "returns.view",
+    "returns.write",
     "invoices.view",
     "special_orders.view",
   ],
 };
-
 
 export type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 
@@ -72,7 +84,6 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   accountant: "محاسب",
   warehouse: "أمين مخزن",
 };
-
 
 export interface UserRole {
   id: string;
@@ -95,15 +106,26 @@ export function useMyRoles() {
   return useQuery({
     queryKey: ["my-roles"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        let uid: string | null = null;
+        try {
+          uid = await requireUserId();
+        } catch {
+          uid = null;
+        }
+        if (!uid) return [] as UserRole[];
+        const rows = await localQuery<UserRole>(`SELECT * FROM user_roles WHERE user_id = ?`, [
+          uid,
+        ]);
+        return rows;
+      }
+
       // Scope to the current user: admins can see all rows via RLS, so
       // an unfiltered select would mix other users' roles into ours.
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user?.id;
       if (!uid) return [] as UserRole[];
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("*")
-        .eq("user_id", uid);
+      const { data, error } = await supabase.from("user_roles").select("*").eq("user_id", uid);
       if (error) throw error;
       return data as UserRole[];
     },
@@ -114,6 +136,13 @@ export function useAuditLogs() {
   return useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50`,
+        );
+        return rows.map((r) => fromLocalRow<AuditLog>("audit_logs", r));
+      }
+
       const { data, error } = await supabase
         .from("audit_logs")
         .select("*")
@@ -128,8 +157,27 @@ export function useAuditLogs() {
 export function useAddAuditLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { action: string; table_name?: string; record_id?: string; details?: Record<string, unknown> }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+    mutationFn: async (input: {
+      action: string;
+      table_name?: string;
+      record_id?: string;
+      details?: Record<string, unknown>;
+    }) => {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        await localInsert("audit_logs", {
+          user_id: userId,
+          action: input.action,
+          table_name: input.table_name || null,
+          record_id: input.record_id || null,
+          details: input.details ?? null,
+        });
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("audit_logs").insert({
         user_id: user.id,
@@ -187,8 +235,15 @@ export function useCan(perm: Permission): boolean {
 }
 
 /** Render `children` only when the current user has `perm`. */
-export function Can({ perm, children, fallback = null }: { perm: Permission; children: ReactNode; fallback?: ReactNode }) {
+export function Can({
+  perm,
+  children,
+  fallback = null,
+}: {
+  perm: Permission;
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   const allowed = useCan(perm);
   return allowed ? <>{children}</> : <>{fallback}</>;
 }
-

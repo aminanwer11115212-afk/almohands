@@ -4,13 +4,18 @@ import { Plus, Search, Truck, X, Loader2, Trash2, Package, Eye, StickyNote } fro
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { formatSDG, formatNumber } from "@/lib/format";
-import { usePurchases, useCreatePurchase, usePurchase, type PurchaseItemInput } from "@/hooks/use-purchases";
+import {
+  usePurchases,
+  useCreatePurchase,
+  usePurchase,
+  type PurchaseItemInput,
+} from "@/hooks/use-purchases";
 import { useSuppliers } from "@/hooks/use-suppliers";
 import { useProducts } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-
 
 export const Route = createFileRoute("/purchases")({
   head: () => ({ meta: [{ title: "المشتريات — المهندس" }] }),
@@ -37,7 +42,6 @@ function PurchasesPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const { data: purchases = [], isLoading } = usePurchases(q);
-
 
   const totals = useMemo(() => {
     return purchases.reduce(
@@ -72,7 +76,9 @@ function PurchasesPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-16 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        <div className="py-16 grid place-items-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
       ) : purchases.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
           <Truck className="size-8 opacity-50" />
@@ -91,7 +97,9 @@ function PurchasesPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-brand">#{p.purchase_number}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[p.status] ?? "bg-muted"}`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${statusClasses[p.status] ?? "bg-muted"}`}
+                      >
                         {statusLabels[p.status] ?? p.status}
                       </span>
                     </div>
@@ -100,7 +108,10 @@ function PurchasesPage() {
                       {p.supplier_name || "مورد غير محدد"}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {new Date(p.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}
+                      {new Date(p.created_at).toLocaleString("ar-EG", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
                     </div>
                     {p.notes && (
                       <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 truncate">
@@ -111,9 +122,13 @@ function PurchasesPage() {
                   </div>
                   <div className="text-left shrink-0 space-y-0.5">
                     <div className="text-sm font-bold nums">{formatSDG(Number(p.total))}</div>
-                    <div className="text-[11px] text-emerald-700 nums">دفع {formatSDG(Number(p.paid))}</div>
+                    <div className="text-[11px] text-emerald-700 nums">
+                      دفع {formatSDG(Number(p.paid))}
+                    </div>
                     {Number(p.remaining) > 0 && (
-                      <div className="text-[11px] text-rose-600 font-bold nums">متبقي {formatSDG(Number(p.remaining))}</div>
+                      <div className="text-[11px] text-rose-600 font-bold nums">
+                        متبقي {formatSDG(Number(p.remaining))}
+                      </div>
                     )}
                     <div className="text-[10px] text-brand flex items-center gap-1 justify-end">
                       <Eye className="size-3" /> تفاصيل
@@ -140,9 +155,17 @@ function PurchasesPage() {
   );
 }
 
-
-function SummaryCard({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "ok" | "warn" }) {
-  const cls = tone === "ok" ? "text-emerald-700" : tone === "warn" ? "text-rose-700" : "text-foreground";
+function SummaryCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "ok" | "warn";
+}) {
+  const cls =
+    tone === "ok" ? "text-emerald-700" : tone === "warn" ? "text-rose-700" : "text-foreground";
   return (
     <div className="bg-card rounded-xl border border-border p-2 shadow-sm">
       <div className="text-[11px] text-muted-foreground">{label}</div>
@@ -167,6 +190,14 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
     enabled: productIds.length > 0,
     queryKey: ["purchase-stock", id, productIds],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = productIds.map(() => "?").join(", ");
+        return localQuery<Record<string, unknown>>(
+          `SELECT id, name, quantity, min_quantity, cost_price FROM products WHERE id IN (${placeholders})`,
+          productIds,
+        );
+      }
+
       const { data, error } = await supabase
         .from("products")
         .select("id, name, quantity, min_quantity, cost_price")
@@ -175,7 +206,10 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
       return data ?? [];
     },
   });
-  const stockMap = new Map<string, { name: string; quantity: number; min_quantity: number; cost_price: number }>();
+  const stockMap = new Map<
+    string,
+    { name: string; quantity: number; min_quantity: number; cost_price: number }
+  >();
   for (const r of stockRows) {
     stockMap.set((r as any).id, {
       name: (r as any).name,
@@ -199,17 +233,27 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
             <Truck className="size-5 text-brand" />
             فاتورة شراء {p ? `#${p.purchase_number}` : ""}
           </h2>
-          <button type="button" onClick={onClose} className="p-1" aria-label="إغلاق"><X className="size-5" /></button>
+          <button type="button" onClick={onClose} className="p-1" aria-label="إغلاق">
+            <X className="size-5" />
+          </button>
         </div>
 
         {isLoading || !p ? (
-          <div className="py-16 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+          <div className="py-16 grid place-items-center">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
         ) : (
           <>
             {/* Header */}
             <div className="grid grid-cols-2 gap-2 text-sm">
               <InfoRow label="المورد" value={p.supplier_name || "غير محدد"} />
-              <InfoRow label="التاريخ" value={new Date(p.created_at).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })} />
+              <InfoRow
+                label="التاريخ"
+                value={new Date(p.created_at).toLocaleString("ar-EG", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              />
               <InfoRow label="الحالة" value={statusLabels[p.status] ?? p.status} />
               <InfoRow label="عدد الأصناف" value={String(items.length)} />
             </div>
@@ -218,7 +262,11 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
             <div className="grid grid-cols-3 gap-2 text-center">
               <SummaryCard label="الإجمالي" value={formatSDG(Number(p.total))} />
               <SummaryCard label="المدفوع" value={formatSDG(Number(p.paid))} tone="ok" />
-              <SummaryCard label="المتبقي" value={formatSDG(Number(p.remaining))} tone={Number(p.remaining) > 0 ? "warn" : "ok"} />
+              <SummaryCard
+                label="المتبقي"
+                value={formatSDG(Number(p.remaining))}
+                tone={Number(p.remaining) > 0 ? "warn" : "ok"}
+              />
             </div>
 
             {/* Items with stock tracking */}
@@ -241,23 +289,38 @@ function PurchaseDetailsModal({ id, onClose }: { id: string; onClose: () => void
                   <tbody>
                     {items.map((it: any) => {
                       const stock = it.product_id ? stockMap.get(it.product_id) : undefined;
-                      const isLow = stock && stock.min_quantity > 0 && stock.quantity <= stock.min_quantity;
+                      const isLow =
+                        stock && stock.min_quantity > 0 && stock.quantity <= stock.min_quantity;
                       return (
                         <tr key={it.id} className="border-t border-border">
                           <td className="px-2 py-2">
                             <div className="font-bold">{it.product_name}</div>
                             {!it.product_id && (
-                              <div className="text-[10px] text-amber-600">صنف يدوي — لم يُربط بالمخزن</div>
+                              <div className="text-[10px] text-amber-600">
+                                صنف يدوي — لم يُربط بالمخزن
+                              </div>
                             )}
                           </td>
-                          <td className="px-2 py-2 text-center nums font-bold">{formatNumber(Number(it.quantity))}</td>
-                          <td className="px-2 py-2 text-center nums">{formatSDG(Number(it.cost_price))}</td>
-                          <td className="px-2 py-2 text-left nums font-bold">{formatSDG(Number(it.total))}</td>
+                          <td className="px-2 py-2 text-center nums font-bold">
+                            {formatNumber(Number(it.quantity))}
+                          </td>
+                          <td className="px-2 py-2 text-center nums">
+                            {formatSDG(Number(it.cost_price))}
+                          </td>
+                          <td className="px-2 py-2 text-left nums font-bold">
+                            {formatSDG(Number(it.total))}
+                          </td>
                           <td className="px-2 py-2 text-center">
                             {stock ? (
-                              <span className={`inline-flex items-center gap-1 nums font-bold ${isLow ? "text-rose-600" : "text-emerald-700"}`}>
+                              <span
+                                className={`inline-flex items-center gap-1 nums font-bold ${isLow ? "text-rose-600" : "text-emerald-700"}`}
+                              >
                                 {formatNumber(stock.quantity)}
-                                {isLow && <span className="text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">منخفض</span>}
+                                {isLow && (
+                                  <span className="text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full">
+                                    منخفض
+                                  </span>
+                                )}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -295,7 +358,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-
 function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
   const create = useCreatePurchase();
   const { data: suppliers = [] } = useSuppliers("");
@@ -315,7 +377,10 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
   function addItem() {
-    setItems((prev) => [...prev, { key: Date.now(), product_id: null, product_name: "", quantity: 1, cost_price: 0 }]);
+    setItems((prev) => [
+      ...prev,
+      { key: Date.now(), product_id: null, product_name: "", quantity: 1, cost_price: 0 },
+    ]);
   }
   function removeItem(idx: number) {
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
@@ -323,7 +388,11 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
   function pickProduct(idx: number, pid: string) {
     const p = products.find((x) => x.id === pid);
     if (!p) return;
-    updateItem(idx, { product_id: pid, product_name: p.name, cost_price: Number(p.costPrice) || 0 });
+    updateItem(idx, {
+      product_id: pid,
+      product_name: p.name,
+      cost_price: Number(p.costPrice) || 0,
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -336,7 +405,8 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
     try {
       await create.mutateAsync({
         supplier_id: supplierId || null,
-        supplier_name: supplierName || suppliers.find((s) => s.id === supplierId)?.name || undefined,
+        supplier_name:
+          supplierName || suppliers.find((s) => s.id === supplierId)?.name || undefined,
         paid: Number(paid) || 0,
         notes,
         items: valid.map(({ key: _k, ...rest }) => rest),
@@ -349,7 +419,10 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-2 sm:p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-2 sm:p-4"
+      onClick={onClose}
+    >
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
@@ -357,18 +430,25 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">فاتورة شراء جديدة</h2>
-          <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
+          <button type="button" onClick={onClose} className="p-1">
+            <X className="size-5" />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <select
             value={supplierId}
-            onChange={(e) => { setSupplierId(e.target.value); setSupplierName(""); }}
+            onChange={(e) => {
+              setSupplierId(e.target.value);
+              setSupplierName("");
+            }}
             className="h-11 rounded-xl border border-border bg-background px-3 text-sm"
           >
             <option value="">— اختر مورد —</option>
             {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
             ))}
           </select>
           <input
@@ -382,7 +462,10 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-2">
           <div className="text-xs font-bold text-muted-foreground">الأصناف</div>
           {items.map((it, idx) => (
-            <div key={it.key} className="grid grid-cols-12 gap-1.5 items-center border border-border rounded-lg p-2">
+            <div
+              key={it.key}
+              className="grid grid-cols-12 gap-1.5 items-center border border-border rounded-lg p-2"
+            >
               <select
                 value={it.product_id || ""}
                 onChange={(e) => pickProduct(idx, e.target.value)}
@@ -390,7 +473,9 @@ function CreatePurchaseModal({ onClose }: { onClose: () => void }) {
               >
                 <option value="">— اختر منتج —</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </select>
               <input

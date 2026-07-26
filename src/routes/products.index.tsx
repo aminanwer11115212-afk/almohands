@@ -4,8 +4,20 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Search, Plus, ArrowUpDown, Loader2, Printer, Pencil, Save, X,
-  AlertTriangle, Package, DollarSign, Boxes, Trash2, Keyboard,
+  Search,
+  Plus,
+  ArrowUpDown,
+  Loader2,
+  Printer,
+  Pencil,
+  Save,
+  X,
+  AlertTriangle,
+  Package,
+  DollarSign,
+  Boxes,
+  Trash2,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
@@ -19,6 +31,18 @@ import { handleError } from "@/lib/errors";
 import logo from "@/assets/logo.png";
 import type { Product } from "@/types/product";
 import { buildInventoryReportHtml } from "@/lib/inventory-print";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  genId,
+  localInsert,
+  localQuery,
+  localQueryOne,
+  localTransaction,
+  localUpdate,
+  nowIso,
+  requireUserId,
+} from "@/lib/data/local";
 
 const PAGE_SIZES = [50, 100, 200, 300, 500] as const;
 
@@ -33,13 +57,16 @@ const searchSchema = z.object({
   filter: fallback(z.string(), "").default(""),
 });
 
-
 type ProductsSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/products/")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({ meta: [{ title: "مخزن المنتجات — المهندس" }] }),
-  component: () => (<PermissionGate perm="products.view"><ProductsPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="products.view">
+      <ProductsPage />
+    </PermissionGate>
+  ),
 });
 
 type Draft = {
@@ -77,14 +104,19 @@ function ProductsPage() {
       statusTimers.current[key] = setTimeout(() => {
         setCellStatus((prev) => {
           if (prev[key] !== s) return prev;
-          const next = { ...prev }; delete next[key]; return next;
+          const next = { ...prev };
+          delete next[key];
+          return next;
         });
       }, delay);
     }
   }
-  useEffect(() => () => {
-    Object.values(statusTimers.current).forEach(clearTimeout);
-  }, []);
+  useEffect(
+    () => () => {
+      Object.values(statusTimers.current).forEach(clearTimeout);
+    },
+    [],
+  );
 
   // Selection & keyboard navigation
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -96,10 +128,13 @@ function ProductsPage() {
   useEffect(() => {
     const channel = supabase
       .channel("products-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" },
-        () => queryClient.invalidateQueries({ queryKey: ["products"] }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () =>
+        queryClient.invalidateQueries({ queryKey: ["products"] }),
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [queryClient]);
 
   // Distinct categories from full dataset (before category filter).
@@ -139,7 +174,6 @@ function ProductsPage() {
   useEffect(() => {
     setFocusedIdx((i) => Math.min(Math.max(0, i), Math.max(0, pageRows.length - 1)));
   }, [pageRows]);
-
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -182,11 +216,14 @@ function ProductsPage() {
       scrollRowIntoView(pageRows[next].id);
       if (e.shiftKey) toggleSelect(pageRows[next].id);
     } else if (e.key === "Home") {
-      e.preventDefault(); setFocusedIdx(0); scrollRowIntoView(pageRows[0].id);
+      e.preventDefault();
+      setFocusedIdx(0);
+      scrollRowIntoView(pageRows[0].id);
     } else if (e.key === "End") {
       e.preventDefault();
       const last = pageRows.length - 1;
-      setFocusedIdx(last); scrollRowIntoView(pageRows[last].id);
+      setFocusedIdx(last);
+      scrollRowIntoView(pageRows[last].id);
     } else if (e.key === "PageDown") {
       e.preventDefault();
       if (safePage < totalPages) setSearch({ page: safePage + 1 });
@@ -200,7 +237,10 @@ function ProductsPage() {
       e.preventDefault();
       toggleSelectAll();
     } else if (e.key === "Escape") {
-      if (selected.size) { e.preventDefault(); setSelected(new Set()); }
+      if (selected.size) {
+        e.preventDefault();
+        setSelected(new Set());
+      }
     } else if (e.key === "Delete" || e.key === "Backspace") {
       if (!canWrite) return;
       e.preventDefault();
@@ -208,8 +248,6 @@ function ProductsPage() {
         ? rows.filter((p) => selected.has(p.id))
         : [pageRows[focusedIdx]];
       if (targets.length) setDeleting(targets);
-
-
     } else if (e.key === "Enter") {
       const p = filtered[focusedIdx];
       if (p) navigate({ to: "/products/$productId", params: { productId: p.id } });
@@ -217,7 +255,10 @@ function ProductsPage() {
   }
 
   const totals = useMemo(() => {
-    let qty = 0, cost = 0, sale = 0, lowCount = 0;
+    let qty = 0,
+      cost = 0,
+      sale = 0,
+      lowCount = 0;
     for (const p of rows) {
       qty += p.quantity;
       cost += p.quantity * p.costPrice;
@@ -236,9 +277,7 @@ function ProductsPage() {
 
   function beginEdit() {
     // If the user has selected specific rows, edit only those; otherwise the visible page.
-    const scope = selected.size > 0
-      ? pageRows.filter((p) => selected.has(p.id))
-      : pageRows;
+    const scope = selected.size > 0 ? pageRows.filter((p) => selected.has(p.id)) : pageRows;
     const d: Record<string, Draft> = {};
     for (const p of scope) {
       d[p.id] = {
@@ -267,9 +306,12 @@ function ProductsPage() {
     mutationFn: async () => {
       const updates: { id: string; patch: Record<string, number> }[] = [];
       for (const p of pageRows) {
-        const d = drafts[p.id]; if (!d) continue;
-        const nq = Number(d.quantity), nc = Number(d.cost_price),
-              ns = Number(d.sale_price), nm = Number(d.min_quantity);
+        const d = drafts[p.id];
+        if (!d) continue;
+        const nq = Number(d.quantity),
+          nc = Number(d.cost_price),
+          ns = Number(d.sale_price),
+          nm = Number(d.min_quantity);
         if (![nq, nc, ns, nm].every((n) => Number.isFinite(n) && n >= 0)) {
           throw new Error(`قيمة غير صالحة في المنتج: ${p.name}`);
         }
@@ -281,8 +323,38 @@ function ProductsPage() {
         if (Object.keys(patch).length) updates.push({ id: p.id, patch });
       }
       if (!updates.length) return 0;
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        const byId = new Map(pageRows.map((p) => [p.id, p]));
+        await localTransaction(async (tx) => {
+          const ts = nowIso();
+          for (const u of updates) {
+            const cols = Object.keys(u.patch);
+            const sets = cols.map((c) => `${c} = ?`).join(", ");
+            await tx.execute(`UPDATE products SET ${sets}, updated_at = ? WHERE id = ?`, [
+              ...cols.map((c) => u.patch[c]),
+              ts,
+              u.id,
+            ]);
+            // Remote relies on a DB trigger to log manual cost_price changes —
+            // mirror that price_history write locally.
+            if (u.patch.cost_price !== undefined) {
+              const prev = byId.get(u.id);
+              await tx.execute(
+                `INSERT INTO price_history (id, user_id, product_id, old_price, new_price, source, created_at)
+                 VALUES (?, ?, ?, ?, ?, 'manual', ?)`,
+                [genId(), userId, u.id, prev?.costPrice ?? 0, u.patch.cost_price, ts],
+              );
+            }
+          }
+        });
+        return updates.length;
+      }
       for (const u of updates) {
-        const { error } = await supabase.from("products").update(u.patch as never).eq("id", u.id);
+        const { error } = await supabase
+          .from("products")
+          .update(u.patch as never)
+          .eq("id", u.id);
         if (error) throw error;
       }
       return updates.length;
@@ -297,20 +369,65 @@ function ProductsPage() {
 
   // Excel-like inline single-cell save (no bulk-edit mode).
   async function updateField(id: string, patch: Record<string, unknown>) {
-    const { error } = await supabase.from("products").update(patch as never).eq("id", id);
-    if (error) { handleError(error, "تعذّر الحفظ"); throw error; }
+    if (canUseLocalData()) {
+      try {
+        if ("cost_price" in patch) {
+          const prev = await localQueryOne<{ cost_price: number | null }>(
+            `SELECT cost_price FROM products WHERE id = ?`,
+            [id],
+          );
+          const oldPrice = Number(prev?.cost_price ?? 0);
+          const newPrice = Number(patch.cost_price);
+          await localUpdate("products", id, patch, { touchUpdatedAt: true });
+          // Mirror the remote DB trigger that logs manual cost_price changes.
+          if (Number.isFinite(newPrice) && oldPrice !== newPrice) {
+            const userId = await requireUserId();
+            await localInsert("price_history", {
+              user_id: userId,
+              product_id: id,
+              old_price: oldPrice,
+              new_price: newPrice,
+              source: "manual",
+            });
+          }
+        } else {
+          await localUpdate("products", id, patch, { touchUpdatedAt: true });
+        }
+      } catch (error) {
+        handleError(error, "تعذّر الحفظ");
+        throw error;
+      }
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      return;
+    }
+    const { error } = await supabase
+      .from("products")
+      .update(patch as never)
+      .eq("id", id);
+    if (error) {
+      handleError(error, "تعذّر الحفظ");
+      throw error;
+    }
     queryClient.invalidateQueries({ queryKey: ["products"] });
   }
 
   async function handleSaveAll() {
     if (savingRef.current) return;
-    savingRef.current = true; setSaving(true);
-    try { await saveAll.mutateAsync(); }
-    finally { savingRef.current = false; setSaving(false); }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await saveAll.mutateAsync();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   function handlePrint() {
-    if (!rows.length) { toast.error("لا توجد منتجات للطباعة"); return; }
+    if (!rows.length) {
+      toast.error("لا توجد منتجات للطباعة");
+      return;
+    }
     openPrintWindow({
       rows: filtered.length ? filtered : rows,
       totals,
@@ -323,12 +440,27 @@ function ProductsPage() {
     <AppShell title="مخزن المنتجات" showBack>
       {/* Stats */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-        <StatCard icon={<Package className="size-4" />} label="عدد الأصناف" value={formatNumber(totals.count)} />
-        <StatCard icon={<Boxes className="size-4" />} label="إجمالي الكمية" value={formatNumber(totals.qty)} />
-        <StatCard icon={<DollarSign className="size-4" />} label="قيمة المخزون (تكلفة)" value={formatSDG(totals.cost)} />
-        <StatCard icon={<AlertTriangle className="size-4" />} label="أصناف منخفضة"
+        <StatCard
+          icon={<Package className="size-4" />}
+          label="عدد الأصناف"
+          value={formatNumber(totals.count)}
+        />
+        <StatCard
+          icon={<Boxes className="size-4" />}
+          label="إجمالي الكمية"
+          value={formatNumber(totals.qty)}
+        />
+        <StatCard
+          icon={<DollarSign className="size-4" />}
+          label="قيمة المخزون (تكلفة)"
+          value={formatSDG(totals.cost)}
+        />
+        <StatCard
+          icon={<AlertTriangle className="size-4" />}
+          label="أصناف منخفضة"
           value={formatNumber(totals.lowCount)}
-          tone={totals.lowCount > 0 ? "warn" : "default"} />
+          tone={totals.lowCount > 0 ? "warn" : "default"}
+        />
       </section>
 
       {/* Toolbar */}
@@ -351,7 +483,11 @@ function ProductsPage() {
           className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand min-w-[140px]"
         >
           <option value="">كل الأنواع ({formatNumber(categories.length)})</option>
-          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
         <select
           value={safePageSize}
@@ -360,34 +496,61 @@ function ProductsPage() {
           data-testid="page-size"
           className="h-11 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-brand"
         >
-          {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / صفحة</option>)}
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} / صفحة
+            </option>
+          ))}
         </select>
-        <button type="button" onClick={() => setSearch({ low: !effectiveLow, filter: "", page: 1 })}
+        <button
+          type="button"
+          onClick={() => setSearch({ low: !effectiveLow, filter: "", page: 1 })}
           className={`h-11 px-3 rounded-xl border text-sm font-bold transition ${
-            effectiveLow ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"
-          }`}>
+            effectiveLow
+              ? "border-destructive bg-destructive/10 text-destructive"
+              : "border-border bg-card text-muted-foreground"
+          }`}
+        >
           <AlertTriangle className="inline size-4 ml-1" /> منخفض المخزون
         </button>
-        <button type="button" onClick={handlePrint}
-          className="h-11 px-3 rounded-xl border border-border bg-card text-sm font-bold hover:bg-muted">
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="h-11 px-3 rounded-xl border border-border bg-card text-sm font-bold hover:bg-muted"
+        >
           <Printer className="inline size-4 ml-1" /> طباعة الجرد
         </button>
         {canWrite && !editMode && (
-          <button type="button" onClick={beginEdit}
-            className="h-11 px-3 rounded-xl border border-brand text-brand text-sm font-bold hover:bg-brand/10">
+          <button
+            type="button"
+            onClick={beginEdit}
+            className="h-11 px-3 rounded-xl border border-brand text-brand text-sm font-bold hover:bg-brand/10"
+          >
             <Pencil className="inline size-4 ml-1" />
             {selected.size > 0 ? `تعديل جماعي (${formatNumber(selected.size)})` : "تعديل جماعي"}
           </button>
         )}
         {editMode && (
           <>
-            <button type="button" onClick={handleSaveAll} disabled={saving}
-              className="h-11 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold disabled:opacity-60">
-              {saving ? <Loader2 className="inline size-4 ml-1 animate-spin" /> : <Save className="inline size-4 ml-1" />}
+            <button
+              type="button"
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="h-11 px-3 rounded-xl bg-brand text-brand-foreground text-sm font-bold disabled:opacity-60"
+            >
+              {saving ? (
+                <Loader2 className="inline size-4 ml-1 animate-spin" />
+              ) : (
+                <Save className="inline size-4 ml-1" />
+              )}
               حفظ الكل
             </button>
-            <button type="button" onClick={cancelEdit} disabled={saving}
-              className="h-11 px-3 rounded-xl border border-border bg-card text-sm">
+            <button
+              type="button"
+              onClick={cancelEdit}
+              disabled={saving}
+              className="h-11 px-3 rounded-xl border border-border bg-card text-sm"
+            >
               <X className="inline size-4 ml-1" /> إلغاء
             </button>
           </>
@@ -396,17 +559,27 @@ function ProductsPage() {
 
       {/* Keyboard hint + bulk actions */}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><Keyboard className="size-3.5" /> أسهم للتنقل، Enter/F2 أو الكتابة للتحرير، ↑↓ داخل الخلية للحفظ التلقائي والانتقال، Escape للإلغاء، Delete للحذف</span>
+        <span className="inline-flex items-center gap-1">
+          <Keyboard className="size-3.5" /> أسهم للتنقل، Enter/F2 أو الكتابة للتحرير، ↑↓ داخل الخلية
+          للحفظ التلقائي والانتقال، Escape للإلغاء، Delete للحذف
+        </span>
         {selected.size > 0 && (
           <span className="ms-auto flex items-center gap-2">
             <span className="font-bold text-foreground">{formatNumber(selected.size)} محدد</span>
-            <button type="button" onClick={() => setSelected(new Set())}
-              className="h-7 px-2 rounded-md border border-border bg-card hover:bg-muted">مسح التحديد</button>
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="h-7 px-2 rounded-md border border-border bg-card hover:bg-muted"
+            >
+              مسح التحديد
+            </button>
             {canWrite && (
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => setDeleting(rows.filter((p) => selected.has(p.id)))}
                 className="h-7 px-2 rounded-md bg-destructive text-destructive-foreground font-bold inline-flex items-center gap-1"
-                data-testid="bulk-delete">
+                data-testid="bulk-delete"
+              >
                 <Trash2 className="size-3.5" /> حذف المحدد ({formatNumber(selected.size)})
               </button>
             )}
@@ -434,18 +607,41 @@ function ProductsPage() {
                         type="checkbox"
                         aria-label="تحديد الكل"
                         checked={allChecked}
-                        ref={(el) => { if (el) el.indeterminate = visSelected > 0 && !allChecked; }}
+                        ref={(el) => {
+                          if (el) el.indeterminate = visSelected > 0 && !allChecked;
+                        }}
                         onChange={toggleSelectAll}
                       />
                     );
                   })()}
                 </th>
-                <Th onClick={() => toggleSort("name")} active={sort === "name"} asc={asc} className="text-right min-w-[180px]">المنتج</Th>
+                <Th
+                  onClick={() => toggleSort("name")}
+                  active={sort === "name"}
+                  asc={asc}
+                  className="text-right min-w-[180px]"
+                >
+                  المنتج
+                </Th>
                 <Th className="text-center">الباركود / رقم القطعة / الرف</Th>
-                <Th onClick={() => toggleSort("quantity")} active={sort === "quantity"} asc={asc} className="text-center w-24">الكمية</Th>
+                <Th
+                  onClick={() => toggleSort("quantity")}
+                  active={sort === "quantity"}
+                  asc={asc}
+                  className="text-center w-24"
+                >
+                  الكمية
+                </Th>
                 <Th className="text-center w-24">حد أدنى</Th>
                 <Th className="text-center w-28">سعر الشراء</Th>
-                <Th onClick={() => toggleSort("sale_price")} active={sort === "sale_price"} asc={asc} className="text-center w-28">سعر البيع</Th>
+                <Th
+                  onClick={() => toggleSort("sale_price")}
+                  active={sort === "sale_price"}
+                  asc={asc}
+                  className="text-center w-28"
+                >
+                  سعر البيع
+                </Th>
                 <Th className="text-center w-28">قيمة المخزون</Th>
               </tr>
             </thead>
@@ -453,167 +649,300 @@ function ProductsPage() {
               {isLoading ? (
                 Array.from({ length: Math.min(safePageSize, 10) }).map((_, i) => (
                   <tr key={`sk-${i}`} data-testid="skeleton-row" className="animate-pulse">
-                    <td className="px-2 py-3"><div className="size-4 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-40 rounded bg-muted" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-32 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-10 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-10 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-16 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-16 rounded bg-muted mx-auto" /></td>
-                    <td className="px-2 py-3"><div className="h-4 w-20 rounded bg-muted mx-auto" /></td>
+                    <td className="px-2 py-3">
+                      <div className="size-4 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-40 rounded bg-muted" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-32 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-10 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-10 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-16 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-16 rounded bg-muted mx-auto" />
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="h-4 w-20 rounded bg-muted mx-auto" />
+                    </td>
                   </tr>
                 ))
               ) : isError ? (
-                <tr><td colSpan={8} className="py-10 text-center text-destructive">{(error as Error)?.message || "تعذّر تحميل المنتجات"}</td></tr>
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-destructive">
+                    {(error as Error)?.message || "تعذّر تحميل المنتجات"}
+                  </td>
+                </tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={8} className="py-12 text-center">
-                  {(q || category || effectiveLow) ? (
-                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                      <Search className="size-8 opacity-40" />
-                      <div className="font-bold text-foreground">لا توجد منتجات مطابقة للفلاتر</div>
-                      <div className="text-xs">
-                        {q && <span className="mx-1">البحث: «{q}»</span>}
-                        {category && <span className="mx-1">النوع: «{category}»</span>}
-                        {effectiveLow && <span className="mx-1">منخفض المخزون فقط</span>}
+                <tr>
+                  <td colSpan={8} className="py-12 text-center">
+                    {q || category || effectiveLow ? (
+                      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                        <Search className="size-8 opacity-40" />
+                        <div className="font-bold text-foreground">
+                          لا توجد منتجات مطابقة للفلاتر
+                        </div>
+                        <div className="text-xs">
+                          {q && <span className="mx-1">البحث: «{q}»</span>}
+                          {category && <span className="mx-1">النوع: «{category}»</span>}
+                          {effectiveLow && <span className="mx-1">منخفض المخزون فقط</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSearch({ q: "", category: "", low: false, filter: "", page: 1 })
+                          }
+                          className="h-8 px-3 rounded-md border border-border bg-card hover:bg-muted text-xs font-bold"
+                        >
+                          <X className="inline size-3.5 ml-1" /> مسح جميع الفلاتر
+                        </button>
                       </div>
-                      <button type="button"
-                        onClick={() => setSearch({ q: "", category: "", low: false, filter: "", page: 1 })}
-                        className="h-8 px-3 rounded-md border border-border bg-card hover:bg-muted text-xs font-bold">
-                        <X className="inline size-3.5 ml-1" /> مسح جميع الفلاتر
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                      <Package className="size-8 opacity-40" />
-                      <div className="font-bold text-foreground">لا توجد منتجات بعد</div>
-                      {canWrite && <Link to="/products/new" className="h-8 px-3 rounded-md bg-brand text-brand-foreground text-xs font-bold inline-flex items-center gap-1">
-                        <Plus className="size-3.5" /> إضافة أول منتج
-                      </Link>}
-                    </div>
-                  )}
-                </td></tr>
-              ) : pageRows.map((p, idx) => {
-                const isLow = p.quantity <= p.minQuantity;
-                const isSelected = selected.has(p.id);
-                const isFocused = idx === focusedIdx;
-                const d = drafts[p.id];
-                const rowClass = [
-                  isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
-                  isFocused ? "ring-2 ring-inset ring-brand" : "",
-                ].join(" ");
-                // Aggregate row sync status from all cell statuses on this row.
-                const rowKeys = ["barcode","part_number","location","quantity","min_quantity","cost_price","sale_price"];
-                const rowStatuses = rowKeys.map((f) => cellStatus[`${p.id}:${f}`]).filter(Boolean);
-                const rowState: "saving" | "error" | "saved" | null =
-                  rowStatuses.includes("error") ? "error"
-                    : rowStatuses.includes("saving") ? "saving"
-                      : rowStatuses.includes("saved") ? "saved" : null;
-                const mkSave = (field: string, transform: (v: string) => unknown) => async (v: string) => {
-                  const key = `${p.id}:${field}`;
-                  reportCellStatus(key, "saving");
-                  try {
-                    await updateField(p.id, { [field]: transform(v) });
-                    reportCellStatus(key, "saved");
-                  } catch {
-                    reportCellStatus(key, "error");
-                    throw new Error("save-failed");
-                  }
-                };
-                return (
-                  <tr
-                    key={p.id}
-                    ref={(el) => { rowRefs.current[p.id] = el; }}
-                    className={rowClass}
-                    onClick={() => setFocusedIdx(idx)}
-                  >
-                    <td className="px-2 py-2 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <input
-                          type="checkbox"
-                          aria-label={`تحديد ${p.name}`}
-                          checked={isSelected}
-                          onChange={() => toggleSelect(p.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <RowSyncDot state={rowState} />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold">
-                      <div className="flex items-center gap-2">
-                        <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-brand flex-1 min-w-0 truncate">
-                          {p.name}
-                        </Link>
-                        {isLow && <span className="text-[10px] text-destructive shrink-0">● منخفض</span>}
-                        {canWrite && !editMode && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setDeleting([p]); }}
-                            className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-                            aria-label="حذف المنتج" title="حذف المنتج"
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                        <Package className="size-8 opacity-40" />
+                        <div className="font-bold text-foreground">لا توجد منتجات بعد</div>
+                        {canWrite && (
+                          <Link
+                            to="/products/new"
+                            className="h-8 px-3 rounded-md bg-brand text-brand-foreground text-xs font-bold inline-flex items-center gap-1"
                           >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                            <Plus className="size-3.5" /> إضافة أول منتج
+                          </Link>
                         )}
                       </div>
-                    </td>
-                    <td className="px-2 py-2 text-center text-muted-foreground nums text-xs" dir="ltr">
-                      {editMode && d ? (
-                        <>
-                          <div>{p.barcode || "—"}</div>
-                          {p.partNumber && <div className="text-[10px] opacity-80">#{p.partNumber}</div>}
-                          {p.location && <div className="text-[10px] opacity-70">📍{p.location}</div>}
-                        </>
-                      ) : (
-                        <div className="space-y-0.5">
-                          <EditableCell value={p.barcode} placeholder="باركود"
-                            row={idx} col={0} status={cellStatus[`${p.id}:barcode`]}
-                            disabled={!canWrite}
-                            onSave={mkSave("barcode", (v) => v || null)} />
-                          <EditableCell value={p.partNumber} placeholder="رقم القطعة" prefix="#"
-                            row={idx} col={1} status={cellStatus[`${p.id}:part_number`]}
-                            disabled={!canWrite} className="text-[10px]"
-                            onSave={mkSave("part_number", (v) => v || null)} />
-                          <EditableCell value={p.location} placeholder="الرف" prefix="📍"
-                            row={idx} col={2} status={cellStatus[`${p.id}:location`]}
-                            disabled={!canWrite} className="text-[10px]"
-                            onSave={mkSave("location", (v) => v || null)} />
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((p, idx) => {
+                  const isLow = p.quantity <= p.minQuantity;
+                  const isSelected = selected.has(p.id);
+                  const isFocused = idx === focusedIdx;
+                  const d = drafts[p.id];
+                  const rowClass = [
+                    isSelected ? "bg-brand/10" : isLow ? "bg-destructive/5" : "hover:bg-muted/40",
+                    isFocused ? "ring-2 ring-inset ring-brand" : "",
+                  ].join(" ");
+                  // Aggregate row sync status from all cell statuses on this row.
+                  const rowKeys = [
+                    "barcode",
+                    "part_number",
+                    "location",
+                    "quantity",
+                    "min_quantity",
+                    "cost_price",
+                    "sale_price",
+                  ];
+                  const rowStatuses = rowKeys
+                    .map((f) => cellStatus[`${p.id}:${f}`])
+                    .filter(Boolean);
+                  const rowState: "saving" | "error" | "saved" | null = rowStatuses.includes(
+                    "error",
+                  )
+                    ? "error"
+                    : rowStatuses.includes("saving")
+                      ? "saving"
+                      : rowStatuses.includes("saved")
+                        ? "saved"
+                        : null;
+                  const mkSave =
+                    (field: string, transform: (v: string) => unknown) => async (v: string) => {
+                      const key = `${p.id}:${field}`;
+                      reportCellStatus(key, "saving");
+                      try {
+                        await updateField(p.id, { [field]: transform(v) });
+                        reportCellStatus(key, "saved");
+                      } catch {
+                        reportCellStatus(key, "error");
+                        throw new Error("save-failed");
+                      }
+                    };
+                  return (
+                    <tr
+                      key={p.id}
+                      ref={(el) => {
+                        rowRefs.current[p.id] = el;
+                      }}
+                      className={rowClass}
+                      onClick={() => setFocusedIdx(idx)}
+                    >
+                      <td className="px-2 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <input
+                            type="checkbox"
+                            aria-label={`تحديد ${p.name}`}
+                            checked={isSelected}
+                            onChange={() => toggleSelect(p.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <RowSyncDot state={rowState} />
                         </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center nums">
-                      {editMode && d ? <EditCell value={d.quantity} onChange={(v) => updateDraft(p.id, "quantity", v)} /> : (
-                        <EditableCell value={p.quantity} type="number" disabled={!canWrite}
-                          row={idx} col={3} status={cellStatus[`${p.id}:quantity`]}
-                          onSave={mkSave("quantity", (v) => Number(v))} />
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center nums text-muted-foreground">
-                      {editMode && d ? <EditCell value={d.min_quantity} onChange={(v) => updateDraft(p.id, "min_quantity", v)} /> : (
-                        <EditableCell value={p.minQuantity} type="number" disabled={!canWrite}
-                          row={idx} col={4} status={cellStatus[`${p.id}:min_quantity`]}
-                          onSave={mkSave("min_quantity", (v) => Number(v))} />
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center nums">
-                      {editMode && d ? <EditCell value={d.cost_price} onChange={(v) => updateDraft(p.id, "cost_price", v)} /> : (
-                        <EditableCell value={p.costPrice} type="number" disabled={!canWrite}
-                          row={idx} col={5} status={cellStatus[`${p.id}:cost_price`]}
-                          onSave={mkSave("cost_price", (v) => Number(v))} />
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center nums font-bold">
-                      {editMode && d ? <EditCell value={d.sale_price} onChange={(v) => updateDraft(p.id, "sale_price", v)} /> : (
-                        <EditableCell value={p.salePrice} type="number" disabled={!canWrite}
-                          row={idx} col={6} status={cellStatus[`${p.id}:sale_price`]}
-                          onSave={mkSave("sale_price", (v) => Number(v))} />
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center nums text-muted-foreground">
-                      {formatNumber(p.quantity * p.costPrice)}
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to="/products/$productId"
+                            params={{ productId: p.id }}
+                            className="hover:text-brand flex-1 min-w-0 truncate"
+                          >
+                            {p.name}
+                          </Link>
+                          {isLow && (
+                            <span className="text-[10px] text-destructive shrink-0">● منخفض</span>
+                          )}
+                          {canWrite && !editMode && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleting([p]);
+                              }}
+                              className="shrink-0 grid place-items-center size-7 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                              aria-label="حذف المنتج"
+                              title="حذف المنتج"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td
+                        className="px-2 py-2 text-center text-muted-foreground nums text-xs"
+                        dir="ltr"
+                      >
+                        {editMode && d ? (
+                          <>
+                            <div>{p.barcode || "—"}</div>
+                            {p.partNumber && (
+                              <div className="text-[10px] opacity-80">#{p.partNumber}</div>
+                            )}
+                            {p.location && (
+                              <div className="text-[10px] opacity-70">📍{p.location}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <EditableCell
+                              value={p.barcode}
+                              placeholder="باركود"
+                              row={idx}
+                              col={0}
+                              status={cellStatus[`${p.id}:barcode`]}
+                              disabled={!canWrite}
+                              onSave={mkSave("barcode", (v) => v || null)}
+                            />
+                            <EditableCell
+                              value={p.partNumber}
+                              placeholder="رقم القطعة"
+                              prefix="#"
+                              row={idx}
+                              col={1}
+                              status={cellStatus[`${p.id}:part_number`]}
+                              disabled={!canWrite}
+                              className="text-[10px]"
+                              onSave={mkSave("part_number", (v) => v || null)}
+                            />
+                            <EditableCell
+                              value={p.location}
+                              placeholder="الرف"
+                              prefix="📍"
+                              row={idx}
+                              col={2}
+                              status={cellStatus[`${p.id}:location`]}
+                              disabled={!canWrite}
+                              className="text-[10px]"
+                              onSave={mkSave("location", (v) => v || null)}
+                            />
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center nums">
+                        {editMode && d ? (
+                          <EditCell
+                            value={d.quantity}
+                            onChange={(v) => updateDraft(p.id, "quantity", v)}
+                          />
+                        ) : (
+                          <EditableCell
+                            value={p.quantity}
+                            type="number"
+                            disabled={!canWrite}
+                            row={idx}
+                            col={3}
+                            status={cellStatus[`${p.id}:quantity`]}
+                            onSave={mkSave("quantity", (v) => Number(v))}
+                          />
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center nums text-muted-foreground">
+                        {editMode && d ? (
+                          <EditCell
+                            value={d.min_quantity}
+                            onChange={(v) => updateDraft(p.id, "min_quantity", v)}
+                          />
+                        ) : (
+                          <EditableCell
+                            value={p.minQuantity}
+                            type="number"
+                            disabled={!canWrite}
+                            row={idx}
+                            col={4}
+                            status={cellStatus[`${p.id}:min_quantity`]}
+                            onSave={mkSave("min_quantity", (v) => Number(v))}
+                          />
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center nums">
+                        {editMode && d ? (
+                          <EditCell
+                            value={d.cost_price}
+                            onChange={(v) => updateDraft(p.id, "cost_price", v)}
+                          />
+                        ) : (
+                          <EditableCell
+                            value={p.costPrice}
+                            type="number"
+                            disabled={!canWrite}
+                            row={idx}
+                            col={5}
+                            status={cellStatus[`${p.id}:cost_price`]}
+                            onSave={mkSave("cost_price", (v) => Number(v))}
+                          />
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center nums font-bold">
+                        {editMode && d ? (
+                          <EditCell
+                            value={d.sale_price}
+                            onChange={(v) => updateDraft(p.id, "sale_price", v)}
+                          />
+                        ) : (
+                          <EditableCell
+                            value={p.salePrice}
+                            type="number"
+                            disabled={!canWrite}
+                            row={idx}
+                            col={6}
+                            status={cellStatus[`${p.id}:sale_price`]}
+                            onSave={mkSave("sale_price", (v) => Number(v))}
+                          />
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center nums text-muted-foreground">
+                        {formatNumber(p.quantity * p.costPrice)}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
             {filtered.length > 0 && (
               <tfoot className="bg-muted/60 font-bold">
@@ -621,11 +950,15 @@ function ProductsPage() {
                   <td></td>
                   <td className="px-3 py-2 text-right">الإجمالي</td>
                   <td></td>
-                  <td className="text-center nums">{formatNumber(filtered.reduce((s, p) => s + p.quantity, 0))}</td>
+                  <td className="text-center nums">
+                    {formatNumber(filtered.reduce((s, p) => s + p.quantity, 0))}
+                  </td>
                   <td></td>
                   <td></td>
                   <td></td>
-                  <td className="text-center nums">{formatNumber(filtered.reduce((s, p) => s + p.quantity * p.costPrice, 0))}</td>
+                  <td className="text-center nums">
+                    {formatNumber(filtered.reduce((s, p) => s + p.quantity * p.costPrice, 0))}
+                  </td>
                 </tr>
               </tfoot>
             )}
@@ -635,53 +968,92 @@ function ProductsPage() {
 
       {/* Pagination */}
       {filtered.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs" data-testid="pagination">
+        <div
+          className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"
+          data-testid="pagination"
+        >
           <span className="text-muted-foreground">
-            عرض <span className="font-bold text-foreground nums">{formatNumber(pageStart + 1)}</span>
+            عرض{" "}
+            <span className="font-bold text-foreground nums">{formatNumber(pageStart + 1)}</span>
             {" - "}
-            <span className="font-bold text-foreground nums">{formatNumber(Math.min(pageStart + safePageSize, filtered.length))}</span>
+            <span className="font-bold text-foreground nums">
+              {formatNumber(Math.min(pageStart + safePageSize, filtered.length))}
+            </span>
             {" من "}
             <span className="font-bold text-foreground nums">{formatNumber(filtered.length)}</span>
             {" منتج"}
           </span>
           <div className="flex items-center gap-1">
-            <button type="button" disabled={safePage <= 1}
+            <button
+              type="button"
+              disabled={safePage <= 1}
               onClick={() => setSearch({ page: 1 })}
-              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">« الأولى</button>
-            <button type="button" disabled={safePage <= 1}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40"
+            >
+              « الأولى
+            </button>
+            <button
+              type="button"
+              disabled={safePage <= 1}
               onClick={() => setSearch({ page: safePage - 1 })}
               data-testid="prev-page"
-              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">‹ السابق</button>
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40"
+            >
+              ‹ السابق
+            </button>
             <span className="px-3 nums font-bold">
               {formatNumber(safePage)} / {formatNumber(totalPages)}
             </span>
-            <button type="button" disabled={safePage >= totalPages}
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
               onClick={() => setSearch({ page: safePage + 1 })}
               data-testid="next-page"
-              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">التالي ›</button>
-            <button type="button" disabled={safePage >= totalPages}
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40"
+            >
+              التالي ›
+            </button>
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
               onClick={() => setSearch({ page: totalPages })}
-              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40">الأخيرة »</button>
+              className="h-8 px-2 rounded-md border border-border bg-card disabled:opacity-40"
+            >
+              الأخيرة »
+            </button>
           </div>
         </div>
       )}
 
-
       {canWrite && !editMode && (
-        <Link to="/products/new"
+        <Link
+          to="/products/new"
           className="fixed bottom-6 left-6 grid place-items-center size-14 rounded-full bg-brand text-brand-foreground shadow-fab hover:scale-105 transition"
-          aria-label="إضافة منتج">
+          aria-label="إضافة منتج"
+        >
           <Plus className="size-7" />
         </Link>
       )}
       {deleting && deleting.length > 0 && (
-        <DeleteProductModal products={deleting} onClose={() => setDeleting(null)} onDone={() => setSelected(new Set())} />
+        <DeleteProductModal
+          products={deleting}
+          onClose={() => setDeleting(null)}
+          onDone={() => setSelected(new Set())}
+        />
       )}
     </AppShell>
   );
 }
 
-function DeleteProductModal({ products, onClose, onDone }: { products: Product[]; onClose: () => void; onDone?: () => void }) {
+function DeleteProductModal({
+  products,
+  onClose,
+  onDone,
+}: {
+  products: Product[];
+  onClose: () => void;
+  onDone?: () => void;
+}) {
   const del = useDeleteProduct();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -693,37 +1065,62 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
     try {
       const ids = products.map((p) => p.id);
       // Snapshot raw rows for potential Undo before deletion.
-      const { data: snapshot } = await supabase.from("products").select("*").in("id", ids);
-      const rawRows = snapshot ?? [];
+      let rawRows: unknown[];
+      if (canUseLocalData()) {
+        const placeholders = ids.map(() => "?").join(", ");
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM products WHERE id IN (${placeholders})`,
+          ids,
+        );
+        rawRows = rows.map((r) => fromLocalRow("products", r));
+      } else {
+        const { data: snapshot } = await supabase.from("products").select("*").in("id", ids);
+        rawRows = snapshot ?? [];
+      }
 
-      let ok = 0; const failed: string[] = [];
+      let ok = 0;
+      const failed: string[] = [];
       for (const p of products) {
-        try { await del.mutateAsync(p); ok++; }
-        catch (e) { failed.push(p.name); console.error(e); }
+        try {
+          await del.mutateAsync(p);
+          ok++;
+        } catch (e) {
+          failed.push(p.name);
+          console.error(e);
+        }
       }
 
       if (ok) {
-        toast.success(
-          isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج",
-          {
-            duration: 8000,
-            action: rawRows.length > 0 ? {
-              label: "تراجع",
-              onClick: async () => {
-                try {
-                  const { error } = await supabase.from("products").insert(rawRows as never);
-                  if (error) throw error;
-                  qc.invalidateQueries({ queryKey: ["products"] });
-                  toast.success(isBulk ? `تم استرجاع ${rawRows.length} منتج` : "تم استرجاع المنتج");
-                } catch (e) {
-                  handleError(e, "تعذّر الاسترجاع");
+        toast.success(isBulk ? `تم حذف ${ok} منتج` : "تم حذف المنتج", {
+          duration: 8000,
+          action:
+            rawRows.length > 0
+              ? {
+                  label: "تراجع",
+                  onClick: async () => {
+                    try {
+                      if (canUseLocalData()) {
+                        for (const r of rawRows) {
+                          await localInsert("products", r as Record<string, unknown>);
+                        }
+                      } else {
+                        const { error } = await supabase.from("products").insert(rawRows as never);
+                        if (error) throw error;
+                      }
+                      qc.invalidateQueries({ queryKey: ["products"] });
+                      toast.success(
+                        isBulk ? `تم استرجاع ${rawRows.length} منتج` : "تم استرجاع المنتج",
+                      );
+                    } catch (e) {
+                      handleError(e, "تعذّر الاسترجاع");
+                    }
+                  },
                 }
-              },
-            } : undefined,
-          },
-        );
+              : undefined,
+        });
       }
-      if (failed.length) toast.error(`تعذّر حذف: ${failed.slice(0, 3).join("، ")}${failed.length > 3 ? "…" : ""}`);
+      if (failed.length)
+        toast.error(`تعذّر حذف: ${failed.slice(0, 3).join("، ")}${failed.length > 3 ? "…" : ""}`);
       onDone?.();
       onClose();
     } catch (err) {
@@ -734,37 +1131,72 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
   }
   const pending = busy || del.isPending;
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose} data-testid="delete-modal">
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3">
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+      data-testid="delete-modal"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-card rounded-2xl p-5 shadow-xl space-y-3"
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-destructive">
             {isBulk ? `تأكيد حذف ${formatNumber(products.length)} منتج` : "تأكيد حذف منتج"}
           </h2>
-          <button type="button" onClick={onClose} className="p-1"><X className="size-5" /></button>
+          <button type="button" onClick={onClose} className="p-1">
+            <X className="size-5" />
+          </button>
         </div>
         {isBulk ? (
           <div className="text-sm space-y-1">
-            <p>هل أنت متأكد من حذف <span className="font-bold text-destructive">{formatNumber(products.length)}</span> منتج؟</p>
+            <p>
+              هل أنت متأكد من حذف{" "}
+              <span className="font-bold text-destructive">{formatNumber(products.length)}</span>{" "}
+              منتج؟
+            </p>
             <ul className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 text-xs p-2 space-y-0.5">
-              {products.slice(0, 20).map((p) => <li key={p.id}>• {p.name}</li>)}
-              {products.length > 20 && <li className="text-muted-foreground">… و{formatNumber(products.length - 20)} أخرى</li>}
+              {products.slice(0, 20).map((p) => (
+                <li key={p.id}>• {p.name}</li>
+              ))}
+              {products.length > 20 && (
+                <li className="text-muted-foreground">
+                  … و{formatNumber(products.length - 20)} أخرى
+                </li>
+              )}
             </ul>
           </div>
         ) : (
-          <p className="text-sm">هل أنت متأكد من حذف <span className="font-bold">{products[0].name}</span>؟</p>
+          <p className="text-sm">
+            هل أنت متأكد من حذف <span className="font-bold">{products[0].name}</span>؟
+          </p>
         )}
         {withStock.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2">
-            ⚠️ {isBulk ? `${withStock.length} منتج يحتوي على رصيد بالمخزون` : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`}.
+            ⚠️{" "}
+            {isBulk
+              ? `${withStock.length} منتج يحتوي على رصيد بالمخزون`
+              : `يوجد رصيد بالمخزون: ${formatNumber(products[0].quantity)}`}
+            .
           </div>
         )}
         <div className="rounded-lg bg-sky-50 border border-sky-200 text-sky-900 text-[11px] p-2">
           سيُسجَّل الحذف في سجل التدقيق. يمكنك التراجع خلال 8 ثوانٍ من ظهور الإشعار.
         </div>
         <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold" data-testid="cancel-delete">إلغاء</button>
-          <button onClick={handleDelete} disabled={pending} data-testid="confirm-delete"
-            className="flex-1 h-11 rounded-xl bg-destructive text-destructive-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+          <button
+            onClick={onClose}
+            className="flex-1 h-11 rounded-xl border border-border bg-background text-sm font-bold"
+            data-testid="cancel-delete"
+          >
+            إلغاء
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={pending}
+            data-testid="confirm-delete"
+            className="flex-1 h-11 rounded-xl bg-destructive text-destructive-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
             حذف نهائي
           </button>
@@ -774,19 +1206,38 @@ function DeleteProductModal({ products, onClose, onDone }: { products: Product[]
   );
 }
 
-
-function Th({ children, onClick, active, asc, className = "" }: {
-  children: React.ReactNode; onClick?: () => void; active?: boolean; asc?: boolean; className?: string;
+function Th({
+  children,
+  onClick,
+  active,
+  asc,
+  className = "",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+  asc?: boolean;
+  className?: string;
 }) {
   const inner = (
     <span className="inline-flex items-center gap-1 justify-center">
       {children}
-      {onClick && <ArrowUpDown className={`size-3 ${active ? "text-brand" : "opacity-40"} ${active && !asc ? "rotate-180" : ""}`} />}
+      {onClick && (
+        <ArrowUpDown
+          className={`size-3 ${active ? "text-brand" : "opacity-40"} ${active && !asc ? "rotate-180" : ""}`}
+        />
+      )}
     </span>
   );
   return (
     <th className={`px-2 py-2 font-bold ${className}`}>
-      {onClick ? <button type="button" onClick={onClick} className="w-full">{inner}</button> : inner}
+      {onClick ? (
+        <button type="button" onClick={onClick} className="w-full">
+          {inner}
+        </button>
+      ) : (
+        inner
+      )}
     </th>
   );
 }
@@ -794,7 +1245,11 @@ function Th({ children, onClick, active, asc, className = "" }: {
 function EditCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <input
-      type="number" min="0" step="any" value={value} onChange={(e) => onChange(e.target.value)}
+      type="number"
+      min="0"
+      step="any"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
       className="w-20 h-8 text-center rounded-md border border-border bg-background text-xs nums outline-none focus:border-brand"
     />
   );
@@ -806,19 +1261,35 @@ function RowSyncDot({ state }: { state: "saving" | "saved" | "error" | null }) {
   if (!state) return null;
   const cfg = {
     saving: { cls: "bg-sky-500 animate-pulse", title: "جارٍ الحفظ…" },
-    saved:  { cls: "bg-emerald-500", title: "تمت المزامنة" },
-    error:  { cls: "bg-destructive", title: "فشل الحفظ — أعد المحاولة" },
+    saved: { cls: "bg-emerald-500", title: "تمت المزامنة" },
+    error: { cls: "bg-destructive", title: "فشل الحفظ — أعد المحاولة" },
   }[state];
-  return <span className={`inline-block size-2 rounded-full ${cfg.cls}`} title={cfg.title} aria-label={cfg.title} />;
+  return (
+    <span
+      className={`inline-block size-2 rounded-full ${cfg.cls}`}
+      title={cfg.title}
+      aria-label={cfg.title}
+    />
+  );
 }
 
 function CellStatusIcon({ status }: { status: CellSyncStatus }) {
   if (!status) return null;
   if (status === "saving")
-    return <Loader2 className="size-3 animate-spin text-sky-500 shrink-0" aria-label="جارٍ الحفظ" />;
+    return (
+      <Loader2 className="size-3 animate-spin text-sky-500 shrink-0" aria-label="جارٍ الحفظ" />
+    );
   if (status === "saved")
-    return <span className="text-emerald-500 text-[10px] leading-none shrink-0" aria-label="محفوظ">✓</span>;
-  return <span className="text-destructive text-[10px] leading-none shrink-0" aria-label="فشل">⚠</span>;
+    return (
+      <span className="text-emerald-500 text-[10px] leading-none shrink-0" aria-label="محفوظ">
+        ✓
+      </span>
+    );
+  return (
+    <span className="text-destructive text-[10px] leading-none shrink-0" aria-label="فشل">
+      ⚠
+    </span>
+  );
 }
 
 /** Focus the cell at (r, c). Returns true if a cell was found. */
@@ -830,8 +1301,16 @@ function focusGridCell(r: number, c: number): boolean {
 }
 
 function EditableCell({
-  value, type = "text", onSave, disabled, className = "", placeholder = "—", prefix = "",
-  row, col, status,
+  value,
+  type = "text",
+  onSave,
+  disabled,
+  className = "",
+  placeholder = "—",
+  prefix = "",
+  row,
+  col,
+  status,
 }: {
   value: string | number | null | undefined;
   type?: "text" | "number";
@@ -852,7 +1331,9 @@ function EditableCell({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestRef = useRef<string>(displayed);
 
-  useEffect(() => { if (!editing) setDraft(displayed); }, [displayed, editing]);
+  useEffect(() => {
+    if (!editing) setDraft(displayed);
+  }, [displayed, editing]);
   useEffect(() => {
     if (editing) {
       const el = inputRef.current;
@@ -860,12 +1341,19 @@ function EditableCell({
       // Place cursor at end so typed initial char lands after existing value.
       const len = el.value.length;
       el.focus();
-      try { el.setSelectionRange(len, len); } catch { /* ignore for number inputs */ }
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        /* ignore for number inputs */
+      }
     }
   }, [editing]);
-  useEffect(() => () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    },
+    [],
+  );
 
   const dataAttr = row !== undefined && col !== undefined ? `${row}-${col}` : undefined;
 
@@ -884,11 +1372,16 @@ function EditableCell({
 
   function scheduleAutoSave(v: string) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { void persist(v); }, 500);
+    debounceRef.current = setTimeout(() => {
+      void persist(v);
+    }, 500);
   }
 
   async function commitAndClose() {
-    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     await persist(draft);
     setEditing(false);
   }
@@ -904,7 +1397,11 @@ function EditableCell({
   }
 
   if (disabled) {
-    return <span className={className}>{displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground">—</span>}</span>;
+    return (
+      <span className={className}>
+        {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground">—</span>}
+      </span>
+    );
   }
 
   if (!editing) {
@@ -913,20 +1410,50 @@ function EditableCell({
         <button
           type="button"
           data-cell={dataAttr}
-          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-          onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
           onKeyDown={(e) => {
             // Grid navigation from a non-editing cell.
-            if (e.key === "ArrowUp")    { e.preventDefault(); e.stopPropagation(); moveTo(-1, 0); return; }
-            if (e.key === "ArrowDown")  { e.preventDefault(); e.stopPropagation(); moveTo(+1, 0); return; }
-            if (e.key === "ArrowLeft")  { e.preventDefault(); e.stopPropagation(); moveTo(0, -1); return; }
-            if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); moveTo(0, +1); return; }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              e.stopPropagation();
+              moveTo(-1, 0);
+              return;
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              e.stopPropagation();
+              moveTo(+1, 0);
+              return;
+            }
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              e.stopPropagation();
+              moveTo(0, -1);
+              return;
+            }
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              e.stopPropagation();
+              moveTo(0, +1);
+              return;
+            }
             if (e.key === "Enter" || e.key === "F2") {
-              e.preventDefault(); e.stopPropagation(); setEditing(true); return;
+              e.preventDefault();
+              e.stopPropagation();
+              setEditing(true);
+              return;
             }
             // Any printable key → enter edit mode with that key as initial value (Excel-like).
             if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-              e.preventDefault(); e.stopPropagation();
+              e.preventDefault();
+              e.stopPropagation();
               setDraft(e.key);
               setEditing(true);
               scheduleAutoSave(e.key);
@@ -935,7 +1462,11 @@ function EditableCell({
           className={`min-w-[3ch] text-center px-1.5 py-0.5 rounded hover:bg-brand/10 focus:bg-brand/10 focus:outline-none focus:ring-1 focus:ring-brand cursor-text ${className}`}
           title="اضغط أو ابدأ الكتابة للتعديل"
         >
-          {displayed ? `${prefix}${displayed}` : <span className="text-muted-foreground/60">—</span>}
+          {displayed ? (
+            `${prefix}${displayed}`
+          ) : (
+            <span className="text-muted-foreground/60">—</span>
+          )}
         </button>
         <CellStatusIcon status={status} />
       </div>
@@ -955,27 +1486,41 @@ function EditableCell({
           setDraft(e.target.value);
           scheduleAutoSave(e.target.value);
         }}
-        onBlur={() => { void commitAndClose(); }}
+        onBlur={() => {
+          void commitAndClose();
+        }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === "Enter") {
             e.preventDefault();
-            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+            void (async () => {
+              await commitAndClose();
+              moveTo(+1, 0);
+            })();
           } else if (e.key === "Tab") {
             // Native tab traversal covers this; still commit first.
             void persist(draft);
           } else if (e.key === "Escape") {
             e.preventDefault();
-            if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+            if (debounceRef.current) {
+              clearTimeout(debounceRef.current);
+              debounceRef.current = null;
+            }
             setDraft(displayed);
             setEditing(false);
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            void (async () => { await commitAndClose(); moveTo(-1, 0); })();
+            void (async () => {
+              await commitAndClose();
+              moveTo(-1, 0);
+            })();
           } else if (e.key === "ArrowDown") {
             e.preventDefault();
-            void (async () => { await commitAndClose(); moveTo(+1, 0); })();
+            void (async () => {
+              await commitAndClose();
+              moveTo(+1, 0);
+            })();
           }
           // ArrowLeft/Right stay as native text-cursor movement.
         }}
@@ -987,20 +1532,34 @@ function EditableCell({
   );
 }
 
-
-function StatCard({ icon, label, value, tone = "default" }: {
-  icon: React.ReactNode; label: string; value: string; tone?: "default" | "warn";
+function StatCard({
+  icon,
+  label,
+  value,
+  tone = "default",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone?: "default" | "warn";
 }) {
   return (
-    <div className={`rounded-xl border p-3 ${tone === "warn" ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">{icon} {label}</div>
-      <div className={`mt-1 text-base font-extrabold nums ${tone === "warn" ? "text-destructive" : "text-foreground"}`}>{value}</div>
+    <div
+      className={`rounded-xl border p-3 ${tone === "warn" ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}
+    >
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        {icon} {label}
+      </div>
+      <div
+        className={`mt-1 text-base font-extrabold nums ${tone === "warn" ? "text-destructive" : "text-foreground"}`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
 /* ---------------- Print ---------------- */
-
 
 function openPrintWindow(opts: {
   rows: Product[];
@@ -1024,7 +1583,11 @@ function openPrintWindow(opts: {
   });
 
   const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) { toast.error("فعّل النوافذ المنبثقة للطباعة"); return; }
-  w.document.open(); w.document.write(html); w.document.close();
+  if (!w) {
+    toast.error("فعّل النوافذ المنبثقة للطباعة");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
-

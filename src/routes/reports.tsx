@@ -25,6 +25,7 @@ import { formatSDG, formatNumber } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyRole, ROLE_LABELS, type AppRole } from "@/hooks/use-permissions";
 import { toast } from "sonner";
+import { canUseLocalData, localQuery, localQueryOne } from "@/lib/data/local";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "التقارير — المهندس" }] }),
@@ -57,22 +58,27 @@ const PERIODS: { key: Period; label: string }[] = [
 
 function periodRange(period: Period): { from: string | null; to: string | null } {
   const now = new Date();
-  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
   if (period === "day") return { from: startOfToday.toISOString(), to: null };
   if (period === "yesterday") {
-    const y = new Date(startOfToday); y.setDate(y.getDate() - 1);
+    const y = new Date(startOfToday);
+    y.setDate(y.getDate() - 1);
     return { from: y.toISOString(), to: startOfToday.toISOString() };
   }
   if (period === "week") {
-    const d = new Date(startOfToday); d.setDate(d.getDate() - 6);
+    const d = new Date(startOfToday);
+    d.setDate(d.getDate() - 6);
     return { from: d.toISOString(), to: null };
   }
   if (period === "month") {
-    const d = new Date(startOfToday); d.setDate(1);
+    const d = new Date(startOfToday);
+    d.setDate(1);
     return { from: d.toISOString(), to: null };
   }
   if (period === "last30") {
-    const d = new Date(startOfToday); d.setDate(d.getDate() - 29);
+    const d = new Date(startOfToday);
+    d.setDate(d.getDate() - 29);
     return { from: d.toISOString(), to: null };
   }
   if (period === "lastMonth") {
@@ -105,19 +111,28 @@ function buildInvoiceRows(
   return invoices.map((inv) => {
     const base: Record<string, string | number> = {
       "رقم الفاتورة": inv.invoice_number,
-      "التاريخ": new Date(inv.created_at).toLocaleString("ar-EG"),
-      "الكاشير": dir.get(inv.user_id) ?? inv.user_id.slice(0, 8),
-      "العميل": inv.customer_name ?? "—",
-      "الحالة": inv.status === "cancelled" ? "ملغاة" : inv.status === "paid" ? "مدفوعة" : inv.status === "partial" ? "جزئي" : "معلقة",
+      التاريخ: new Date(inv.created_at).toLocaleString("ar-EG"),
+      الكاشير: dir.get(inv.user_id) ?? inv.user_id.slice(0, 8),
+      العميل: inv.customer_name ?? "—",
+      الحالة:
+        inv.status === "cancelled"
+          ? "ملغاة"
+          : inv.status === "paid"
+            ? "مدفوعة"
+            : inv.status === "partial"
+              ? "جزئي"
+              : "معلقة",
       "طريقة الدفع": PM_LABELS[String(inv.payment_method || "cash")] ?? inv.payment_method ?? "—",
       "رقم العملية": inv.reference_number ?? "—",
-      "الإجمالي": Number(inv.total ?? 0),
-      "المدفوع": Number(inv.paid ?? 0),
-      "المتبقي": Number(inv.remaining ?? 0),
-      "الخصم": Number(inv.discount ?? 0),
+      الإجمالي: Number(inv.total ?? 0),
+      المدفوع: Number(inv.paid ?? 0),
+      المتبقي: Number(inv.remaining ?? 0),
+      الخصم: Number(inv.discount ?? 0),
       "سبب الإلغاء": inv.status === "cancelled" ? (inv.cancellation_reason ?? "— (لم يُذكر)") : "",
       "تاريخ الإلغاء": inv.cancelled_at ? new Date(inv.cancelled_at).toLocaleString("ar-EG") : "",
-      "ألغيت بواسطة": inv.cancelled_by ? (dir.get(inv.cancelled_by) ?? inv.cancelled_by.slice(0, 8)) : "",
+      "ألغيت بواسطة": inv.cancelled_by
+        ? (dir.get(inv.cancelled_by) ?? inv.cancelled_by.slice(0, 8))
+        : "",
     };
     if (includeProfit) {
       const p = opts!.profitByInvoice!.get(inv.id) ?? 0;
@@ -135,7 +150,10 @@ function exportInvoicesXLSX(
   periodLabel: string,
   opts?: { profitByInvoice?: Map<string, number>; includeProfit?: boolean },
 ) {
-  if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
+  if (invoices.length === 0) {
+    toast.info("لا توجد فواتير للتصدير");
+    return;
+  }
   const rows = buildInvoiceRows(invoices, directory, opts);
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = Object.keys(rows[0]).map(() => ({ wch: 16 }));
@@ -151,7 +169,10 @@ function exportInvoicesPDF(
   periodLabel: string,
   opts?: { profitByInvoice?: Map<string, number>; includeProfit?: boolean },
 ) {
-  if (invoices.length === 0) { toast.info("لا توجد فواتير للتصدير"); return; }
+  if (invoices.length === 0) {
+    toast.info("لا توجد فواتير للتصدير");
+    return;
+  }
   try {
     const rows = buildInvoiceRows(invoices, directory, opts);
     const headers = Object.keys(rows[0]);
@@ -171,11 +192,58 @@ function exportInvoicesPDF(
 
 /* ------------------------ shared data ------------------------ */
 
+/** Offline-first read of the report bundle from the PowerSync mirror. */
+async function fetchReportBundleLocal(from: string | null, to: string | null) {
+  const parts: string[] = [];
+  const args: unknown[] = [];
+  if (from) {
+    parts.push("created_at >= ?");
+    args.push(from);
+  }
+  if (to) {
+    parts.push("created_at < ?");
+    args.push(to);
+  }
+  const clause = parts.length ? ` WHERE ${parts.join(" AND ")}` : "";
+
+  const [invoices, items, expenses, returns, products, custRow] = await Promise.all([
+    localQuery<Row>(
+      `SELECT id, user_id, invoice_number, total, subtotal, discount, paid, remaining, payment_method, reference_number, status, customer_name, created_at, cancellation_reason, cancelled_at, cancelled_by FROM invoices${clause} ORDER BY created_at DESC`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at FROM invoice_items${clause}`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT user_id, amount, target, date, notes, created_at FROM expenses${clause}`,
+      args,
+    ),
+    localQuery<Row>(
+      `SELECT user_id, invoice_id, product_id, product_name, quantity, status, created_at FROM returns${clause}`,
+      args,
+    ),
+    localQuery<Row>(`SELECT id, user_id, name, quantity, min_quantity, sale_price FROM products`),
+    localQueryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM customers`),
+  ]);
+
+  return {
+    invoices,
+    items,
+    expenses,
+    returns,
+    products,
+    customerCount: Number(custRow?.c ?? 0),
+  };
+}
+
 function useReportBundle(period: Period) {
   const { from, to } = periodRange(period);
   return useQuery({
     queryKey: ["reports-bundle", period],
     queryFn: async () => {
+      if (canUseLocalData()) return fetchReportBundleLocal(from, to);
+
       // Invoices
       let qInv = supabase
         .from("invoices")
@@ -189,7 +257,9 @@ function useReportBundle(period: Period) {
       // Invoice items (for top products & profit)
       let qItems = supabase
         .from("invoice_items")
-        .select("invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at");
+        .select(
+          "invoice_id, user_id, product_name, quantity, unit_price, cost_price, line_total, created_at",
+        );
       if (from) qItems = qItems.gte("created_at", from);
       if (to) qItems = qItems.lt("created_at", to);
 
@@ -240,6 +310,32 @@ function useUserDirectory(enabled: boolean) {
     queryKey: ["admin-user-directory"],
     enabled,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        // Display names come from a network RPC — degrade to an empty
+        // directory when offline; roles are synced locally.
+        let userList: { user_id: string; email: string | null }[] = [];
+        try {
+          const { data, error } = await supabase.rpc("admin_list_users");
+          if (!error) userList = (data ?? []) as { user_id: string; email: string | null }[];
+        } catch {
+          /* offline — no directory available */
+        }
+        const roleList = await localQuery<{ user_id: string; role: string }>(
+          `SELECT user_id, role FROM user_roles`,
+        );
+        const roles = new Map<string, AppRole[]>();
+        for (const r of roleList) {
+          const arr = roles.get(r.user_id) ?? [];
+          arr.push(r.role as AppRole);
+          roles.set(r.user_id, arr);
+        }
+        return userList.map((u) => ({
+          id: u.user_id,
+          email: u.email ?? "—",
+          roles: roles.get(u.user_id) ?? [],
+        }));
+      }
+
       const [{ data: userList, error: uErr }, { data: roleList, error: rErr }] = await Promise.all([
         supabase.rpc("admin_list_users"),
         supabase.from("user_roles").select("user_id, role"),
@@ -287,7 +383,8 @@ function ReportsPage() {
     const invoiceCount = data.invoices.length;
     const avgTicket = invoiceCount ? totalSales / invoiceCount : 0;
     const lowStock = data.products.filter(
-      (p) => Number(p.quantity || 0) <= Number(p.min_quantity || 0) && Number(p.min_quantity || 0) > 0,
+      (p) =>
+        Number(p.quantity || 0) <= Number(p.min_quantity || 0) && Number(p.min_quantity || 0) > 0,
     ).length;
 
     // Payment methods
@@ -499,24 +596,37 @@ function ReportsPage() {
       {isAdmin && data?.invoices && (
         <div className="flex flex-wrap gap-2 mb-4">
           <button
-            onClick={() => exportInvoicesXLSX(data.invoices, userDir.data ?? [], PERIODS.find((p) => p.key === period)?.label ?? period, { profitByInvoice: stats?.profitByInvoice, includeProfit: isAdmin })}
+            onClick={() =>
+              exportInvoicesXLSX(
+                data.invoices,
+                userDir.data ?? [],
+                PERIODS.find((p) => p.key === period)?.label ?? period,
+                { profitByInvoice: stats?.profitByInvoice, includeProfit: isAdmin },
+              )
+            }
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
           >
             <FileSpreadsheet className="size-4" /> تصدير Excel
           </button>
           <button
-            onClick={() => exportInvoicesPDF(data.invoices, userDir.data ?? [], PERIODS.find((p) => p.key === period)?.label ?? period, { profitByInvoice: stats?.profitByInvoice, includeProfit: isAdmin })}
+            onClick={() =>
+              exportInvoicesPDF(
+                data.invoices,
+                userDir.data ?? [],
+                PERIODS.find((p) => p.key === period)?.label ?? period,
+                { profitByInvoice: stats?.profitByInvoice, includeProfit: isAdmin },
+              )
+            }
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700"
           >
             <Download className="size-4" /> تصدير PDF
           </button>
           <span className="text-xs text-muted-foreground self-center">
-            تفاصيل فواتير الكاشير خلال الفترة المحددة {isAdmin ? "(يشمل الربح — مخصص للمدير فقط)" : ""}
+            تفاصيل فواتير الكاشير خلال الفترة المحددة{" "}
+            {isAdmin ? "(يشمل الربح — مخصص للمدير فقط)" : ""}
           </span>
         </div>
       )}
-
-
 
       {isLoading || !stats ? (
         <div className="text-center py-10 text-muted-foreground">جاري التحميل...</div>
@@ -533,7 +643,13 @@ function ReportsPage() {
 
 /* ------------------------ Overview ------------------------ */
 
-function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof useComputed>>; isAdmin: boolean }) {
+function OverviewTab({
+  stats,
+  isAdmin,
+}: {
+  stats: NonNullable<ReturnType<typeof useComputed>>;
+  isAdmin: boolean;
+}) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
@@ -582,11 +698,7 @@ function OverviewTab({ stats, isAdmin }: { stats: NonNullable<ReturnType<typeof 
 
       {/* Sales chart */}
       <Card title="المبيعات اليومية" icon={Calendar}>
-        {stats.daily.length === 0 ? (
-          <EmptyLine />
-        ) : (
-          <MiniBars data={stats.daily} />
-        )}
+        {stats.daily.length === 0 ? <EmptyLine /> : <MiniBars data={stats.daily} />}
       </Card>
 
       {/* Top products */}
@@ -638,7 +750,8 @@ function DetailedTab({
 }) {
   const [pmFilter, setPmFilter] = useState<string>("all");
   const filteredInvoices = useMemo(
-    () => (pmFilter === "all" ? invoices : invoices.filter((i) => String(i.payment_method) === pmFilter)),
+    () =>
+      pmFilter === "all" ? invoices : invoices.filter((i) => String(i.payment_method) === pmFilter),
     [invoices, pmFilter],
   );
 
@@ -657,7 +770,9 @@ function DetailedTab({
                   key={p.key}
                   onClick={() => setPmFilter(pmFilter === p.key ? "all" : p.key)}
                   className={`rounded-lg border p-2 text-right transition ${
-                    pmFilter === p.key ? "border-brand bg-brand/5" : "border-border hover:bg-muted/50"
+                    pmFilter === p.key
+                      ? "border-brand bg-brand/5"
+                      : "border-border hover:bg-muted/50"
                   }`}
                 >
                   <div className="text-[11px] text-muted-foreground">
@@ -700,11 +815,7 @@ function DetailedTab({
       <Card
         title={`الفواتير (${formatNumber(filteredInvoices.length)})`}
         icon={Receipt}
-        subtitle={
-          pmFilter !== "all"
-            ? `مصفّى حسب: ${PM_LABELS[pmFilter] ?? pmFilter}`
-            : undefined
-        }
+        subtitle={pmFilter !== "all" ? `مصفّى حسب: ${PM_LABELS[pmFilter] ?? pmFilter}` : undefined}
       >
         {filteredInvoices.length === 0 ? (
           <EmptyLine />
@@ -727,40 +838,45 @@ function DetailedTab({
                   const total = Number(inv.total || 0);
                   const margin = total > 0 ? (profit / total) * 100 : 0;
                   return (
-                  <tr key={inv.id}>
-                    <td className="px-2 py-1.5 nums">#{inv.invoice_number}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">
-                      {new Date(inv.created_at).toLocaleDateString("ar-EG", {
-                        day: "2-digit",
-                        month: "2-digit",
-                      })}
-                    </td>
-                    <td className="px-2 py-1.5 truncate max-w-[120px]">
-                      {inv.customer_name || "—"}
-                    </td>
-                    <td className="px-2 py-1.5 text-center text-[10px]">
-                      <span className="px-1.5 py-0.5 rounded bg-muted">
-                        {PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}
-                      </span>
-                      {inv.payment_method === "bank" && (inv as any).reference_number && (
-                        <div className="mt-0.5 text-[10px] text-muted-foreground nums" title="رقم العملية البنكية">
-                          #{(inv as any).reference_number}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-1.5 text-end nums font-bold">
-                      {formatSDG(Number(inv.total || 0))}
-                    </td>
-                    {isAdmin && (
-                      <td className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                        {formatSDG(profit)}
-                        <div className="text-[9px] text-muted-foreground font-normal">
-                          {margin.toFixed(1)}%
-                        </div>
+                    <tr key={inv.id}>
+                      <td className="px-2 py-1.5 nums">#{inv.invoice_number}</td>
+                      <td className="px-2 py-1.5 text-muted-foreground">
+                        {new Date(inv.created_at).toLocaleDateString("ar-EG", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
                       </td>
-                    )}
-                  </tr>
+                      <td className="px-2 py-1.5 truncate max-w-[120px]">
+                        {inv.customer_name || "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-center text-[10px]">
+                        <span className="px-1.5 py-0.5 rounded bg-muted">
+                          {PM_LABELS[String(inv.payment_method)] ?? inv.payment_method}
+                        </span>
+                        {inv.payment_method === "bank" && (inv as any).reference_number && (
+                          <div
+                            className="mt-0.5 text-[10px] text-muted-foreground nums"
+                            title="رقم العملية البنكية"
+                          >
+                            #{(inv as any).reference_number}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-1.5 text-end nums font-bold">
+                        {formatSDG(Number(inv.total || 0))}
+                      </td>
+                      {isAdmin && (
+                        <td
+                          className={`px-2 py-1.5 text-end nums font-bold ${profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}
+                        >
+                          {formatSDG(profit)}
+                          <div className="text-[9px] text-muted-foreground font-normal">
+                            {margin.toFixed(1)}%
+                          </div>
+                        </td>
+                      )}
+                    </tr>
                   );
                 })}
               </tbody>
@@ -848,7 +964,9 @@ function ByUserTab({
   }, [perUser, directory]);
 
   if (loading) {
-    return <div className="text-center py-10 text-muted-foreground">جاري تحميل قائمة المستخدمين...</div>;
+    return (
+      <div className="text-center py-10 text-muted-foreground">جاري تحميل قائمة المستخدمين...</div>
+    );
   }
 
   if (rows.length === 0) {
@@ -919,10 +1037,7 @@ function ByUserTab({
                 <div className="text-[11px] font-bold text-muted-foreground mb-1">طرق الدفع</div>
                 <div className="flex flex-wrap gap-1.5">
                   {pmEntries.map(([k, v]) => (
-                    <span
-                      key={k}
-                      className="text-[11px] rounded-full bg-muted px-2 py-0.5 nums"
-                    >
+                    <span key={k} className="text-[11px] rounded-full bg-muted px-2 py-0.5 nums">
                       {PM_LABELS[k] ?? k}: {formatSDG(v)}
                     </span>
                   ))}
@@ -1018,15 +1133,7 @@ function Card({
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "up" | "down";
-}) {
+function MiniStat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
   return (
     <div className="rounded-lg bg-muted/50 p-1.5">
       <div className="text-[10px] text-muted-foreground">{label}</div>

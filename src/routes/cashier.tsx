@@ -2,8 +2,23 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Search, Trash2, Plus, Minus, Loader2, CheckCircle2, Receipt,
-  Wallet, Landmark, Package, X, User, Printer, Eye, Share2, Camera, ClipboardList,
+  Search,
+  Trash2,
+  Plus,
+  Minus,
+  Loader2,
+  CheckCircle2,
+  Receipt,
+  Wallet,
+  Landmark,
+  Package,
+  X,
+  User,
+  Printer,
+  Eye,
+  Share2,
+  Camera,
+  ClipboardList,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { formatSDG, formatNumber } from "@/lib/format";
@@ -19,6 +34,7 @@ import { toast } from "sonner";
 import { buildInvoiceText, openWhatsAppShare } from "@/lib/invoice-share";
 import { InvoiceActionsModal } from "@/components/InvoiceActionsModal";
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
+import { canUseLocalData, genId, localTransaction, nowIso, requireUserId } from "@/lib/data/local";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +48,11 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/cashier")({
   head: () => ({ meta: [{ title: "الكاشير — المهندس" }] }),
-  component: () => (<PermissionGate perm="cashier.use"><CashierPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="cashier.use">
+      <CashierPage />
+    </PermissionGate>
+  ),
 });
 
 type CartItem = {
@@ -44,6 +64,24 @@ type CartItem = {
   quantity: number;
   maxQty: number;
 };
+
+/** Extract plain row objects from a PowerSync tx.execute() query result. */
+function txRows(res: unknown): Record<string, unknown>[] {
+  const rows = (
+    res as {
+      rows?: { _array?: unknown[]; length?: number; item?: (i: number) => unknown };
+    } | null
+  )?.rows;
+  if (!rows) return [];
+  if (Array.isArray(rows._array)) return rows._array as Record<string, unknown>[];
+  if (typeof rows.item === "function" && typeof rows.length === "number") {
+    return Array.from({ length: rows.length }, (_, i) => rows.item!(i)) as Record<
+      string,
+      unknown
+    >[];
+  }
+  return [];
+}
 
 function CashierPage() {
   const navigate = useNavigate();
@@ -82,7 +120,6 @@ function CashierPage() {
   const [referenceNumber, setReferenceNumber] = useState<string>("");
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
-
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: products = [] } = useProducts({ q: query, sort: "name", asc: true });
@@ -100,7 +137,8 @@ function CashierPage() {
   // the source order id so we can link it to the invoice on save.
   useEffect(() => {
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("pending_special_order") : null;
+      const raw =
+        typeof window !== "undefined" ? localStorage.getItem("pending_special_order") : null;
       if (!raw) return;
       localStorage.removeItem("pending_special_order");
       const p = JSON.parse(raw) as {
@@ -137,7 +175,6 @@ function CashierPage() {
     }
   }, []);
 
-
   // Auto-select default payment method
   useEffect(() => {
     if (paymentMethodId) return;
@@ -148,8 +185,14 @@ function CashierPage() {
     }
   }, [paymentMethods, paymentMethodId]);
 
-  const bankAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "bank"), [paymentMethods]);
-  const cashAccounts = useMemo(() => paymentMethods.filter((m) => m.type === "cash"), [paymentMethods]);
+  const bankAccounts = useMemo(
+    () => paymentMethods.filter((m) => m.type === "bank"),
+    [paymentMethods],
+  );
+  const cashAccounts = useMemo(
+    () => paymentMethods.filter((m) => m.type === "cash"),
+    [paymentMethods],
+  );
 
   // Realtime product updates
   useEffect(() => {
@@ -159,7 +202,9 @@ function CashierPage() {
         queryClient.invalidateQueries({ queryKey: ["products"] }),
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [queryClient]);
 
   // Extract categories from products
@@ -178,7 +223,9 @@ function CashierPage() {
   }, [products, activeCategory]);
 
   // Reset paging when filter/search/category changes so the user always sees page 1.
-  useEffect(() => { setPage(1); }, [activeCategory, query]);
+  useEffect(() => {
+    setPage(1);
+  }, [activeCategory, query]);
 
   const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -187,10 +234,7 @@ function CashierPage() {
     [visibleProducts, currentPage],
   );
 
-  const subtotal = useMemo(
-    () => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
-    [cart],
-  );
+  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
   // Validate the raw markup input separately so we can surface a clear message
   // and block checkout on out-of-range values (negative, non-numeric, > 100).
   const markupError = useMemo(() => {
@@ -202,7 +246,9 @@ function CashierPage() {
     if (n > 100) return "نسبة الزيادة لا يمكن أن تتجاوز 100%";
     return null;
   }, [markupPct]);
-  const markupNum = markupError ? 0 : Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
+  const markupNum = markupError
+    ? 0
+    : Math.max(0, Math.min(100, parseNumber(markupPct, { min: 0 })));
 
   const markupMultiplier = 1 + markupNum / 100;
   const subtotalAfterMarkup = subtotal * markupMultiplier;
@@ -221,9 +267,7 @@ function CashierPage() {
           toast.error(`الكمية القصوى: ${p.quantity}`);
           return prev;
         }
-        return prev.map((i) =>
-          i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i,
-        );
+        return prev.map((i) => (i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i));
       }
       if (p.quantity <= 0) {
         toast.error("المنتج غير متوفر");
@@ -299,9 +343,7 @@ function CashierPage() {
     setCart((prev) =>
       prev
         .map((i) =>
-          i.productId === id
-            ? { ...i, quantity: Math.min(i.maxQty, Math.max(0, qty)) }
-            : i,
+          i.productId === id ? { ...i, quantity: Math.min(i.maxQty, Math.max(0, qty)) } : i,
         )
         .filter((i) => i.quantity > 0),
     );
@@ -356,15 +398,233 @@ function CashierPage() {
       return;
     }
 
-
-
     setError(null);
     setSaving(true);
     try {
+      if (canUseLocalData()) {
+        // -------- Offline-first path: whole sale in ONE local transaction --------
+        const userId = await requireUserId();
+        const status = remaining <= 0 ? "paid" : paidNum > 0 ? "partial" : "pending";
+        const trimmedName = customerName.trim();
+
+        const saved = await localTransaction(async (tx) => {
+          // Resolve/save customer: reuse selected, or auto-create when a name is entered.
+          let customerId: string | null = selectedCustomerId;
+          if (!customerId && trimmedName) {
+            const existing = txRows(
+              await tx.execute(
+                `SELECT id FROM customers WHERE user_id = ? AND name = ? COLLATE NOCASE LIMIT 1`,
+                [userId, trimmedName],
+              ),
+            )[0] as { id: string } | undefined;
+            if (existing?.id) {
+              customerId = existing.id;
+              if (phone) {
+                await tx.execute(`UPDATE customers SET phone = ?, updated_at = ? WHERE id = ?`, [
+                  phone,
+                  nowIso(),
+                  existing.id,
+                ]);
+              }
+            } else {
+              customerId = genId();
+              const ts = nowIso();
+              await tx.execute(
+                `INSERT INTO customers (id, user_id, name, phone, workshop, address, notes, balance, credit_limit, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, NULL, NULL, NULL, 0, 0, ?, ?)`,
+                [customerId, userId, trimmedName, phone || null, ts, ts],
+              );
+            }
+          }
+
+          // Next invoice number — computed inside the same transaction
+          // (mirrors the assign_invoice_number trigger).
+          const numRow = txRows(
+            await tx.execute(`SELECT COALESCE(MAX(invoice_number),0)+1 AS n FROM invoices`),
+          )[0] as { n: number } | undefined;
+          const invoiceNumber = Number(numRow?.n) || 1;
+
+          const invoiceId = genId();
+          const invTs = nowIso();
+          await tx.execute(
+            `INSERT INTO invoices (id, user_id, invoice_number, customer_id, customer_name, customer_phone, source, status, subtotal, discount, total, paid, remaining, payment_method, payment_method_id, reference_number, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              invoiceId,
+              userId,
+              invoiceNumber,
+              customerId,
+              trimmedName || null,
+              phone || null,
+              "pos",
+              status,
+              subtotalAfterMarkup,
+              discountNum,
+              total,
+              paidNum,
+              remaining,
+              paymentType,
+              paymentMethodId || null,
+              paymentType === "bank" ? referenceNumber.trim() || null : null,
+              invTs,
+              invTs,
+            ],
+          );
+
+          for (const i of cart) {
+            const adjustedPrice = i.unitPrice * markupMultiplier;
+            const productId = i.productId.startsWith("custom-") ? null : i.productId;
+            await tx.execute(
+              `INSERT INTO invoice_items (id, user_id, invoice_id, product_id, product_name, unit, quantity, unit_price, cost_price, line_total, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                genId(),
+                userId,
+                invoiceId,
+                productId,
+                i.name,
+                i.unit,
+                i.quantity,
+                adjustedPrice,
+                i.costPrice,
+                adjustedPrice * i.quantity,
+                nowIso(),
+              ],
+            );
+            // Stock decrement with availability guard
+            // (mirrors the decrement_product_stock trigger).
+            if (productId) {
+              const prod = txRows(
+                await tx.execute(`SELECT quantity, name FROM products WHERE id = ?`, [productId]),
+              )[0] as { quantity: number | null; name: string | null } | undefined;
+              if (!prod) throw new Error("المنتج غير موجود");
+              const currentQty = Number(prod.quantity) || 0;
+              if (currentQty < i.quantity) {
+                throw new Error(`الكمية غير كافية للصنف: ${prod.name ?? i.name}`);
+              }
+              await tx.execute(
+                `UPDATE products SET quantity = quantity - ?, updated_at = ? WHERE id = ?`,
+                [i.quantity, nowIso(), productId],
+              );
+            }
+          }
+
+          // Initial POS payment row so offline account balances stay correct.
+          if (paidNum > 0) {
+            await tx.execute(
+              `INSERT INTO payments (id, user_id, invoice_id, purchase_id, account_id, party_type, party_id, amount, method, notes, created_at)
+               VALUES (?, ?, ?, NULL, ?, 'customer', ?, ?, ?, NULL, ?)`,
+              [
+                genId(),
+                userId,
+                invoiceId,
+                paymentMethodId || null,
+                customerId,
+                paidNum,
+                paymentType,
+                nowIso(),
+              ],
+            );
+          }
+
+          // Link the sale back to the originating special order (if any) —
+          // mirrors the remote update + its status-history trigger.
+          let linkedOrder = false;
+          if (pendingOrderId) {
+            const order = txRows(
+              await tx.execute(`SELECT status FROM special_orders WHERE id = ?`, [pendingOrderId]),
+            )[0] as { status: string | null } | undefined;
+            if (order) {
+              await tx.execute(
+                `UPDATE special_orders SET invoice_id = ?, status = 'delivered', updated_at = ? WHERE id = ?`,
+                [invoiceId, nowIso(), pendingOrderId],
+              );
+              if (order.status !== "delivered") {
+                await tx.execute(
+                  `INSERT INTO special_order_history (id, user_id, order_id, changed_by, from_status, to_status, reason, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'delivered', NULL, ?)`,
+                  [genId(), userId, pendingOrderId, userId, order.status ?? null, nowIso()],
+                );
+              }
+              linkedOrder = true;
+            }
+          }
+
+          return { invoiceId, invoiceNumber, linkedOrder };
+        });
+
+        const shareText = buildInvoiceText(
+          {
+            invoice_number: saved.invoiceNumber,
+            customer_name: trimmedName || null,
+            total,
+            paid: paidNum,
+            remaining,
+            created_at: new Date().toISOString(),
+          },
+          cart.map((i) => {
+            const adjustedPrice = i.unitPrice * markupMultiplier;
+            return {
+              product_name: i.name,
+              quantity: i.quantity,
+              unit_price: adjustedPrice,
+              line_total: adjustedPrice * i.quantity,
+            };
+          }),
+          storeProfile?.name || "المتجر",
+          { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
+        );
+        const savedInvoice = {
+          id: saved.invoiceId,
+          number: saved.invoiceNumber,
+          phone,
+          text: shareText,
+        };
+        setLastInvoice(savedInvoice);
+
+        setCart([]);
+        setCustomerName("");
+        setCustomerPhone("");
+        setSelectedCustomerId(null);
+        setDiscount("0");
+        setMarkupPct("0");
+        setPaid("");
+        setReferenceNumber("");
+        setQuery("");
+
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+        if (pendingOrderId) {
+          setPendingOrderId(null);
+          if (saved.linkedOrder) {
+            queryClient.invalidateQueries({ queryKey: ["special-orders"] });
+          }
+        }
+
+        toast.success(`تم حفظ الفاتورة #${savedInvoice.number}`);
+
+        // Auto-print: navigate directly to preview with autoprint flag
+        if (storeProfile?.auto_print) {
+          navigate({
+            to: "/invoices/$invoiceId",
+            params: { invoiceId: savedInvoice.id },
+            search: { autoprint: 1 },
+          });
+          return;
+        }
+        // Otherwise open the actions modal (print / WhatsApp / preview / return)
+        setActionsModalId(savedInvoice.id);
+        searchRef.current?.focus();
+        return;
+      }
+
       const { data: u, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw authErr;
       const userId = u.user?.id;
-      if (!userId) { navigate({ to: "/auth" }); return; }
+      if (!userId) {
+        navigate({ to: "/auth" });
+        return;
+      }
 
       const status = remaining <= 0 ? "paid" : paidNum > 0 ? "partial" : "pending";
 
@@ -415,7 +675,7 @@ function CashierPage() {
             remaining,
             payment_method: paymentType,
             payment_method_id: paymentMethodId || null,
-            reference_number: paymentType === "bank" ? (referenceNumber.trim() || null) : null,
+            reference_number: paymentType === "bank" ? referenceNumber.trim() || null : null,
           })
 
           .select("id, invoice_number")
@@ -444,10 +704,22 @@ function CashierPage() {
         }
 
         const shareText = buildInvoiceText(
-          { invoice_number: inv.invoice_number, customer_name: trimmedName || null, total, paid: paidNum, remaining, created_at: new Date().toISOString() },
+          {
+            invoice_number: inv.invoice_number,
+            customer_name: trimmedName || null,
+            total,
+            paid: paidNum,
+            remaining,
+            created_at: new Date().toISOString(),
+          },
           cart.map((i) => {
             const adjustedPrice = i.unitPrice * markupMultiplier;
-            return { product_name: i.name, quantity: i.quantity, unit_price: adjustedPrice, line_total: adjustedPrice * i.quantity };
+            return {
+              product_name: i.name,
+              quantity: i.quantity,
+              unit_price: adjustedPrice,
+              line_total: adjustedPrice * i.quantity,
+            };
           }),
           storeProfile?.name || "المتجر",
           { includeItems: true, footer: storeProfile?.invoice_footer || undefined },
@@ -531,7 +803,10 @@ function CashierPage() {
         if (query) setQuery("");
         else searchRef.current?.focus();
       }
-      if ((e.ctrlKey && e.key === "k") || (e.key === "/" && document.activeElement?.tagName !== "INPUT")) {
+      if (
+        (e.ctrlKey && e.key === "k") ||
+        (e.key === "/" && document.activeElement?.tagName !== "INPUT")
+      ) {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -545,7 +820,9 @@ function CashierPage() {
       <InvoiceActionsModal
         invoiceId={actionsModalId}
         open={actionsModalId !== null}
-        onOpenChange={(v) => { if (!v) setActionsModalId(null); }}
+        onOpenChange={(v) => {
+          if (!v) setActionsModalId(null);
+        }}
       />
 
       {lastInvoice !== null && (
@@ -585,10 +862,7 @@ function CashierPage() {
           >
             <Share2 className="size-3.5" /> واتساب
           </button>
-          <button
-            onClick={() => navigate({ to: "/invoices" })}
-            className="text-xs underline"
-          >
+          <button onClick={() => navigate({ to: "/invoices" })} className="text-xs underline">
             كل الفواتير
           </button>
           <button onClick={() => setLastInvoice(null)} className="p-1" aria-label="إغلاق">
@@ -754,7 +1028,6 @@ function CashierPage() {
             }}
           />
 
-
           {/* Category chips */}
           {categories.length > 0 && (
             <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
@@ -811,9 +1084,16 @@ function CashierPage() {
                       )}
                       <div className="text-sm font-bold line-clamp-2 min-h-[2.5rem]">{p.name}</div>
                       {(p.partNumber || p.location) && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground" dir="ltr">
-                          {p.partNumber && <span className="px-1 rounded bg-muted">#{p.partNumber}</span>}
-                          {p.location && <span className="px-1 rounded bg-muted">📍{p.location}</span>}
+                        <div
+                          className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"
+                          dir="ltr"
+                        >
+                          {p.partNumber && (
+                            <span className="px-1 rounded bg-muted">#{p.partNumber}</span>
+                          )}
+                          {p.location && (
+                            <span className="px-1 rounded bg-muted">📍{p.location}</span>
+                          )}
                         </div>
                       )}
                       <div className="mt-2 flex items-center justify-between text-xs">
@@ -840,7 +1120,8 @@ function CashierPage() {
                   السابق
                 </button>
                 <span className="text-xs text-muted-foreground nums">
-                  صفحة {formatNumber(currentPage)} من {formatNumber(totalPages)} · {formatNumber(visibleProducts.length)} منتج
+                  صفحة {formatNumber(currentPage)} من {formatNumber(totalPages)} ·{" "}
+                  {formatNumber(visibleProducts.length)} منتج
                 </span>
                 <button
                   type="button"
@@ -904,28 +1185,35 @@ function CashierPage() {
                   <X className="size-3.5 text-muted-foreground" />
                 </button>
               )}
-              {showCustomerList && customerName.trim().length > 0 && customerMatches.length > 0 && !selectedCustomerId && (
-                <ul className="absolute z-20 top-full mt-1 right-0 left-0 max-h-56 overflow-auto rounded-lg border border-border bg-popover shadow-lg text-xs">
-                  {customerMatches.slice(0, 8).map((c) => (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setSelectedCustomerId(c.id);
-                          setCustomerName(c.name);
-                          setCustomerPhone(c.phone ?? "");
-                          setShowCustomerList(false);
-                        }}
-                        className="w-full text-right px-3 py-2 hover:bg-muted flex items-center justify-between gap-2"
-                      >
-                        <span className="font-medium truncate">{c.name}</span>
-                        {c.phone && <span className="text-muted-foreground nums text-[11px]" dir="ltr">{c.phone}</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {showCustomerList &&
+                customerName.trim().length > 0 &&
+                customerMatches.length > 0 &&
+                !selectedCustomerId && (
+                  <ul className="absolute z-20 top-full mt-1 right-0 left-0 max-h-56 overflow-auto rounded-lg border border-border bg-popover shadow-lg text-xs">
+                    {customerMatches.slice(0, 8).map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setSelectedCustomerId(c.id);
+                            setCustomerName(c.name);
+                            setCustomerPhone(c.phone ?? "");
+                            setShowCustomerList(false);
+                          }}
+                          className="w-full text-right px-3 py-2 hover:bg-muted flex items-center justify-between gap-2"
+                        >
+                          <span className="font-medium truncate">{c.name}</span>
+                          {c.phone && (
+                            <span className="text-muted-foreground nums text-[11px]" dir="ltr">
+                              {c.phone}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
             </div>
             <input
               value={customerPhone}
@@ -945,7 +1233,6 @@ function CashierPage() {
               </div>
             )}
           </div>
-
 
           {/* Cart items */}
           <div className="flex-1 overflow-auto min-h-[160px] max-h-[380px]">
@@ -970,7 +1257,7 @@ function CashierPage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold truncate">{i.name}</div>
                       <div className="text-[11px] text-muted-foreground nums">
-                        {formatSDG(i.unitPrice)} = {" "}
+                        {formatSDG(i.unitPrice)} ={" "}
                         <span className="font-bold text-foreground">
                           {formatSDG(i.unitPrice * i.quantity)}
                         </span>
@@ -1033,11 +1320,13 @@ function CashierPage() {
                 <Landmark className="size-3.5" /> بنكي
               </button>
             </div>
-            {paymentType === "bank" && (
-              bankAccounts.length === 0 ? (
+            {paymentType === "bank" &&
+              (bankAccounts.length === 0 ? (
                 <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
                   لا توجد حسابات بنكية.{" "}
-                  <Link to="/payment-methods" className="underline font-bold">أضف</Link>
+                  <Link to="/payment-methods" className="underline font-bold">
+                    أضف
+                  </Link>
                 </div>
               ) : (
                 <select
@@ -1048,16 +1337,17 @@ function CashierPage() {
                   <option value="">— اختر الحساب —</option>
                   {bankAccounts.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name}{m.bank_name ? ` (${m.bank_name})` : ""}
+                      {m.name}
+                      {m.bank_name ? ` (${m.bank_name})` : ""}
                     </option>
                   ))}
                 </select>
-              )
-            )}
+              ))}
             {paymentType === "bank" && (
               <div>
                 <label className="block text-[11px] text-muted-foreground mb-1">
-                  رقم العملية / التحويل البنكي <span className="text-[10px]">(اختياري — يُعرض في التقارير للحساب البنكي)</span>
+                  رقم العملية / التحويل البنكي{" "}
+                  <span className="text-[10px]">(اختياري — يُعرض في التقارير للحساب البنكي)</span>
                 </label>
                 <input
                   value={referenceNumber}
@@ -1067,7 +1357,6 @@ function CashierPage() {
                 />
               </div>
             )}
-
           </div>
 
           {/* Totals */}
@@ -1085,15 +1374,19 @@ function CashierPage() {
                   inputMode="decimal"
                   className={`w-full h-7 rounded border bg-background text-left pl-5 pr-2 text-xs font-bold nums outline-none ${markupError ? "border-destructive focus:border-destructive" : "border-border focus:border-brand"}`}
                 />
-                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                  %
+                </span>
               </div>
             </div>
-            {markupError && (
-              <p className="text-[10px] text-destructive text-end">{markupError}</p>
-            )}
+            {markupError && <p className="text-[10px] text-destructive text-end">{markupError}</p>}
 
             {markupNum > 0 && (
-              <Row label={`+ زيادة ${formatNumber(markupNum)}%`} value={formatSDG(markupAmount)} highlight="emerald" />
+              <Row
+                label={`+ زيادة ${formatNumber(markupNum)}%`}
+                value={formatSDG(markupAmount)}
+                highlight="emerald"
+              />
             )}
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">الخصم</span>
@@ -1123,17 +1416,13 @@ function CashierPage() {
                 className="w-24 h-7 rounded border border-border bg-background text-left px-2 text-xs font-bold nums outline-none focus:border-brand"
               />
             </div>
-            {remaining > 0 && (
-              <Row label="الباقي" value={formatSDG(remaining)} highlight="rose" />
-            )}
+            {remaining > 0 && <Row label="الباقي" value={formatSDG(remaining)} highlight="rose" />}
             {remaining < 0 && (
               <Row label="مرتجع للعميل" value={formatSDG(-remaining)} highlight="emerald" />
             )}
           </div>
 
-          {error && (
-            <p className="px-3 pb-2 text-xs text-destructive text-center">{error}</p>
-          )}
+          {error && <p className="px-3 pb-2 text-xs text-destructive text-center">{error}</p>}
 
           <button
             onClick={checkout}

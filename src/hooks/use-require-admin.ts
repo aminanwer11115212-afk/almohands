@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQueryOne, requireUserId } from "@/lib/data/local";
 
 /**
  * Client-side admin route guard.
@@ -20,6 +21,21 @@ export function useRequireAdmin(redirectTo: string = "/") {
   const query = useQuery({
     queryKey: ["is-admin"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        let uid: string | null = null;
+        try {
+          uid = await requireUserId();
+        } catch {
+          uid = null;
+        }
+        if (!uid) return false;
+        const row = await localQueryOne(
+          `SELECT 1 FROM user_roles WHERE user_id = ? AND role = 'admin' LIMIT 1`,
+          [uid],
+        );
+        return row != null;
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       const uid = sessionData.session?.user?.id;
       if (!uid) return false;

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, localQuery } from "@/lib/data/local";
 
 export type DashInvoice = {
   id: string;
@@ -25,7 +26,69 @@ function toLocalKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+const DASH_INVOICE_COLS =
+  "id, invoice_number, total, paid, remaining, payment_method, customer_name, created_at";
+
+/** Offline-first insights from the PowerSync mirror. */
+async function fetchInsightsLocal() {
+  // Local start-of-day 13 days ago (14-day window including today).
+  const from = new Date();
+  from.setDate(from.getDate() - 13);
+  from.setHours(0, 0, 0, 0);
+  // Same local-timestamp ISO the remote branch uses; ISO strings compare lexicographically.
+  const fromLocalIso = new Date(from.getTime() - from.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, -1);
+
+  const [recentRows, pendingRowsRaw, lowStockRows, seriesRows] = await Promise.all([
+    localQuery<DashInvoice>(
+      `SELECT ${DASH_INVOICE_COLS} FROM invoices ORDER BY created_at DESC LIMIT 6`,
+    ),
+    localQuery<DashInvoice>(
+      `SELECT ${DASH_INVOICE_COLS} FROM invoices WHERE remaining > 0 ORDER BY created_at DESC LIMIT 500`,
+    ),
+    localQuery<LowStockItem>(
+      `SELECT id, name, quantity, min_quantity FROM products WHERE min_quantity > 0 AND COALESCE(quantity, 0) <= min_quantity ORDER BY quantity ASC`,
+    ),
+    localQuery<{ total: number | null; created_at: string }>(
+      `SELECT total, created_at FROM invoices WHERE created_at >= ?`,
+      [fromLocalIso],
+    ),
+  ]);
+
+  // Build 14-day continuous series (fill zeros) using local-date keys.
+  const dayMap = new Map<string, number>();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(from);
+    d.setDate(from.getDate() + i);
+    dayMap.set(toLocalKey(d), 0);
+  }
+  for (const row of seriesRows) {
+    const key = toLocalKey(new Date(row.created_at));
+    if (dayMap.has(key)) dayMap.set(key, (dayMap.get(key) ?? 0) + Number(row.total || 0));
+  }
+  const daily: DailyPoint[] = [...dayMap.entries()].map(([date, amount]) => ({
+    date,
+    label: `${date.slice(8, 10)}/${date.slice(5, 7)}`,
+    amount,
+  }));
+
+  const pendingTotal = pendingRowsRaw.reduce((s, r) => s + Number(r.remaining || 0), 0);
+
+  return {
+    daily,
+    recent: recentRows,
+    pending: pendingRowsRaw,
+    pendingTotal,
+    pendingCount: pendingRowsRaw.length,
+    lowStock: lowStockRows,
+    lowStockCount: lowStockRows.length,
+  };
+}
+
 async function fetchInsights() {
+  if (canUseLocalData()) return fetchInsightsLocal();
+
   // Local start-of-day 13 days ago (14-day window including today).
   const from = new Date();
   from.setDate(from.getDate() - 13);

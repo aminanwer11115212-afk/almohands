@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReactNode } from "react";
+import {
+  canUseLocalData,
+  fromLocalRow,
+  localInsert,
+  localQuery,
+  requireUserId,
+} from "@/lib/data/local";
 
 /* =========================================================================
  * Role-based permissions (client-side UI gating).
@@ -95,6 +102,21 @@ export function useMyRoles() {
   return useQuery({
     queryKey: ["my-roles"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        let uid: string | null = null;
+        try {
+          uid = await requireUserId();
+        } catch {
+          uid = null;
+        }
+        if (!uid) return [] as UserRole[];
+        const rows = await localQuery<UserRole>(
+          `SELECT * FROM user_roles WHERE user_id = ?`,
+          [uid],
+        );
+        return rows;
+      }
+
       // Scope to the current user: admins can see all rows via RLS, so
       // an unfiltered select would mix other users' roles into ours.
       const { data: sess } = await supabase.auth.getSession();
@@ -114,6 +136,13 @@ export function useAuditLogs() {
   return useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const rows = await localQuery<Record<string, unknown>>(
+          `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50`,
+        );
+        return rows.map((r) => fromLocalRow<AuditLog>("audit_logs", r));
+      }
+
       const { data, error } = await supabase
         .from("audit_logs")
         .select("*")
@@ -129,6 +158,18 @@ export function useAddAuditLog() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { action: string; table_name?: string; record_id?: string; details?: Record<string, unknown> }) => {
+      if (canUseLocalData()) {
+        const userId = await requireUserId();
+        await localInsert("audit_logs", {
+          user_id: userId,
+          action: input.action,
+          table_name: input.table_name || null,
+          record_id: input.record_id || null,
+          details: input.details ?? null,
+        });
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("audit_logs").insert({

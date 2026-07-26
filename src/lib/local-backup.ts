@@ -8,6 +8,7 @@
  * keeps a 30-day rolling history.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, fromLocalRow, localQuery } from "@/lib/data/local";
 import {
   getStoredBackupFolder,
   ensureFolderPermission,
@@ -89,6 +90,13 @@ export function hasBackupForToday(kind: Exclude<BackupKind, "manual">): boolean 
 }
 
 async function fetchAllPages(table: string): Promise<unknown[]> {
+  // Offline-first: dump straight from the PowerSync mirror when available,
+  // so daily backups keep working with no connection.
+  if (canUseLocalData()) {
+    const rows = await localQuery<Record<string, unknown>>(`SELECT * FROM ${table}`);
+    return rows.map((r) => fromLocalRow(table, r));
+  }
+
   const PAGE = 1000;
   const rows: unknown[] = [];
   for (let from = 0; ; from += PAGE) {
@@ -127,9 +135,13 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
 
   try {
     // 1) Ensure the user is authenticated (RLS would empty results otherwise).
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      throw new Error("لا توجد جلسة نشطة — تخطي النسخ الاحتياطي.");
+    //    In local-mirror mode RLS doesn't apply, and the session check would
+    //    wrongly abort offline backups after a failed token refresh.
+    if (!canUseLocalData()) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("لا توجد جلسة نشطة — تخطي النسخ الاحتياطي.");
+      }
     }
 
     // 2) Pull every table (RLS applies — cashier gets what they can read).

@@ -52,6 +52,13 @@ function AuthPage() {
       return;
     }
 
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const msg = "تسجيل الدخول يتطلب اتصالاً بالإنترنت لأول مرة. إذا سبق أن سجّلت الدخول على هذا الجهاز فستدخل تلقائياً.";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({

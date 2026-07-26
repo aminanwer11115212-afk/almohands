@@ -7,10 +7,34 @@ import { Loader2 } from "lucide-react";
  * Global authentication gate.
  * - Any route except `/auth` requires an active Supabase session.
  * - Unauthenticated users are redirected to `/auth?next=<current path>`.
- * - Listens to auth changes so signing out from anywhere immediately kicks
- *   the user back to the sign-in screen.
+ * - Offline-tolerant: when the device is offline and this browser was
+ *   previously signed in, the user stays in — token refresh needs network,
+ *   and kicking a cashier out mid-shift because the connection dropped would
+ *   make offline mode useless. The flag is cleared only on explicit sign-out.
  */
 const PUBLIC_PATHS = new Set<string>(["/auth"]);
+const WAS_AUTHED_KEY = "app.wasAuthed";
+
+function readWasAuthed(): boolean {
+  try {
+    return localStorage.getItem(WAS_AUTHED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeWasAuthed(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(WAS_AUTHED_KEY, "1");
+    else localStorage.removeItem(WAS_AUTHED_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function offlineGrace(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false && readWasAuthed();
+}
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
@@ -30,16 +54,36 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      setStatus(data.session ? "authed" : "guest");
-    }).catch(() => {
-      if (alive) setStatus("guest");
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!alive) return;
+        if (data.session) {
+          writeWasAuthed(true);
+          setStatus("authed");
+        } else {
+          setStatus(offlineGrace() ? "authed" : "guest");
+        }
+      })
+      .catch(() => {
+        if (alive) setStatus(offlineGrace() ? "authed" : "guest");
+      });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!alive) return;
-      setStatus(session ? "authed" : "guest");
+      if (session) {
+        writeWasAuthed(true);
+        setStatus("authed");
+        return;
+      }
+      if (event === "SIGNED_OUT") {
+        writeWasAuthed(false);
+        setStatus("guest");
+        return;
+      }
+      // No session for another reason (e.g. failed token refresh while
+      // offline): keep the user in when we have the offline grace flag.
+      setStatus(offlineGrace() ? "authed" : "guest");
     });
 
     return () => {

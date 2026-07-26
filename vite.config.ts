@@ -1,61 +1,18 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
-import { VitePWA } from "vite-plugin-pwa";
 
+// Service worker: generated post-build by scripts/generate-sw.mjs against
+// `.output/public` (the real deploy dir). vite-plugin-pwa was removed because
+// it globbed `dist/` and shipped an empty precache — no offline support.
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
   vite: {
-    plugins: [
-      mcpPlugin(),
-      VitePWA({
-        registerType: "autoUpdate",
-        injectRegister: null,
-        filename: "sw.js",
-        devOptions: { enabled: false },
-        includeAssets: [
-          "favicon.png",
-          "apple-touch-icon.png",
-          "icon-192.png",
-          "icon-512.png",
-          "icon-maskable-512.png",
-        ],
-        manifest: false,
-        workbox: {
-          navigateFallback: "/",
-          navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/_serverFn/],
-          globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
-          runtimeCaching: [
-            {
-              urlPattern: ({ request }) => request.mode === "navigate",
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "pages",
-                networkTimeoutSeconds: 4,
-              },
-            },
-            {
-              urlPattern: ({ url, sameOrigin }) =>
-                sameOrigin && /\/assets\//.test(url.pathname),
-              handler: "CacheFirst",
-              options: {
-                cacheName: "assets",
-                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              },
-            },
-            {
-              urlPattern: ({ url }) =>
-                url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com",
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts",
-                expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              },
-            },
-          ],
-        },
-      }),
-    ],
+    // @powersync/web ships module workers + wasm; keep them out of dep
+    // pre-bundling and emit workers as ES modules so they load in production.
+    worker: { format: "es" },
+    optimizeDeps: { exclude: ["@powersync/web", "@journeyapps/wa-sqlite"] },
+    plugins: [mcpPlugin()],
   },
 });

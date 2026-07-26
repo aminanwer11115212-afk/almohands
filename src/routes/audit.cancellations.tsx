@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
+import { canUseLocalData, fromLocalRow, localQuery } from "@/lib/data/local";
 import { ShieldAlert, Eye, FileSpreadsheet, Search, FileDown, FileJson, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
@@ -54,6 +55,24 @@ function AuditCancellationsPage() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["audit-cancellations", from, to, quick],
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const where: string[] = ["action = ?"];
+        const args: unknown[] = ["invoice.cancelled"];
+        const range = computeRange(quick);
+        if (range) {
+          where.push("created_at >= ?", "created_at <= ?");
+          args.push(range.from, range.to);
+        } else {
+          if (from) { where.push("created_at >= ?"); args.push(new Date(from).toISOString()); }
+          if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); where.push("created_at <= ?"); args.push(end.toISOString()); }
+        }
+        const sql =
+          "SELECT id, user_id, action, record_id, details, created_at FROM audit_logs" +
+          ` WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT 2000`;
+        const raw = await localQuery<Record<string, unknown>>(sql, args);
+        return raw.map((r) => fromLocalRow<LogRow>("audit_logs", r));
+      }
+
       let q = supabase
         .from("audit_logs")
         .select("id, user_id, action, record_id, details, created_at")
@@ -78,6 +97,17 @@ function AuditCancellationsPage() {
     queryKey: ["audit-cancellations-invoices", invoiceIds.slice(0, 200).join(",")],
     enabled: invoiceIds.length > 0,
     queryFn: async () => {
+      if (canUseLocalData()) {
+        const placeholders = invoiceIds.map(() => "?").join(", ");
+        const rows = await localQuery<{ id: string; customer_name: string | null }>(
+          `SELECT id, customer_name FROM invoices WHERE id IN (${placeholders})`,
+          invoiceIds,
+        );
+        const m = new Map<string, string>();
+        rows.forEach((r) => m.set(r.id, r.customer_name ?? ""));
+        return m;
+      }
+
       const { data } = await supabase
         .from("invoices")
         .select("id, customer_name")
@@ -90,10 +120,14 @@ function AuditCancellationsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc("admin_list_users");
-      const map = new Map<string, string>();
-      (data ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
-      setUsers(map);
+      // admin_list_users has no local mirror — keep the network call but degrade
+      // to an empty list offline (labels fall back to ids).
+      try {
+        const { data } = await supabase.rpc("admin_list_users");
+        const map = new Map<string, string>();
+        (data ?? []).forEach((u: { user_id: string; email: string }) => map.set(u.user_id, u.email));
+        setUsers(map);
+      } catch { /* offline — keep empty map */ }
     })();
   }, []);
 

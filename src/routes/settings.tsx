@@ -1,7 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Store, Receipt, Database, Cloud, Printer, Download, Upload, CheckCircle2, AlertCircle, Loader2, HardDrive, FolderOpen, FolderX } from "lucide-react";
+import {
+  Store,
+  Receipt,
+  Database,
+  Cloud,
+  Printer,
+  Download,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  HardDrive,
+  FolderOpen,
+  FolderX,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PermissionGate } from "@/components/PermissionGate";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +31,6 @@ import {
   forgetBackupFolder,
   ensureFolderPermission,
 } from "@/lib/backup-folder";
-
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "الإعدادات — المهندس" }] }),
@@ -99,7 +112,9 @@ function SettingsPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (alive) setEmail(data.session?.user?.email ?? null);
     });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   async function save() {
@@ -178,9 +193,11 @@ function SettingsPage() {
     }
   }
 
-  const backupSchema = z.object({
-    store_profile: z.record(z.string(), z.unknown()).nullable().optional(),
-  }).passthrough();
+  const backupSchema = z
+    .object({
+      store_profile: z.record(z.string(), z.unknown()).nullable().optional(),
+    })
+    .passthrough();
 
   function importBackup(file: File) {
     const MAX_SIZE = 50 * 1024 * 1024;
@@ -238,39 +255,94 @@ function SettingsPage() {
       <div className="space-y-4">
         <Section icon={Store} title="بيانات المحل">
           <Field label="اسم المحل">
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={120} />
+            <input
+              className="input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              maxLength={120}
+            />
           </Field>
           <Field label="رقم الهاتف">
-            <input className="input" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} maxLength={30} />
+            <input
+              className="input"
+              dir="ltr"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              maxLength={30}
+            />
           </Field>
           <Field label="العنوان">
-            <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} maxLength={200} />
+            <input
+              className="input"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              maxLength={200}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="الرقم الضريبي">
-              <input className="input" value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} maxLength={40} />
+              <input
+                className="input"
+                value={form.tax_number}
+                onChange={(e) => setForm({ ...form, tax_number: e.target.value })}
+                maxLength={40}
+              />
             </Field>
             <Field label="العملة">
-              <input className="input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} maxLength={30} />
+              <input
+                className="input"
+                value={form.currency}
+                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                maxLength={30}
+              />
             </Field>
           </div>
         </Section>
 
         <Section icon={Receipt} title="شكل الفاتورة">
           <Field label="ترويسة الفاتورة">
-            <textarea className="input min-h-16" value={form.invoice_header} onChange={(e) => setForm({ ...form, invoice_header: e.target.value })} maxLength={300} placeholder="نص يظهر أعلى الفاتورة" />
+            <textarea
+              className="input min-h-16"
+              value={form.invoice_header}
+              onChange={(e) => setForm({ ...form, invoice_header: e.target.value })}
+              maxLength={300}
+              placeholder="نص يظهر أعلى الفاتورة"
+            />
           </Field>
           <Field label="تذييل الفاتورة">
-            <textarea className="input min-h-16" value={form.invoice_footer} onChange={(e) => setForm({ ...form, invoice_footer: e.target.value })} maxLength={300} />
+            <textarea
+              className="input min-h-16"
+              value={form.invoice_footer}
+              onChange={(e) => setForm({ ...form, invoice_footer: e.target.value })}
+              maxLength={300}
+            />
           </Field>
-          <Toggle label="عرض الشعار" checked={form.show_logo} onChange={(v) => setForm({ ...form, show_logo: v })} />
-          <Toggle label="عرض الضريبة" checked={form.show_tax} onChange={(v) => setForm({ ...form, show_tax: v })} />
-          <Toggle label="عرض QR Code" checked={form.show_qr} onChange={(v) => setForm({ ...form, show_qr: v })} />
+          <Toggle
+            label="عرض الشعار"
+            checked={form.show_logo}
+            onChange={(v) => setForm({ ...form, show_logo: v })}
+          />
+          <Toggle
+            label="عرض الضريبة"
+            checked={form.show_tax}
+            onChange={(v) => setForm({ ...form, show_tax: v })}
+          />
+          <Toggle
+            label="عرض QR Code"
+            checked={form.show_qr}
+            onChange={(v) => setForm({ ...form, show_qr: v })}
+          />
         </Section>
 
         <Section icon={Printer} title="الطباعة">
           <Field label="حجم الورق">
-            <select className="input" value={form.print_size} onChange={(e) => setForm({ ...form, print_size: e.target.value as FormState["print_size"] })}>
+            <select
+              className="input"
+              value={form.print_size}
+              onChange={(e) =>
+                setForm({ ...form, print_size: e.target.value as FormState["print_size"] })
+              }
+            >
               <option value="A4">A4</option>
               <option value="A5">A5</option>
               <option value="80mm">حرارية 80mm</option>
@@ -278,12 +350,32 @@ function SettingsPage() {
             </select>
           </Field>
           <Field label="عدد النسخ">
-            <input type="number" min={1} max={5} className="input" value={form.print_copies} onChange={(e) => setForm({ ...form, print_copies: Math.max(1, Math.min(5, Number(e.target.value) || 1)) })} />
+            <input
+              type="number"
+              min={1}
+              max={5}
+              className="input"
+              value={form.print_copies}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  print_copies: Math.max(1, Math.min(5, Number(e.target.value) || 1)),
+                })
+              }
+            />
           </Field>
-          <Toggle label="طباعة تلقائية بعد البيع" checked={form.auto_print} onChange={(v) => setForm({ ...form, auto_print: v })} />
+          <Toggle
+            label="طباعة تلقائية بعد البيع"
+            checked={form.auto_print}
+            onChange={(v) => setForm({ ...form, auto_print: v })}
+          />
         </Section>
 
-        <button onClick={save} disabled={saveMut.isPending} className="btn-primary inline-flex items-center justify-center gap-2 w-full">
+        <button
+          onClick={save}
+          disabled={saveMut.isPending}
+          className="btn-primary inline-flex items-center justify-center gap-2 w-full"
+        >
           {saveMut.isPending && <Loader2 className="size-4 animate-spin" />}
           حفظ جميع الإعدادات
         </button>
@@ -293,7 +385,9 @@ function SettingsPage() {
             {email ? (
               <>
                 <CheckCircle2 className="size-4 text-emerald-600" />
-                <span>متصل كـ <strong>{email}</strong> — الإعدادات محفوظة سحابياً</span>
+                <span>
+                  متصل كـ <strong>{email}</strong> — الإعدادات محفوظة سحابياً
+                </span>
               </>
             ) : (
               <>
@@ -302,28 +396,40 @@ function SettingsPage() {
               </>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">تُحفظ بيانات المحل والإعدادات في قاعدة بيانات سحابية آمنة وتتزامن عبر جميع أجهزتك.</p>
+          <p className="text-xs text-muted-foreground">
+            تُحفظ بيانات المحل والإعدادات في قاعدة بيانات سحابية آمنة وتتزامن عبر جميع أجهزتك.
+          </p>
         </Section>
 
         <Section icon={Database} title="النسخ الاحتياطي">
-          <p className="text-xs text-muted-foreground">صدّر نسخة كاملة من بياناتك (منتجات، فواتير، طرق دفع، إعدادات المحل) كملف JSON.</p>
+          <p className="text-xs text-muted-foreground">
+            صدّر نسخة كاملة من بياناتك (منتجات، فواتير، طرق دفع، إعدادات المحل) كملف JSON.
+          </p>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={backupNow} disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2">
+            <button
+              onClick={backupNow}
+              disabled={busy}
+              className="btn-primary inline-flex items-center justify-center gap-2"
+            >
               <Download className="size-4" /> تنزيل نسخة
             </button>
             <label className="btn-secondary inline-flex items-center justify-center gap-2 cursor-pointer">
               <Upload className="size-4" /> استيراد نسخة
-              <input type="file" accept="application/json" className="hidden" onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importBackup(f);
-                e.currentTarget.value = "";
-              }} />
+              <input
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) importBackup(f);
+                  e.currentTarget.value = "";
+                }}
+              />
             </label>
           </div>
         </Section>
 
         <LocalBackupSection />
-
 
         <p className="text-center text-[11px] text-muted-foreground py-2">المهندس — إصدار 1.1</p>
       </div>
@@ -341,7 +447,15 @@ function SettingsPage() {
   );
 }
 
-function Section({ icon: Icon, title, children }: { icon: React.ComponentType<{ className?: string }>; title: string; children: React.ReactNode }) {
+function Section({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -362,7 +476,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="flex items-center justify-between text-sm py-1 cursor-pointer">
       <span>{label}</span>
@@ -372,7 +494,9 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
         className={`relative w-11 h-6 rounded-full transition ${checked ? "bg-primary" : "bg-muted"}`}
         aria-pressed={checked}
       >
-        <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${checked ? "right-0.5" : "right-[1.375rem]"}`} />
+        <span
+          className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${checked ? "right-0.5" : "right-[1.375rem]"}`}
+        />
       </button>
     </label>
   );
@@ -385,12 +509,18 @@ function LocalBackupSection() {
   const [folderOk, setFolderOk] = useState<boolean>(false);
   const supported = isFolderApiSupported();
 
-  function refresh() { setHistory(readBackupHistory()); }
+  function refresh() {
+    setHistory(readBackupHistory());
+  }
 
   useEffect(() => {
     (async () => {
       const h = await getStoredBackupFolder();
-      if (!h) { setFolderName(null); setFolderOk(false); return; }
+      if (!h) {
+        setFolderName(null);
+        setFolderOk(false);
+        return;
+      }
       setFolderName(h.name);
       // Do not prompt on mount — only query current permission state.
       const ok = await ensureFolderPermission(h, false);
@@ -446,8 +576,9 @@ function LocalBackupSection() {
         النسخ الاحتياطي المحلي التلقائي
       </h2>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        يحفظ النظام نسخة كاملة (JSON + Excel) لكل بيانات النظام: المنتجات، الفواتير، العملاء، الموردين، المصروفات، المشتريات، الإرجاعات، سجل الأسعار، الإشعارات، إعدادات المحل.
-        الحفظ يتم <b>بدون أي رسالة</b> عند فتح البرنامج وعند إغلاقه، مرة واحدة يومياً لكل حالة.
+        يحفظ النظام نسخة كاملة (JSON + Excel) لكل بيانات النظام: المنتجات، الفواتير، العملاء،
+        الموردين، المصروفات، المشتريات، الإرجاعات، سجل الأسعار، الإشعارات، إعدادات المحل. الحفظ يتم{" "}
+        <b>بدون أي رسالة</b> عند فتح البرنامج وعند إغلاقه، مرة واحدة يومياً لكل حالة.
       </p>
 
       {/* Backup folder picker */}
@@ -459,9 +590,9 @@ function LocalBackupSection() {
               <div className="font-semibold text-foreground">مجلد الحفظ على الجهاز</div>
               <div className="text-muted-foreground truncate">
                 {folderName
-                  ? (folderOk
-                      ? `مفعّل: ${folderName}`
-                      : `${folderName} — يحتاج إذناً عند الحفظ التالي`)
+                  ? folderOk
+                    ? `مفعّل: ${folderName}`
+                    : `${folderName} — يحتاج إذناً عند الحفظ التالي`
                   : "غير محدد — سيُحفظ في مجلد التنزيلات الافتراضي"}
               </div>
             </div>
@@ -469,12 +600,18 @@ function LocalBackupSection() {
           <div className="flex items-center gap-2">
             {supported ? (
               <>
-                <button onClick={chooseFolder} className="btn-secondary inline-flex items-center gap-1 text-xs">
+                <button
+                  onClick={chooseFolder}
+                  className="btn-secondary inline-flex items-center gap-1 text-xs"
+                >
                   <FolderOpen className="size-3.5" />
                   {folderName ? "تغيير المجلد" : "اختيار مجلد"}
                 </button>
                 {folderName && (
-                  <button onClick={forgetFolder} className="btn-secondary inline-flex items-center gap-1 text-xs">
+                  <button
+                    onClick={forgetFolder}
+                    className="btn-secondary inline-flex items-center gap-1 text-xs"
+                  >
                     <FolderX className="size-3.5" /> إزالة
                   </button>
                 )}
@@ -493,7 +630,11 @@ function LocalBackupSection() {
         )}
       </div>
 
-      <button onClick={runNow} disabled={busy} className="btn-primary inline-flex items-center justify-center gap-2">
+      <button
+        onClick={runNow}
+        disabled={busy}
+        className="btn-primary inline-flex items-center justify-center gap-2"
+      >
         {busy ? <Loader2 className="size-4 animate-spin" /> : <HardDrive className="size-4" />}
         إنشاء نسخة الآن
       </button>
@@ -503,9 +644,11 @@ function LocalBackupSection() {
           {recent.map((e, i) => (
             <div key={i} className="flex items-center justify-between gap-2 p-2">
               <div className="flex items-center gap-2 min-w-0">
-                {e.ok
-                  ? <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-                  : <AlertCircle className="size-3.5 text-red-600 shrink-0" />}
+                {e.ok ? (
+                  <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="size-3.5 text-red-600 shrink-0" />
+                )}
                 <span className="truncate">
                   {e.kind === "open" ? "بداية اليوم" : e.kind === "close" ? "نهاية الجلسة" : "يدوي"}
                   {" — "}
@@ -523,5 +666,3 @@ function LocalBackupSection() {
     </section>
   );
 }
-
-

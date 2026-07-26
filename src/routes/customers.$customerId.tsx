@@ -2,7 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Wrench, Receipt, Printer, Share2, Loader2, AlertCircle, Package, FileDown, Info, MapPin } from "lucide-react";
+import {
+  Phone,
+  Wrench,
+  Receipt,
+  Printer,
+  Share2,
+  Loader2,
+  AlertCircle,
+  Package,
+  FileDown,
+  Info,
+  MapPin,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -14,7 +26,11 @@ import { buildCsvBlob, jsonBlob, saveBlob } from "@/lib/csv-export";
 
 export const Route = createFileRoute("/customers/$customerId")({
   head: () => ({ meta: [{ title: "دفتر العميل — المهندس" }] }),
-  component: () => (<PermissionGate perm="customers.view"><CustomerLedgerPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="customers.view">
+      <CustomerLedgerPage />
+    </PermissionGate>
+  ),
 });
 
 type InvoiceRow = {
@@ -50,12 +66,18 @@ function CustomerLedgerPage() {
   const invRange = useMemo(() => {
     if (!invQuick) return null;
     const now = new Date();
-    const t = new Date(now); t.setHours(23, 59, 59, 999);
+    const t = new Date(now);
+    t.setHours(23, 59, 59, 999);
     const f = new Date(now);
     if (invQuick === "7d") f.setDate(now.getDate() - 7);
     else if (invQuick === "30d") f.setDate(now.getDate() - 30);
-    else if (invQuick === "month") { f.setDate(1); f.setHours(0, 0, 0, 0); }
-    else if (invQuick === "year") { f.setMonth(0, 1); f.setHours(0, 0, 0, 0); }
+    else if (invQuick === "month") {
+      f.setDate(1);
+      f.setHours(0, 0, 0, 0);
+    } else if (invQuick === "year") {
+      f.setMonth(0, 1);
+      f.setHours(0, 0, 0, 0);
+    }
     return { from: f.toISOString(), to: t.toISOString() };
   }, [invQuick]);
 
@@ -109,7 +131,11 @@ function CustomerLedgerPage() {
       if (invRange) iq = iq.gte("created_at", invRange.from).lte("created_at", invRange.to);
       else {
         if (invFrom) iq = iq.gte("created_at", new Date(invFrom).toISOString());
-        if (invTo) { const end = new Date(invTo); end.setHours(23, 59, 59, 999); iq = iq.lte("created_at", end.toISOString()); }
+        if (invTo) {
+          const end = new Date(invTo);
+          end.setHours(23, 59, 59, 999);
+          iq = iq.lte("created_at", end.toISOString());
+        }
       }
       const { data: invs, error: iErr } = await iq;
       if (iErr) throw iErr;
@@ -117,10 +143,12 @@ function CustomerLedgerPage() {
     },
   });
 
-
   const totals = useMemo(() => {
     const invs = data?.invoices ?? [];
-    let total = 0, paid = 0, remaining = 0, pendingCount = 0;
+    let total = 0,
+      paid = 0,
+      remaining = 0,
+      pendingCount = 0;
     for (const inv of invs) {
       total += Number(inv.total) || 0;
       paid += Number(inv.paid) || 0;
@@ -133,7 +161,9 @@ function CustomerLedgerPage() {
   if (isLoading) {
     return (
       <AppShell title="دفتر العميل" showBack>
-        <div className="py-16 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        <div className="py-16 grid place-items-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
       </AppShell>
     );
   }
@@ -143,7 +173,9 @@ function CustomerLedgerPage() {
         <div className="py-12 text-center text-sm text-destructive flex flex-col items-center gap-2">
           <AlertCircle className="size-6" />
           العميل غير موجود
-          <Link to="/customers" className="text-brand underline text-xs">رجوع لقائمة العملاء</Link>
+          <Link to="/customers" className="text-brand underline text-xs">
+            رجوع لقائمة العملاء
+          </Link>
         </div>
       </AppShell>
     );
@@ -167,7 +199,9 @@ function CustomerLedgerPage() {
       invoices.slice(0, 10).forEach((inv) => {
         const d = new Date(inv.created_at).toLocaleDateString("ar-EG");
         const st = statusLabels[inv.status] || inv.status;
-        lines.push(`#${inv.invoice_number} — ${d} — ${formatSDG(inv.total)} — ${st}${Number(inv.remaining) > 0 ? ` — متبقي ${formatSDG(inv.remaining)}` : ""}`);
+        lines.push(
+          `#${inv.invoice_number} — ${d} — ${formatSDG(inv.total)} — ${st}${Number(inv.remaining) > 0 ? ` — متبقي ${formatSDG(inv.remaining)}` : ""}`,
+        );
       });
     }
     openWhatsAppShare(c.phone, lines.join("\n"));
@@ -187,25 +221,47 @@ function CustomerLedgerPage() {
               <h1 className="text-xl font-extrabold">{c.name}</h1>
               <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                 {c.phone && (
-                  <span className="flex items-center gap-1"><Phone className="size-3.5" /><span dir="ltr">{c.phone}</span></span>
+                  <span className="flex items-center gap-1">
+                    <Phone className="size-3.5" />
+                    <span dir="ltr">{c.phone}</span>
+                  </span>
                 )}
                 {c.workshop && (
-                  <span className="flex items-center gap-1"><Wrench className="size-3.5" />{c.workshop}</span>
+                  <span className="flex items-center gap-1">
+                    <Wrench className="size-3.5" />
+                    {c.workshop}
+                  </span>
                 )}
                 {(c as any).address && (
-                  <span className="flex items-center gap-1"><MapPin className="size-3.5" />{(c as any).address}</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="size-3.5" />
+                    {(c as any).address}
+                  </span>
                 )}
                 {Number(c.credit_limit) > 0 && (
-                  <span>الحد الائتماني: <span className="nums font-bold">{formatSDG(Number(c.credit_limit))}</span></span>
+                  <span>
+                    الحد الائتماني:{" "}
+                    <span className="nums font-bold">{formatSDG(Number(c.credit_limit))}</span>
+                  </span>
                 )}
               </div>
-              {c.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{c.notes}</p>}
+              {c.notes && (
+                <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">
+                  {c.notes}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <button onClick={printLedger} className="inline-flex items-center gap-1.5 text-xs font-bold bg-white border border-border hover:bg-muted rounded-lg px-3 py-2">
+              <button
+                onClick={printLedger}
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-white border border-border hover:bg-muted rounded-lg px-3 py-2"
+              >
                 <Printer className="size-3.5" /> طباعة
               </button>
-              <button onClick={shareStatementViaWhatsApp} className="inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg px-3 py-2">
+              <button
+                onClick={shareStatementViaWhatsApp}
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg px-3 py-2"
+              >
                 <Share2 className="size-3.5" /> واتساب
               </button>
             </div>
@@ -217,7 +273,14 @@ function CustomerLedgerPage() {
           <SummaryCard label="عدد الفواتير" value={String(totals.count)} tone="brand" />
           <SummaryCard label="إجمالي المبيعات" value={formatSDG(totals.total)} tone="brand" />
           <SummaryCard label="المدفوع" value={formatSDG(totals.paid)} tone="ok" />
-          <SummaryCard label="الرصيد المتبقي" value={formatSDG(totals.remaining)} tone={totals.remaining > 0 ? "warn" : "ok"} hint={totals.pendingCount > 0 ? `${totals.pendingCount} فاتورة غير مكتملة` : "لا توجد ذمم"} />
+          <SummaryCard
+            label="الرصيد المتبقي"
+            value={formatSDG(totals.remaining)}
+            tone={totals.remaining > 0 ? "warn" : "ok"}
+            hint={
+              totals.pendingCount > 0 ? `${totals.pendingCount} فاتورة غير مكتملة` : "لا توجد ذمم"
+            }
+          />
         </section>
 
         {/* Invoices table */}
@@ -230,21 +293,52 @@ function CustomerLedgerPage() {
           <div className="p-3 border-b border-border space-y-2 print:hidden">
             <div className="rounded-md border border-sky-200 bg-sky-50 p-2 text-[11px] text-sky-900 flex items-start gap-1.5">
               <Info className="size-3.5 shrink-0 mt-0.5" />
-              <span>الأسعار المعروضة ضمن كل فاتورة محفوظة كما وقت البيع — أي زيادة سعر أو تعديل مديونية لاحقًا لا يُطبَّق على الفواتير القديمة، فقط على الفواتير الجديدة.</span>
+              <span>
+                الأسعار المعروضة ضمن كل فاتورة محفوظة كما وقت البيع — أي زيادة سعر أو تعديل مديونية
+                لاحقًا لا يُطبَّق على الفواتير القديمة، فقط على الفواتير الجديدة.
+              </span>
             </div>
             <div className="grid sm:grid-cols-3 gap-2">
-              <input type="date" value={invFrom} disabled={!!invQuick} onChange={(e) => setInvFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
-              <input type="date" value={invTo} disabled={!!invQuick} onChange={(e) => setInvTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+              <input
+                type="date"
+                value={invFrom}
+                disabled={!!invQuick}
+                onChange={(e) => setInvFrom(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+              />
+              <input
+                type="date"
+                value={invTo}
+                disabled={!!invQuick}
+                onChange={(e) => setInvTo(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+              />
               <div className="flex flex-wrap gap-1 text-xs">
-                {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as const).map(([v, l]) => (
-                  <button key={v} onClick={() => setInvQuick(v)} className={`px-2 py-1 rounded-md border ${invQuick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+                {(
+                  [
+                    ["", "الكل"],
+                    ["7d", "7ي"],
+                    ["30d", "30ي"],
+                    ["month", "الشهر"],
+                    ["year", "السنة"],
+                  ] as const
+                ).map(([v, l]) => (
+                  <button
+                    key={v}
+                    onClick={() => setInvQuick(v)}
+                    className={`px-2 py-1 rounded-md border ${invQuick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}
+                  >
+                    {l}
+                  </button>
                 ))}
               </div>
             </div>
           </div>
 
           {invoices.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">لا توجد فواتير لهذا العميل بعد</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              لا توجد فواتير لهذا العميل بعد
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -269,15 +363,27 @@ function CustomerLedgerPage() {
                       <tr key={inv.id} className="border-t border-border hover:bg-muted/40">
                         <td className="px-3 py-2 nums font-bold">#{inv.invoice_number}</td>
                         <td className="px-3 py-2 nums text-xs text-muted-foreground">{dateStr}</td>
-                        <td className="px-3 py-2 text-xs">{inv.payment_method === "bank" ? "بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي"}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {inv.payment_method === "bank"
+                            ? "بنكي"
+                            : inv.payment_method === "mixed"
+                              ? "مختلط"
+                              : "نقدي"}
+                        </td>
                         <td className="px-3 py-2">
-                          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClasses[inv.status] || "bg-muted"}`}>
+                          <span
+                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClasses[inv.status] || "bg-muted"}`}
+                          >
                             {statusLabels[inv.status] || inv.status}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-left nums">{formatSDG(Number(inv.total))}</td>
-                        <td className="px-3 py-2 text-left nums text-emerald-700">{formatSDG(Number(inv.paid))}</td>
-                        <td className={`px-3 py-2 text-left nums font-bold ${rem > 0 ? "text-rose-700" : "text-muted-foreground"}`}>
+                        <td className="px-3 py-2 text-left nums text-emerald-700">
+                          {formatSDG(Number(inv.paid))}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-left nums font-bold ${rem > 0 ? "text-rose-700" : "text-muted-foreground"}`}
+                        >
                           {formatSDG(rem)}
                         </td>
                         <td className="px-3 py-2 text-right print:hidden">
@@ -296,10 +402,18 @@ function CustomerLedgerPage() {
                 </tbody>
                 <tfoot className="bg-muted/50 text-sm font-bold">
                   <tr>
-                    <td colSpan={4} className="px-3 py-2 text-right">الإجمالي</td>
+                    <td colSpan={4} className="px-3 py-2 text-right">
+                      الإجمالي
+                    </td>
                     <td className="px-3 py-2 text-left nums">{formatSDG(totals.total)}</td>
-                    <td className="px-3 py-2 text-left nums text-emerald-700">{formatSDG(totals.paid)}</td>
-                    <td className={`px-3 py-2 text-left nums ${totals.remaining > 0 ? "text-rose-700" : ""}`}>{formatSDG(totals.remaining)}</td>
+                    <td className="px-3 py-2 text-left nums text-emerald-700">
+                      {formatSDG(totals.paid)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-left nums ${totals.remaining > 0 ? "text-rose-700" : ""}`}
+                    >
+                      {formatSDG(totals.remaining)}
+                    </td>
                     <td className="print:hidden"></td>
                   </tr>
                 </tfoot>
@@ -322,10 +436,17 @@ function CustomerLedgerPage() {
 }
 
 function SummaryCard({
-  label, value, tone = "brand", hint,
-}: { label: string; value: string; tone?: "brand" | "ok" | "warn"; hint?: string }) {
-  const cls =
-    tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-brand";
+  label,
+  value,
+  tone = "brand",
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone?: "brand" | "ok" | "warn";
+  hint?: string;
+}) {
+  const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-brand";
   return (
     <div className="rounded-xl border border-border bg-card p-3 shadow-card">
       <div className="text-[11px] font-bold text-muted-foreground">{label}</div>
@@ -348,7 +469,13 @@ type PurchasedItem = {
   invoice_status: string | null;
 };
 
-function ProductsPurchasedSection({ customerId, customerName }: { customerId: string; customerName: string }) {
+function ProductsPurchasedSection({
+  customerId,
+  customerName,
+}: {
+  customerId: string;
+  customerName: string;
+}) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [quick, setQuick] = useState<"" | "7d" | "30d" | "month" | "year">("");
@@ -357,12 +484,18 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
   const range = useMemo(() => {
     if (!quick) return null;
     const now = new Date();
-    const t = new Date(now); t.setHours(23, 59, 59, 999);
+    const t = new Date(now);
+    t.setHours(23, 59, 59, 999);
     const f = new Date(now);
     if (quick === "7d") f.setDate(now.getDate() - 7);
     else if (quick === "30d") f.setDate(now.getDate() - 30);
-    else if (quick === "month") { f.setDate(1); f.setHours(0, 0, 0, 0); }
-    else if (quick === "year") { f.setMonth(0, 1); f.setHours(0, 0, 0, 0); }
+    else if (quick === "month") {
+      f.setDate(1);
+      f.setHours(0, 0, 0, 0);
+    } else if (quick === "year") {
+      f.setMonth(0, 1);
+      f.setHours(0, 0, 0, 0);
+    }
     return { from: f.toISOString(), to: t.toISOString() };
   }, [quick]);
 
@@ -397,23 +530,27 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
            ORDER BY inv.created_at DESC`,
           args,
         );
-        return rows.map((r): PurchasedItem => ({
-          id: String(r.id),
-          product_name: String(r.product_name ?? ""),
-          quantity: Number(r.quantity) || 0,
-          unit: String(r.unit ?? ""),
-          unit_price: Number(r.unit_price) || 0,
-          line_total: Number(r.line_total) || 0,
-          created_at: String(r.created_at ?? ""),
-          invoice_id: String(r.invoice_id),
-          invoice_number: r.invoice_number == null ? null : Number(r.invoice_number),
-          invoice_status: r.invoice_status == null ? null : String(r.invoice_status),
-        }));
+        return rows.map(
+          (r): PurchasedItem => ({
+            id: String(r.id),
+            product_name: String(r.product_name ?? ""),
+            quantity: Number(r.quantity) || 0,
+            unit: String(r.unit ?? ""),
+            unit_price: Number(r.unit_price) || 0,
+            line_total: Number(r.line_total) || 0,
+            created_at: String(r.created_at ?? ""),
+            invoice_id: String(r.invoice_id),
+            invoice_number: r.invoice_number == null ? null : Number(r.invoice_number),
+            invoice_status: r.invoice_status == null ? null : String(r.invoice_status),
+          }),
+        );
       }
 
       let q = supabase
         .from("invoices")
-        .select("id, invoice_number, status, created_at, invoice_items(id, product_name, quantity, unit, unit_price, line_total, created_at)")
+        .select(
+          "id, invoice_number, status, created_at, invoice_items(id, product_name, quantity, unit, unit_price, line_total, created_at)",
+        )
         .eq("customer_id", customerId)
         .neq("status", "cancelled")
         .order("created_at", { ascending: false })
@@ -421,13 +558,17 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
       if (range) q = q.gte("created_at", range.from).lte("created_at", range.to);
       else {
         if (from) q = q.gte("created_at", new Date(from).toISOString());
-        if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); q = q.lte("created_at", end.toISOString()); }
+        if (to) {
+          const end = new Date(to);
+          end.setHours(23, 59, 59, 999);
+          q = q.lte("created_at", end.toISOString());
+        }
       }
       const { data, error } = await q;
       if (error) throw error;
       const out: PurchasedItem[] = [];
       for (const inv of (data ?? []) as any[]) {
-        for (const it of (inv.invoice_items ?? [])) {
+        for (const it of inv.invoice_items ?? []) {
           out.push({
             id: it.id,
             product_name: it.product_name,
@@ -488,28 +629,68 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
       <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
         <Package className="size-4 text-brand" />
         <h2 className="font-bold text-sm">المنتجات المشتراة</h2>
-        <span className="text-xs text-muted-foreground">({filtered.length} سطر · {totalQty} قطعة · {formatSDG(totalSum)})</span>
-        <button onClick={exportCSV} className="ms-auto h-8 px-2 rounded-md bg-sky-600 text-white text-xs font-bold inline-flex items-center gap-1">
+        <span className="text-xs text-muted-foreground">
+          ({filtered.length} سطر · {totalQty} قطعة · {formatSDG(totalSum)})
+        </span>
+        <button
+          onClick={exportCSV}
+          className="ms-auto h-8 px-2 rounded-md bg-sky-600 text-white text-xs font-bold inline-flex items-center gap-1"
+        >
           <FileDown className="size-3.5" /> CSV
         </button>
       </div>
       <div className="p-3 space-y-2 border-b border-border">
         <div className="grid sm:grid-cols-4 gap-2">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالمنتج..." className="h-9 rounded-lg border border-border bg-background px-3 text-sm" />
-          <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
-          <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث بالمنتج..."
+            className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
+          />
+          <input
+            type="date"
+            value={from}
+            disabled={!!quick}
+            onChange={(e) => setFrom(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+          />
+          <input
+            type="date"
+            value={to}
+            disabled={!!quick}
+            onChange={(e) => setTo(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+          />
           <div className="flex flex-wrap gap-1 text-xs">
-            {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as const).map(([v, l]) => (
-              <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+            {(
+              [
+                ["", "الكل"],
+                ["7d", "7ي"],
+                ["30d", "30ي"],
+                ["month", "الشهر"],
+                ["year", "السنة"],
+              ] as const
+            ).map(([v, l]) => (
+              <button
+                key={v}
+                onClick={() => setQuick(v)}
+                className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}
+              >
+                {l}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="py-10 text-center"><Loader2 className="size-5 animate-spin text-muted-foreground inline" /></div>
+        <div className="py-10 text-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground inline" />
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">لا توجد مشتريات في هذا النطاق</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          لا توجد مشتريات في هذا النطاق
+        </p>
       ) : (
         <>
           {grouped.length > 0 && (
@@ -517,9 +698,14 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
               <div className="text-xs font-bold text-muted-foreground mb-1.5">ملخص حسب المنتج</div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                 {grouped.slice(0, 12).map((g) => (
-                  <div key={g.name} className="rounded-md bg-card border border-border px-2 py-1.5 text-xs flex justify-between gap-2">
+                  <div
+                    key={g.name}
+                    className="rounded-md bg-card border border-border px-2 py-1.5 text-xs flex justify-between gap-2"
+                  >
                     <span className="truncate font-semibold">{g.name}</span>
-                    <span className="nums text-muted-foreground shrink-0">{g.qty} · {formatSDG(g.total)}</span>
+                    <span className="nums text-muted-foreground shrink-0">
+                      {g.qty} · {formatSDG(g.total)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -540,20 +726,37 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
               <tbody>
                 {filtered.slice(0, 300).map((it) => (
                   <tr key={it.id} className="border-t border-border hover:bg-muted/40">
-                    <td className="px-3 py-2 text-xs nums text-muted-foreground">{new Date(it.created_at).toLocaleDateString("ar-EG")}</td>
+                    <td className="px-3 py-2 text-xs nums text-muted-foreground">
+                      {new Date(it.created_at).toLocaleDateString("ar-EG")}
+                    </td>
                     <td className="px-3 py-2 nums text-xs">
-                      <Link to="/invoices/$invoiceId" params={{ invoiceId: it.invoice_id }} search={{ autoprint: 0 }} className="text-brand underline">#{it.invoice_number ?? "—"}</Link>
+                      <Link
+                        to="/invoices/$invoiceId"
+                        params={{ invoiceId: it.invoice_id }}
+                        search={{ autoprint: 0 }}
+                        className="text-brand underline"
+                      >
+                        #{it.invoice_number ?? "—"}
+                      </Link>
                     </td>
                     <td className="px-3 py-2 font-semibold">{it.product_name}</td>
-                    <td className="px-3 py-2 text-left nums">{it.quantity} <span className="text-xs text-muted-foreground">{it.unit}</span></td>
-                    <td className="px-3 py-2 text-left nums text-muted-foreground">{formatSDG(it.unit_price)}</td>
-                    <td className="px-3 py-2 text-left nums font-bold">{formatSDG(it.line_total)}</td>
+                    <td className="px-3 py-2 text-left nums">
+                      {it.quantity} <span className="text-xs text-muted-foreground">{it.unit}</span>
+                    </td>
+                    <td className="px-3 py-2 text-left nums text-muted-foreground">
+                      {formatSDG(it.unit_price)}
+                    </td>
+                    <td className="px-3 py-2 text-left nums font-bold">
+                      {formatSDG(it.line_total)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {filtered.length > 300 && (
-              <div className="text-xs text-muted-foreground text-center py-2">تم عرض أول 300 سطر · صدّر CSV للحصول على الكل</div>
+              <div className="text-xs text-muted-foreground text-center py-2">
+                تم عرض أول 300 سطر · صدّر CSV للحصول على الكل
+              </div>
             )}
           </div>
         </>
@@ -561,4 +764,3 @@ function ProductsPurchasedSection({ customerId, customerName }: { customerId: st
     </section>
   );
 }
-

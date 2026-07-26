@@ -11,10 +11,18 @@ import { formatSDG } from "@/lib/format";
 
 export const Route = createFileRoute("/suppliers/$supplierId")({
   head: () => ({ meta: [{ title: "كشف حساب المورد — المهندس" }] }),
-  component: () => (<PermissionGate perm="suppliers.view"><SupplierStatementPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="suppliers.view">
+      <SupplierStatementPage />
+    </PermissionGate>
+  ),
 });
 
-const statusLabels: Record<string, string> = { paid: "مدفوعة", partial: "جزئية", pending: "معلّقة" };
+const statusLabels: Record<string, string> = {
+  paid: "مدفوعة",
+  partial: "جزئية",
+  pending: "معلّقة",
+};
 const statusClasses: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-700",
   partial: "bg-amber-100 text-amber-700",
@@ -26,12 +34,18 @@ type QuickRange = "" | "7d" | "30d" | "month" | "year";
 function computeRange(q: QuickRange) {
   if (!q) return null;
   const now = new Date();
-  const to = new Date(now); to.setHours(23, 59, 59, 999);
+  const to = new Date(now);
+  to.setHours(23, 59, 59, 999);
   const from = new Date(now);
   if (q === "7d") from.setDate(now.getDate() - 7);
   else if (q === "30d") from.setDate(now.getDate() - 30);
-  else if (q === "month") { from.setDate(1); from.setHours(0, 0, 0, 0); }
-  else if (q === "year") { from.setMonth(0, 1); from.setHours(0, 0, 0, 0); }
+  else if (q === "month") {
+    from.setDate(1);
+    from.setHours(0, 0, 0, 0);
+  } else if (q === "year") {
+    from.setMonth(0, 1);
+    from.setHours(0, 0, 0, 0);
+  }
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -45,17 +59,33 @@ function SupplierStatementPage() {
     queryKey: ["supplier-statement", supplierId, from, to, quick],
     queryFn: async () => {
       const range = computeRange(quick);
-      const fromIso = range ? range.from : (from ? new Date(from).toISOString() : null);
-      const toIso = range ? range.to : (to ? (() => { const d = new Date(to); d.setHours(23,59,59,999); return d.toISOString(); })() : null);
+      const fromIso = range ? range.from : from ? new Date(from).toISOString() : null;
+      const toIso = range
+        ? range.to
+        : to
+          ? (() => {
+              const d = new Date(to);
+              d.setHours(23, 59, 59, 999);
+              return d.toISOString();
+            })()
+          : null;
 
       if (canUseLocalData()) {
         let dateSql = "";
         const dateArgs: unknown[] = [];
-        if (fromIso) { dateSql += ` AND created_at >= ?`; dateArgs.push(fromIso); }
-        if (toIso) { dateSql += ` AND created_at <= ?`; dateArgs.push(toIso); }
+        if (fromIso) {
+          dateSql += ` AND created_at >= ?`;
+          dateArgs.push(fromIso);
+        }
+        if (toIso) {
+          dateSql += ` AND created_at <= ?`;
+          dateArgs.push(toIso);
+        }
 
         const [supplierRow, purchases, payments] = await Promise.all([
-          localQueryOne<Record<string, unknown>>(`SELECT * FROM suppliers WHERE id = ?`, [supplierId]),
+          localQueryOne<Record<string, unknown>>(`SELECT * FROM suppliers WHERE id = ?`, [
+            supplierId,
+          ]),
           localQuery<Record<string, unknown>>(
             `SELECT * FROM purchases WHERE supplier_id = ?${dateSql} ORDER BY created_at DESC LIMIT 500`,
             [supplierId, ...dateArgs],
@@ -66,16 +96,35 @@ function SupplierStatementPage() {
           ),
         ]);
         return {
-          supplier: supplierRow ? fromLocalRow<Tables<"suppliers">>("suppliers", supplierRow) : null,
+          supplier: supplierRow
+            ? fromLocalRow<Tables<"suppliers">>("suppliers", supplierRow)
+            : null,
           purchases,
           payments,
         };
       }
 
-      let pq = supabase.from("purchases").select("*").eq("supplier_id", supplierId).order("created_at", { ascending: false }).limit(500);
-      let payq = supabase.from("payments").select("*").eq("party_type", "supplier").eq("party_id", supplierId).order("created_at", { ascending: false }).limit(500);
-      if (fromIso) { pq = pq.gte("created_at", fromIso); payq = payq.gte("created_at", fromIso); }
-      if (toIso) { pq = pq.lte("created_at", toIso); payq = payq.lte("created_at", toIso); }
+      let pq = supabase
+        .from("purchases")
+        .select("*")
+        .eq("supplier_id", supplierId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      let payq = supabase
+        .from("payments")
+        .select("*")
+        .eq("party_type", "supplier")
+        .eq("party_id", supplierId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (fromIso) {
+        pq = pq.gte("created_at", fromIso);
+        payq = payq.gte("created_at", fromIso);
+      }
+      if (toIso) {
+        pq = pq.lte("created_at", toIso);
+        payq = payq.lte("created_at", toIso);
+      }
       const [s, purchases, payments] = await Promise.all([
         supabase.from("suppliers").select("*").eq("id", supplierId).maybeSingle(),
         pq,
@@ -88,11 +137,12 @@ function SupplierStatementPage() {
     },
   });
 
-
   const totals = useMemo(() => {
     const purchases = data?.purchases ?? [];
     const payments = data?.payments ?? [];
-    let total = 0, paid = 0, remaining = 0;
+    let total = 0,
+      paid = 0,
+      remaining = 0;
     for (const p of purchases) {
       total += Number(p.total) || 0;
       paid += Number(p.paid) || 0;
@@ -105,7 +155,9 @@ function SupplierStatementPage() {
   if (isLoading) {
     return (
       <AppShell title="كشف حساب المورد" showBack>
-        <div className="py-16 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        <div className="py-16 grid place-items-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
       </AppShell>
     );
   }
@@ -115,7 +167,9 @@ function SupplierStatementPage() {
         <div className="py-12 text-center text-sm text-destructive flex flex-col items-center gap-2">
           <AlertCircle className="size-6" />
           المورد غير موجود
-          <Link to="/suppliers" className="text-brand underline text-xs">رجوع لقائمة الموردين</Link>
+          <Link to="/suppliers" className="text-brand underline text-xs">
+            رجوع لقائمة الموردين
+          </Link>
         </div>
       </AppShell>
     );
@@ -134,12 +188,29 @@ function SupplierStatementPage() {
                 {s.name}
               </h1>
               <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                {s.phone && <span className="flex items-center gap-1"><Phone className="size-3.5" /><span dir="ltr">{s.phone}</span></span>}
-                {s.address && <span className="flex items-center gap-1"><MapPin className="size-3.5" />{s.address}</span>}
+                {s.phone && (
+                  <span className="flex items-center gap-1">
+                    <Phone className="size-3.5" />
+                    <span dir="ltr">{s.phone}</span>
+                  </span>
+                )}
+                {s.address && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="size-3.5" />
+                    {s.address}
+                  </span>
+                )}
               </div>
-              {s.notes && <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">{s.notes}</p>}
+              {s.notes && (
+                <p className="mt-2 text-xs text-muted-foreground border-t border-border pt-2">
+                  {s.notes}
+                </p>
+              )}
             </div>
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 text-xs font-bold bg-white border border-border hover:bg-muted rounded-lg px-3 py-2 print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-white border border-border hover:bg-muted rounded-lg px-3 py-2 print:hidden"
+            >
               <Printer className="size-3.5" /> طباعة
             </button>
           </div>
@@ -149,31 +220,70 @@ function SupplierStatementPage() {
           <Sc label="عدد الفواتير" value={String(totals.count)} />
           <Sc label="إجمالي المشتريات" value={formatSDG(totals.total)} />
           <Sc label="المدفوع" value={formatSDG(totals.paid)} tone="ok" />
-          <Sc label="الرصيد للمورد" value={formatSDG(totals.remaining)} tone={totals.remaining > 0 ? "warn" : "ok"} />
+          <Sc
+            label="الرصيد للمورد"
+            value={formatSDG(totals.remaining)}
+            tone={totals.remaining > 0 ? "warn" : "ok"}
+          />
         </section>
 
         <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900 flex items-start gap-2">
           <Info className="size-3.5 shrink-0 mt-0.5" />
-          <span>الأسعار المعروضة في فواتير المشتريات محفوظة كما وقت الإدخال — أي تغيير في أسعار المنتجات لاحقًا لا يُطبَّق على الفواتير القديمة.</span>
+          <span>
+            الأسعار المعروضة في فواتير المشتريات محفوظة كما وقت الإدخال — أي تغيير في أسعار المنتجات
+            لاحقًا لا يُطبَّق على الفواتير القديمة.
+          </span>
         </div>
 
         <div className="rounded-xl bg-card border border-border p-3 shadow-card space-y-2">
           <div className="grid sm:grid-cols-3 gap-2">
-            <input type="date" value={from} disabled={!!quick} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="من" />
-            <input type="date" value={to} disabled={!!quick} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50" placeholder="إلى" />
+            <input
+              type="date"
+              value={from}
+              disabled={!!quick}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+              placeholder="من"
+            />
+            <input
+              type="date"
+              value={to}
+              disabled={!!quick}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:opacity-50"
+              placeholder="إلى"
+            />
             <div className="flex flex-wrap gap-1 text-xs">
-              {([["", "الكل"], ["7d", "7ي"], ["30d", "30ي"], ["month", "الشهر"], ["year", "السنة"]] as [QuickRange, string][]).map(([v, l]) => (
-                <button key={v} onClick={() => setQuick(v)} className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>{l}</button>
+              {(
+                [
+                  ["", "الكل"],
+                  ["7d", "7ي"],
+                  ["30d", "30ي"],
+                  ["month", "الشهر"],
+                  ["year", "السنة"],
+                ] as [QuickRange, string][]
+              ).map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setQuick(v)}
+                  className={`px-2 py-1 rounded-md border ${quick === v ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}
+                >
+                  {l}
+                </button>
               ))}
             </div>
           </div>
         </div>
 
         <section className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
-          <div className="p-3 border-b border-border font-bold text-sm">فواتير المشتريات ({totals.count})</div>
+          <div className="p-3 border-b border-border font-bold text-sm">
+            فواتير المشتريات ({totals.count})
+          </div>
 
           {data.purchases.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">لا توجد مشتريات من هذا المورد بعد</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              لا توجد مشتريات من هذا المورد بعد
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -193,15 +303,25 @@ function SupplierStatementPage() {
                     return (
                       <tr key={p.id} className="border-t border-border hover:bg-muted/40">
                         <td className="px-3 py-2 nums font-bold">#{p.purchase_number}</td>
-                        <td className="px-3 py-2 nums text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString("ar-EG")}</td>
+                        <td className="px-3 py-2 nums text-xs text-muted-foreground">
+                          {new Date(p.created_at).toLocaleDateString("ar-EG")}
+                        </td>
                         <td className="px-3 py-2">
-                          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClasses[p.status] || "bg-muted"}`}>
+                          <span
+                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClasses[p.status] || "bg-muted"}`}
+                          >
                             {statusLabels[p.status] || p.status}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-left nums">{formatSDG(Number(p.total))}</td>
-                        <td className="px-3 py-2 text-left nums text-emerald-700">{formatSDG(Number(p.paid))}</td>
-                        <td className={`px-3 py-2 text-left nums font-bold ${rem > 0 ? "text-rose-700" : "text-muted-foreground"}`}>{formatSDG(rem)}</td>
+                        <td className="px-3 py-2 text-left nums text-emerald-700">
+                          {formatSDG(Number(p.paid))}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-left nums font-bold ${rem > 0 ? "text-rose-700" : "text-muted-foreground"}`}
+                        >
+                          {formatSDG(rem)}
+                        </td>
                       </tr>
                     );
                   })}
@@ -218,10 +338,14 @@ function SupplierStatementPage() {
               {data.payments.map((pay: any) => (
                 <li key={pay.id} className="p-3 flex items-center justify-between text-sm">
                   <div>
-                    <div className="text-xs text-muted-foreground">{new Date(pay.created_at).toLocaleString("ar-EG")}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(pay.created_at).toLocaleString("ar-EG")}
+                    </div>
                     {pay.notes && <div className="text-xs">{pay.notes}</div>}
                   </div>
-                  <div className="font-bold nums text-emerald-700">{formatSDG(Number(pay.amount))}</div>
+                  <div className="font-bold nums text-emerald-700">
+                    {formatSDG(Number(pay.amount))}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -232,7 +356,15 @@ function SupplierStatementPage() {
   );
 }
 
-function Sc({ label, value, tone = "brand" }: { label: string; value: string; tone?: "brand" | "ok" | "warn" }) {
+function Sc({
+  label,
+  value,
+  tone = "brand",
+}: {
+  label: string;
+  value: string;
+  tone?: "brand" | "ok" | "warn";
+}) {
   const cls = tone === "warn" ? "text-rose-700" : tone === "ok" ? "text-emerald-700" : "text-brand";
   return (
     <div className="rounded-xl border border-border bg-card p-3 shadow-card">

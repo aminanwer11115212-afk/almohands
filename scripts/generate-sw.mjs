@@ -28,7 +28,14 @@ const { count, size, warnings } = await generateSW({
   clientsClaim: true,
   cleanupOutdatedCaches: true,
   navigateFallback: "/",
-  navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//, /^\/_serverFn/, /^\/\.well-known/, /^\/\.mcp/, /^\/\.lovable/],
+  navigateFallbackDenylist: [
+    /^\/~oauth/,
+    /^\/api\//,
+    /^\/_serverFn/,
+    /^\/\.well-known/,
+    /^\/\.mcp/,
+    /^\/\.lovable/,
+  ],
   runtimeCaching: [
     {
       urlPattern: ({ request }) => request.mode === "navigate",
@@ -59,4 +66,6 @@ const { count, size, warnings } = await generateSW({
 });
 
 for (const w of warnings) console.warn("[sw]", w);
-console.log(`[sw] generated .output/public/sw.js — precached ${count} files (${(size / 1024 / 1024).toFixed(1)} MB)`);
+console.log(
+  `[sw] generated .output/public/sw.js — precached ${count} files (${(size / 1024 / 1024).toFixed(1)} MB)`,
+);

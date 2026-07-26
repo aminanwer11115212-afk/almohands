@@ -95,7 +95,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status !== "guest") return;
     if (isPublic(pathname)) return;
-    const next = encodeURIComponent(pathname + (typeof window !== "undefined" ? window.location.search : ""));
+    const next = encodeURIComponent(
+      pathname + (typeof window !== "undefined" ? window.location.search : ""),
+    );
     router.navigate({ to: "/auth", search: { next: decodeURIComponent(next) }, replace: true });
   }, [status, pathname, router]);
 

@@ -11,7 +11,13 @@ import {
 } from "@/lib/data/local";
 
 export type SpecialOrderPriority = "low" | "normal" | "high" | "urgent";
-export type SpecialOrderStatus = "requested" | "contacted" | "ordered" | "arrived" | "delivered" | "cancelled";
+export type SpecialOrderStatus =
+  | "requested"
+  | "contacted"
+  | "ordered"
+  | "arrived"
+  | "delivered"
+  | "cancelled";
 
 export interface SpecialOrder {
   id: string;
@@ -45,7 +51,6 @@ export interface SpecialOrderHistoryEntry {
   created_at: string;
 }
 
-
 export interface SpecialOrderInput {
   customer_id?: string | null;
   customer_name?: string | null;
@@ -76,7 +81,16 @@ async function insertLocalHistory(
   await tx.execute(
     `INSERT INTO special_order_history (id, user_id, order_id, changed_by, from_status, to_status, reason, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [genId(), entry.userId, entry.orderId, entry.userId, entry.fromStatus, entry.toStatus, entry.reason, entry.now],
+    [
+      genId(),
+      entry.userId,
+      entry.orderId,
+      entry.userId,
+      entry.fromStatus,
+      entry.toStatus,
+      entry.reason,
+      entry.now,
+    ],
   );
 }
 
@@ -206,20 +220,23 @@ export function useUpdateSpecialOrder() {
         return;
       }
 
-      const { error } = await supabase.from("special_orders").update({
-        customer_id: input.customer_id || null,
-        customer_name: input.customer_name || null,
-        customer_phone: input.customer_phone || null,
-        item_name: input.item_name,
-        description: input.description || null,
-        quantity: input.quantity,
-        target_price: input.target_price ?? null,
-        supplier_id: input.supplier_id || null,
-        supplier_name: input.supplier_name || null,
-        notes: input.notes || null,
-        priority: input.priority,
-        expected_at: input.expected_at || null,
-      } as never).eq("id", input.id);
+      const { error } = await supabase
+        .from("special_orders")
+        .update({
+          customer_id: input.customer_id || null,
+          customer_name: input.customer_name || null,
+          customer_phone: input.customer_phone || null,
+          item_name: input.item_name,
+          description: input.description || null,
+          quantity: input.quantity,
+          target_price: input.target_price ?? null,
+          supplier_id: input.supplier_id || null,
+          supplier_name: input.supplier_name || null,
+          notes: input.notes || null,
+          priority: input.priority,
+          expected_at: input.expected_at || null,
+        } as never)
+        .eq("id", input.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
@@ -229,11 +246,15 @@ export function useUpdateSpecialOrder() {
 export function useUpdateSpecialOrderStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; status: SpecialOrderStatus; cancellation_reason?: string | null }) => {
+    mutationFn: async (input: {
+      id: string;
+      status: SpecialOrderStatus;
+      cancellation_reason?: string | null;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         const now = nowIso();
-        const reason = input.status === "cancelled" ? (input.cancellation_reason || null) : null;
+        const reason = input.status === "cancelled" ? input.cancellation_reason || null : null;
         await localTransaction(async (tx) => {
           const prev = await readLocalOrderStatus(tx, input.id);
           await tx.execute(
@@ -254,10 +275,14 @@ export function useUpdateSpecialOrderStatus() {
         return;
       }
 
-      const { error } = await supabase.from("special_orders").update({
-        status: input.status,
-        cancellation_reason: input.status === "cancelled" ? (input.cancellation_reason || null) : null,
-      } as never).eq("id", input.id);
+      const { error } = await supabase
+        .from("special_orders")
+        .update({
+          status: input.status,
+          cancellation_reason:
+            input.status === "cancelled" ? input.cancellation_reason || null : null,
+        } as never)
+        .eq("id", input.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["special-orders"] }),
@@ -296,15 +321,23 @@ export function useSpecialOrderHistory(orderId: string | null | undefined) {
         );
       }
 
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          select: (c: string) => {
-            eq: (c: string, v: string) => {
-              order: (c: string, o: { ascending: boolean }) => Promise<{ data: SpecialOrderHistoryEntry[] | null; error: Error | null }>;
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              eq: (
+                c: string,
+                v: string,
+              ) => {
+                order: (
+                  c: string,
+                  o: { ascending: boolean },
+                ) => Promise<{ data: SpecialOrderHistoryEntry[] | null; error: Error | null }>;
+              };
             };
           };
-        };
-      })
+        }
+      )
         .from("special_order_history")
         .select("*")
         .eq("order_id", orderId!)

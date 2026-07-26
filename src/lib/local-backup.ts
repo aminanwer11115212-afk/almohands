@@ -15,7 +15,6 @@ import {
   writeBlobToFolder,
 } from "@/lib/backup-folder";
 
-
 // Lazy-loaded XLSX to keep the initial bundle light.
 type XlsxMod = typeof import("xlsx");
 let _xlsx: Promise<XlsxMod> | null = null;
@@ -27,8 +26,8 @@ export type BackupTarget = "folder" | "download";
 
 export type BackupEntry = {
   kind: BackupKind;
-  ts: string;      // ISO
-  day: string;     // YYYY-MM-DD
+  ts: string; // ISO
+  day: string; // YYYY-MM-DD
   filename: string;
   bytes: number;
   ok: boolean;
@@ -36,7 +35,6 @@ export type BackupEntry = {
   folderName?: string;
   error?: string;
 };
-
 
 const HISTORY_KEY = "almohands.backupHistory.v1";
 const KEEP_DAYS = 30;
@@ -72,7 +70,9 @@ export function readBackupHistory(): BackupEntry[] {
     if (!raw) return [];
     const arr = JSON.parse(raw);
     return Array.isArray(arr) ? (arr as BackupEntry[]) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function writeHistory(list: BackupEntry[]) {
@@ -81,7 +81,9 @@ function writeHistory(list: BackupEntry[]) {
     const cutoff = Date.now() - KEEP_DAYS * 24 * 3600 * 1000;
     const pruned = list.filter((e) => new Date(e.ts).getTime() >= cutoff);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(pruned.slice(-200)));
-  } catch { /* ignore quota */ }
+  } catch {
+    /* ignore quota */
+  }
 }
 
 export function hasBackupForToday(kind: Exclude<BackupKind, "manual">): boolean {
@@ -147,8 +149,12 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
     // 2) Pull every table (RLS applies — cashier gets what they can read).
     const data: Record<string, unknown[]> = {};
     for (const t of TABLES) {
-      try { data[t] = await fetchAllPages(t); }
-      catch (e) { data[t] = []; console.warn(`[backup] table ${t} skipped`, e); }
+      try {
+        data[t] = await fetchAllPages(t);
+      } catch (e) {
+        data[t] = [];
+        console.warn(`[backup] table ${t} skipped`, e);
+      }
     }
 
     // 3) Build JSON + XLSX blobs.
@@ -195,8 +201,12 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
           console.warn("[backup] folder write failed", e);
           if (kind !== "manual") {
             const entry: BackupEntry = {
-              kind, ts: now.toISOString(), day,
-              filename: base, bytes: 0, ok: false,
+              kind,
+              ts: now.toISOString(),
+              day,
+              filename: base,
+              bytes: 0,
+              ok: false,
               error: "folder-write-failed (auto backup skipped)",
             };
             writeHistory([...readBackupHistory(), entry]);
@@ -205,8 +215,12 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
         }
       } else if (kind !== "manual") {
         const entry: BackupEntry = {
-          kind, ts: now.toISOString(), day,
-          filename: base, bytes: 0, ok: false,
+          kind,
+          ts: now.toISOString(),
+          day,
+          filename: base,
+          bytes: 0,
+          ok: false,
           error: "no-folder-permission (auto backup skipped)",
         };
         writeHistory([...readBackupHistory(), entry]);
@@ -214,8 +228,12 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
       }
     } else if (kind !== "manual") {
       const entry: BackupEntry = {
-        kind, ts: now.toISOString(), day,
-        filename: base, bytes: 0, ok: false,
+        kind,
+        ts: now.toISOString(),
+        day,
+        filename: base,
+        bytes: 0,
+        ok: false,
         error: "no-backup-folder (auto backup skipped)",
       };
       writeHistory([...readBackupHistory(), entry]);
@@ -228,7 +246,9 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
     }
 
     const entry: BackupEntry = {
-      kind, ts: now.toISOString(), day,
+      kind,
+      ts: now.toISOString(),
+      day,
       filename: `${jsonName} + ${xlsxName}`,
       bytes: jsonBlob.size + xlsxBlob.size,
       ok: true,
@@ -239,12 +259,15 @@ export async function runLocalBackup(kind: BackupKind): Promise<BackupEntry> {
     return entry;
   } catch (err) {
     const entry: BackupEntry = {
-      kind, ts: now.toISOString(), day,
-      filename: base, bytes: 0, ok: false,
+      kind,
+      ts: now.toISOString(),
+      day,
+      filename: base,
+      bytes: 0,
+      ok: false,
       error: err instanceof Error ? err.message : String(err),
     };
     writeHistory([...readBackupHistory(), entry]);
     throw err;
   }
 }
-

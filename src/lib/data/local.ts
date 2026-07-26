@@ -186,10 +186,7 @@ export async function localInsert(
   const cols = Object.keys(data);
   const placeholders = cols.map(() => "?").join(", ");
   const values = cols.map((c) => normalizeValue(data[c]));
-  await localExecute(
-    `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`,
-    values,
-  );
+  await localExecute(`INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`, values);
   return id;
 }
 
@@ -241,7 +238,8 @@ export function fromLocalRow<T = Record<string, unknown>>(
 ): T {
   const out: Record<string, unknown> = { ...row };
   for (const col of BOOLEAN_COLUMNS[table] ?? []) {
-    if (col in out && out[col] != null) out[col] = out[col] === 1 || out[col] === "1" || out[col] === true;
+    if (col in out && out[col] != null)
+      out[col] = out[col] === 1 || out[col] === "1" || out[col] === true;
   }
   for (const col of JSON_COLUMNS[table] ?? []) {
     const v = out[col];

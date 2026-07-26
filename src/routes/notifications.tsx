@@ -81,7 +81,10 @@ function NotificationsPage() {
         return;
       }
 
-      const { error } = await supabase.from("notifications").update({ read: true }).eq("read", false);
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("read", false);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -141,11 +144,15 @@ function NotificationsPage() {
               }`}
             >
               <div className="mt-0.5">
-                <AlertTriangle className={`size-5 ${n.read ? "text-muted-foreground" : "text-brand"}`} />
+                <AlertTriangle
+                  className={`size-5 ${n.read ? "text-muted-foreground" : "text-brand"}`}
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm">{n.title}</div>
-                {n.message && <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>}
+                {n.message && (
+                  <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
+                )}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[11px] text-muted-foreground nums">
                     {new Date(n.created_at).toLocaleString("ar")}

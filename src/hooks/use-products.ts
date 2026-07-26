@@ -18,8 +18,7 @@ export interface ProductsQueryParams {
   asc: boolean;
 }
 
-export const productsQueryKey = (params: ProductsQueryParams) =>
-  ["products", params] as const;
+export const productsQueryKey = (params: ProductsQueryParams) => ["products", params] as const;
 
 const SORT_COLUMNS: Record<SortKey, string> = {
   name: "name",
@@ -47,15 +46,14 @@ async function fetchProductsLocal(params: ProductsQueryParams): Promise<Product[
 export async function fetchProducts(params: ProductsQueryParams): Promise<Product[]> {
   if (canUseLocalData()) return fetchProductsLocal(params);
 
-  let query = supabase
-    .from("products")
-    .select("*")
-    .order(params.sort, { ascending: params.asc });
+  let query = supabase.from("products").select("*").order(params.sort, { ascending: params.asc });
 
   const q = params.q.trim();
   if (q) {
     const safe = q.replace(/[,()]/g, " ");
-    query = query.or(`name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%,part_number.ilike.%${safe}%,location.ilike.%${safe}%`);
+    query = query.or(
+      `name.ilike.%${safe}%,barcode.ilike.%${safe}%,category.ilike.%${safe}%,part_number.ilike.%${safe}%,location.ilike.%${safe}%`,
+    );
   }
 
   // Paginate to bypass PostgREST's 1000-row default cap; supports 10k+ products.

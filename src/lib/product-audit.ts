@@ -75,6 +75,15 @@ export function diffProduct(
 }
 
 export const PRODUCT_AUDIT_FIELDS = [
-  "name", "barcode", "part_number", "category", "unit", "location",
-  "quantity", "min_quantity", "cost_price", "sale_price", "notes",
+  "name",
+  "barcode",
+  "part_number",
+  "category",
+  "unit",
+  "location",
+  "quantity",
+  "min_quantity",
+  "cost_price",
+  "sale_price",
+  "notes",
 ] as const;

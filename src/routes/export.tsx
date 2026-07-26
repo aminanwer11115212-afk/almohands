@@ -14,10 +14,23 @@ import {
   requireUserId,
 } from "@/lib/data/local";
 import { toast } from "sonner";
-import { Download, FileText, Database, Trash2, FileSpreadsheet, CheckCircle2, XCircle, Calendar, Filter, Clock, RefreshCw, StopCircle, Loader2 } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Database,
+  Trash2,
+  FileSpreadsheet,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  Filter,
+  Clock,
+  RefreshCw,
+  StopCircle,
+  Loader2,
+} from "lucide-react";
 import { exportPdfFromRows } from "@/lib/pdf-html-export";
 import { formatNumber } from "@/lib/format";
-
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "تصدير البيانات — المهندس" }] }),
@@ -36,14 +49,22 @@ const TABLES = [
   { key: "payments", label: "المدفوعات", dateCol: "created_at" },
 ] as const;
 
-type TableKey = typeof TABLES[number]["key"];
+type TableKey = (typeof TABLES)[number]["key"];
 
 /** Standard Arabic column headers — match the ones the import page detects. */
 const STANDARD_HEADERS: Partial<Record<TableKey, Record<string, string>>> = {
   products: {
-    name: "الاسم", barcode: "الباركود", part_number: "رقم القطعة", category: "الفئة", unit: "الوحدة",
-    location: "الموقع (الرف)", quantity: "الكمية", min_quantity: "الحد الأدنى",
-    cost_price: "سعر الشراء", sale_price: "سعر البيع", notes: "ملاحظات",
+    name: "الاسم",
+    barcode: "الباركود",
+    part_number: "رقم القطعة",
+    category: "الفئة",
+    unit: "الوحدة",
+    location: "الموقع (الرف)",
+    quantity: "الكمية",
+    min_quantity: "الحد الأدنى",
+    cost_price: "سعر الشراء",
+    sale_price: "سعر البيع",
+    notes: "ملاحظات",
   },
 };
 
@@ -52,14 +73,58 @@ const AUTO_COLS_LAST = ["id", "user_id", "created_at", "updated_at"];
 
 /** Canonical, stable column order per table — guarantees identical output between exports. */
 const SCHEMA_ORDER: Partial<Record<TableKey, string[]>> = {
-  products: ["name", "barcode", "part_number", "category", "unit", "location", "quantity", "min_quantity", "cost_price", "sale_price", "notes"],
+  products: [
+    "name",
+    "barcode",
+    "part_number",
+    "category",
+    "unit",
+    "location",
+    "quantity",
+    "min_quantity",
+    "cost_price",
+    "sale_price",
+    "notes",
+  ],
   customers: ["name", "phone", "email", "address", "notes", "balance"],
   suppliers: ["name", "phone", "email", "address", "notes"],
-  invoices: ["invoice_number", "customer_id", "status", "subtotal", "discount", "tax", "total", "paid", "payment_method_id", "transaction_ref", "notes", "cancelled_at", "cancelled_by", "cancellation_reason"],
-  invoice_items: ["invoice_id", "product_id", "product_name", "quantity", "unit_price", "discount", "total"],
+  invoices: [
+    "invoice_number",
+    "customer_id",
+    "status",
+    "subtotal",
+    "discount",
+    "tax",
+    "total",
+    "paid",
+    "payment_method_id",
+    "transaction_ref",
+    "notes",
+    "cancelled_at",
+    "cancelled_by",
+    "cancellation_reason",
+  ],
+  invoice_items: [
+    "invoice_id",
+    "product_id",
+    "product_name",
+    "quantity",
+    "unit_price",
+    "discount",
+    "total",
+  ],
   expenses: ["expense_date", "category", "description", "amount", "payment_method_id", "notes"],
   returns: ["invoice_id", "product_id", "quantity", "reason", "refund_amount", "notes"],
-  purchases: ["supplier_id", "purchase_number", "subtotal", "discount", "tax", "total", "paid", "notes"],
+  purchases: [
+    "supplier_id",
+    "purchase_number",
+    "subtotal",
+    "discount",
+    "tax",
+    "total",
+    "paid",
+    "notes",
+  ],
   payments: ["invoice_id", "amount", "payment_method_id", "transaction_ref", "notes"],
 };
 
@@ -68,10 +133,21 @@ function orderCols(cols: string[], table?: TableKey): string[] {
   const canonical = (table && SCHEMA_ORDER[table]) || [];
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const c of canonical) if (cols.includes(c) && !seen.has(c)) { out.push(c); seen.add(c); }
+  for (const c of canonical)
+    if (cols.includes(c) && !seen.has(c)) {
+      out.push(c);
+      seen.add(c);
+    }
   const extras = cols.filter((c) => !seen.has(c) && !AUTO_COLS_LAST.includes(c)).sort();
-  for (const c of extras) { out.push(c); seen.add(c); }
-  for (const c of AUTO_COLS_LAST) if (cols.includes(c) && !seen.has(c)) { out.push(c); seen.add(c); }
+  for (const c of extras) {
+    out.push(c);
+    seen.add(c);
+  }
+  for (const c of AUTO_COLS_LAST)
+    if (cols.includes(c) && !seen.has(c)) {
+      out.push(c);
+      seen.add(c);
+    }
   return out;
 }
 
@@ -82,14 +158,23 @@ function assertHeadersMatchImport(table: TableKey, cols: string[], headers: stri
   const expectedCols = Object.keys(map);
   const missing = expectedCols.filter((c) => !cols.includes(c));
   if (missing.length) console.warn(`[export] ${table}: أعمدة مفقودة عن معيار الاستيراد:`, missing);
-  const mismatched = cols.map((c, i) => ({ c, want: map[c], got: headers[i] })).filter((x) => x.want && x.want !== x.got);
-  if (mismatched.length) console.error(`[export] ${table}: عناوين CSV لا تطابق أسماء الاستيراد`, mismatched);
+  const mismatched = cols
+    .map((c, i) => ({ c, want: map[c], got: headers[i] }))
+    .filter((x) => x.want && x.want !== x.got);
+  if (mismatched.length)
+    console.error(`[export] ${table}: عناوين CSV لا تطابق أسماء الاستيراد`, mismatched);
 }
 
-function toCSV(rows: Record<string, unknown>[], table?: TableKey, headerMap?: Record<string, string>): string {
+function toCSV(
+  rows: Record<string, unknown>[],
+  table?: TableKey,
+  headerMap?: Record<string, string>,
+): string {
   if (rows.length === 0) return "";
   const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
-  const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, table);
+  const cols = headerMap
+    ? Object.keys(headerMap).filter((c) => allKeys.includes(c))
+    : orderCols(allKeys, table);
   const headers = headerMap ? cols.map((c) => headerMap[c]) : cols;
   if (headerMap && table) assertHeadersMatchImport(table, cols, headers);
   const esc = (v: unknown) => {
@@ -112,7 +197,8 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
   const blob = content instanceof Blob ? content : new Blob(["\ufeff" + content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename;
+  a.href = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -122,7 +208,9 @@ function download(filename: string, content: string | Blob, mime = "text/csv;cha
 
 async function fetchTable(name: TableKey, from?: string, to?: string) {
   const all: any[] = [];
-  await streamTablePages(name, from, to, async (batch) => { all.push(...batch); });
+  await streamTablePages(name, from, to, async (batch) => {
+    all.push(...batch);
+  });
   return all;
 }
 
@@ -171,7 +259,11 @@ async function streamTablePages(
   for (let off = 0; off < MAX_ROWS; off += PAGE) {
     let q: any = supabase.from(name).select("*");
     if (from) q = q.gte(meta.dateCol, new Date(from).toISOString());
-    if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); q = q.lte(meta.dateCol, end.toISOString()); }
+    if (to) {
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+      q = q.lte(meta.dateCol, end.toISOString());
+    }
     const { data, error } = await q.range(off, off + PAGE - 1);
     if (error) throw error;
     const batch = data ?? [];
@@ -226,12 +318,19 @@ function ExportPage() {
       if (canUseLocalData()) {
         let sql = `SELECT * FROM export_logs`;
         const args: unknown[] = [];
-        if (logStatus !== "all") { sql += ` WHERE status = ?`; args.push(logStatus); }
+        if (logStatus !== "all") {
+          sql += ` WHERE status = ?`;
+          args.push(logStatus);
+        }
         sql += ` ORDER BY created_at DESC LIMIT 100`;
         const rows = await localQuery<Record<string, unknown>>(sql, args);
         return rows.map((r) => fromLocalRow<Tables<"export_logs">>("export_logs", r));
       }
-      let q = supabase.from("export_logs").select("*").order("created_at", { ascending: false }).limit(100);
+      let q = supabase
+        .from("export_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (logStatus !== "all") q = q.eq("status", logStatus);
       const { data, error } = await q;
       if (error) throw error;
@@ -240,7 +339,17 @@ function ExportPage() {
   });
 
   const logMut = useMutation({
-    mutationFn: async (entry: { export_type: string; format: string; tables: string[]; row_count: number; status: string; error_message?: string; duration_ms?: number; notes?: string; payload?: any }) => {
+    mutationFn: async (entry: {
+      export_type: string;
+      format: string;
+      tables: string[];
+      row_count: number;
+      status: string;
+      error_message?: string;
+      duration_ms?: number;
+      notes?: string;
+      payload?: any;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         await localInsert("export_logs", { ...entry, user_id: userId });
@@ -276,20 +385,36 @@ function ExportPage() {
       if (!uid || cancelled) return;
       const ch = supabase
         .channel(`export_logs:${uid}:${crypto.randomUUID()}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` }, (p) => {
-          const row = p.new as { status: string; row_count: number; export_type: string; error_message: string | null };
-          if (row.status === "success") toast.success(`تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`);
-          else toast.error(`فشل التصدير${row.error_message ? `: ${row.error_message}` : ""}`);
-          qc.invalidateQueries({ queryKey: ["export_logs"] });
-        })
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "export_logs", filter: `user_id=eq.${uid}` },
+          (p) => {
+            const row = p.new as {
+              status: string;
+              row_count: number;
+              export_type: string;
+              error_message: string | null;
+            };
+            if (row.status === "success")
+              toast.success(
+                `تصدير ناجح: ${row.row_count} سجل (${row.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"})`,
+              );
+            else toast.error(`فشل التصدير${row.error_message ? `: ${row.error_message}` : ""}`);
+            qc.invalidateQueries({ queryKey: ["export_logs"] });
+          },
+        )
         .subscribe();
-      if (cancelled) { supabase.removeChannel(ch); return; }
+      if (cancelled) {
+        supabase.removeChannel(ch);
+        return;
+      }
       channel = ch;
     })();
-    return () => { cancelled = true; if (channel) supabase.removeChannel(channel); };
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [qc]);
-
-
 
   const toggle = (k: TableKey) => {
     const s = new Set(selected);
@@ -323,7 +448,9 @@ function ExportPage() {
           if (rows.length === 0) continue;
           const allKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
           const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
-          const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, key);
+          const cols = headerMap
+            ? Object.keys(headerMap).filter((c) => allKeys.includes(c))
+            : orderCols(allKeys, key);
           const labels = headerMap ? cols.map((c) => headerMap[c]) : cols;
           const tableMeta = TABLES.find((t) => t.key === key);
           exportPdfFromRows({
@@ -349,7 +476,9 @@ function ExportPage() {
             if (!csvWriter) {
               const headerMap = standardHeaders ? STANDARD_HEADERS[key] : undefined;
               const allKeys = Array.from(new Set(batch.flatMap((r: any) => Object.keys(r))));
-              const cols = headerMap ? Object.keys(headerMap).filter((c) => allKeys.includes(c)) : orderCols(allKeys, key);
+              const cols = headerMap
+                ? Object.keys(headerMap).filter((c) => allKeys.includes(c))
+                : orderCols(allKeys, key);
               const labels = headerMap ? cols.map((c) => headerMap[c]) : cols;
               csvWriter = makeCsvWriter(cols, labels);
               parts.push(csvWriter.header);
@@ -401,38 +530,99 @@ function ExportPage() {
         try {
           const uid = await requireUserId();
           await localInsert("audit_logs", {
-            user_id: uid, action: "data.export", table_name: [...selected].join(","),
-            details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
+            user_id: uid,
+            action: "data.export",
+            table_name: [...selected].join(","),
+            details: {
+              format,
+              tables: [...selected],
+              row_count: total,
+              from,
+              to,
+              duration_ms: Date.now() - started,
+            },
           });
-        } catch { /* audit best-effort */ }
+        } catch {
+          /* audit best-effort */
+        }
       } else {
         const { data: au } = await supabase.auth.getUser();
-        if (au?.user) await supabase.from("audit_logs").insert({
-          user_id: au.user.id, action: "data.export", table_name: [...selected].join(","),
-          details: { format, tables: [...selected], row_count: total, from, to, duration_ms: Date.now() - started },
-        }).then(() => undefined, () => undefined);
+        if (au?.user)
+          await supabase
+            .from("audit_logs")
+            .insert({
+              user_id: au.user.id,
+              action: "data.export",
+              table_name: [...selected].join(","),
+              details: {
+                format,
+                tables: [...selected],
+                row_count: total,
+                from,
+                to,
+                duration_ms: Date.now() - started,
+              },
+            })
+            .then(
+              () => undefined,
+              () => undefined,
+            );
       }
       toast.success(`تم تصدير ${formatNumber(total)} سجل`);
     } catch (e: any) {
-      await logMut.mutateAsync({
-        export_type: "partial", format, tables: [...selected], row_count: 0,
-        status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
-        payload: { export_type: "partial", format, tables: [...selected], from, to },
-      }).catch(() => {});
+      await logMut
+        .mutateAsync({
+          export_type: "partial",
+          format,
+          tables: [...selected],
+          row_count: 0,
+          status: "failed",
+          error_message: e?.message || "unknown",
+          duration_ms: Date.now() - started,
+          payload: { export_type: "partial", format, tables: [...selected], from, to },
+        })
+        .catch(() => {});
       if (canUseLocalData()) {
         try {
           const uid = await requireUserId();
           await localInsert("audit_logs", {
-            user_id: uid, action: "data.export.failed", table_name: [...selected].join(","),
-            details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
+            user_id: uid,
+            action: "data.export.failed",
+            table_name: [...selected].join(","),
+            details: {
+              format,
+              tables: [...selected],
+              from,
+              to,
+              error: e?.message ?? "unknown",
+              duration_ms: Date.now() - started,
+            },
           });
-        } catch { /* audit best-effort */ }
+        } catch {
+          /* audit best-effort */
+        }
       } else {
         const { data: au } = await supabase.auth.getUser();
-        if (au?.user) await supabase.from("audit_logs").insert({
-          user_id: au.user.id, action: "data.export.failed", table_name: [...selected].join(","),
-          details: { format, tables: [...selected], from, to, error: e?.message ?? "unknown", duration_ms: Date.now() - started },
-        }).then(() => undefined, () => undefined);
+        if (au?.user)
+          await supabase
+            .from("audit_logs")
+            .insert({
+              user_id: au.user.id,
+              action: "data.export.failed",
+              table_name: [...selected].join(","),
+              details: {
+                format,
+                tables: [...selected],
+                from,
+                to,
+                error: e?.message ?? "unknown",
+                duration_ms: Date.now() - started,
+              },
+            })
+            .then(
+              () => undefined,
+              () => undefined,
+            );
       }
       toast.error("فشل التصدير: " + (e?.message || ""));
     } finally {
@@ -472,9 +662,12 @@ function ExportPage() {
       const blob = new Blob(parts, { type: "application/json;charset=utf-8" });
       download(`backup-${Date.now()}.json`, blob, "application/json");
       await logMut.mutateAsync({
-        export_type: "full_backup", format: "json",
-        tables: TABLES.map((t) => t.key), row_count: total,
-        status: "success", duration_ms: Date.now() - started,
+        export_type: "full_backup",
+        format: "json",
+        tables: TABLES.map((t) => t.key),
+        row_count: total,
+        status: "success",
+        duration_ms: Date.now() - started,
         notes: "نسخة احتياطية كاملة (streaming)",
         payload: { export_type: "full_backup", format: "json" },
       });
@@ -482,24 +675,44 @@ function ExportPage() {
         try {
           const uid = await requireUserId();
           await localInsert("audit_logs", {
-            user_id: uid, action: "data.export.backup", table_name: "*",
+            user_id: uid,
+            action: "data.export.backup",
+            table_name: "*",
             details: { row_count: total, duration_ms: Date.now() - started },
           });
-        } catch { /* audit best-effort */ }
+        } catch {
+          /* audit best-effort */
+        }
       } else {
         const { data: au } = await supabase.auth.getUser();
-        if (au?.user) await supabase.from("audit_logs").insert({
-          user_id: au.user.id, action: "data.export.backup", table_name: "*",
-          details: { row_count: total, duration_ms: Date.now() - started },
-        }).then(() => undefined, () => undefined);
+        if (au?.user)
+          await supabase
+            .from("audit_logs")
+            .insert({
+              user_id: au.user.id,
+              action: "data.export.backup",
+              table_name: "*",
+              details: { row_count: total, duration_ms: Date.now() - started },
+            })
+            .then(
+              () => undefined,
+              () => undefined,
+            );
       }
       toast.success(`نسخة احتياطية: ${formatNumber(total)} سجل`);
     } catch (e: any) {
-      await logMut.mutateAsync({
-        export_type: "full_backup", format: "json", tables: TABLES.map((t) => t.key), row_count: 0,
-        status: "failed", error_message: e?.message || "unknown", duration_ms: Date.now() - started,
-        payload: { export_type: "full_backup", format: "json" },
-      }).catch(() => {});
+      await logMut
+        .mutateAsync({
+          export_type: "full_backup",
+          format: "json",
+          tables: TABLES.map((t) => t.key),
+          row_count: 0,
+          status: "failed",
+          error_message: e?.message || "unknown",
+          duration_ms: Date.now() - started,
+          payload: { export_type: "full_backup", format: "json" },
+        })
+        .catch(() => {});
       toast.error("فشل النسخ الاحتياطي: " + (e?.message || ""));
     } finally {
       setBusy(false);
@@ -508,20 +721,25 @@ function ExportPage() {
     }
   };
 
-
   function retryFromLog(l: any) {
     const p = l?.payload;
-    if (!p) { toast.error("لا يمكن إعادة تشغيل هذه العملية"); return; }
+    if (!p) {
+      toast.error("لا يمكن إعادة تشغيل هذه العملية");
+      return;
+    }
     if (!confirm("سيتم إعادة تشغيل العملية بنفس الإعدادات. متابعة؟")) return;
-    if (p.export_type === "full_backup") { void fullBackup(); return; }
+    if (p.export_type === "full_backup") {
+      void fullBackup();
+      return;
+    }
     if (Array.isArray(p.tables)) setSelected(new Set(p.tables));
     if (p.format) setFormat(p.format);
     if (typeof p.from === "string") setFrom(p.from);
     if (typeof p.to === "string") setTo(p.to);
-    setTimeout(() => { void runExport(); }, 0);
+    setTimeout(() => {
+      void runExport();
+    }, 0);
   }
-
-
 
   const stats = useMemo(() => {
     const success = logs.filter((l: any) => l.status === "success").length;
@@ -536,14 +754,26 @@ function ExportPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold">اختر الجداول</h2>
           <div className="flex gap-2 text-xs">
-            <button onClick={selectAll} className="text-brand hover:underline">الكل</button>
-            <button onClick={clearAll} className="text-muted-foreground hover:underline">مسح</button>
+            <button onClick={selectAll} className="text-brand hover:underline">
+              الكل
+            </button>
+            <button onClick={clearAll} className="text-muted-foreground hover:underline">
+              مسح
+            </button>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {TABLES.map((t) => (
-            <label key={t.key} className="flex items-center gap-2 rounded-lg border p-2 text-sm cursor-pointer hover:bg-muted/50">
-              <input type="checkbox" checked={selected.has(t.key)} onChange={() => toggle(t.key)} className="size-4" />
+            <label
+              key={t.key}
+              className="flex items-center gap-2 rounded-lg border p-2 text-sm cursor-pointer hover:bg-muted/50"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(t.key)}
+                onChange={() => toggle(t.key)}
+                className="size-4"
+              />
               {t.label}
             </label>
           ))}
@@ -551,12 +781,26 @@ function ExportPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <label className="text-xs text-muted-foreground">
-            <span className="flex items-center gap-1 mb-1"><Calendar className="size-3" /> من تاريخ</span>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm nums" />
+            <span className="flex items-center gap-1 mb-1">
+              <Calendar className="size-3" /> من تاريخ
+            </span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm nums"
+            />
           </label>
           <label className="text-xs text-muted-foreground">
-            <span className="flex items-center gap-1 mb-1"><Calendar className="size-3" /> إلى تاريخ</span>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm nums" />
+            <span className="flex items-center gap-1 mb-1">
+              <Calendar className="size-3" /> إلى تاريخ
+            </span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="w-full h-10 rounded-lg border border-border bg-background px-2 text-sm nums"
+            />
           </label>
         </div>
 
@@ -564,8 +808,11 @@ function ExportPage() {
           <div className="text-xs text-muted-foreground mb-1">الصيغة</div>
           <div className="grid grid-cols-3 gap-2">
             {(["csv", "json", "pdf"] as const).map((f) => (
-              <button key={f} onClick={() => setFormat(f)}
-                className={`h-10 rounded-lg border text-sm font-bold ${format === f ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}>
+              <button
+                key={f}
+                onClick={() => setFormat(f)}
+                className={`h-10 rounded-lg border text-sm font-bold ${format === f ? "bg-brand text-brand-foreground border-brand" : "bg-background border-border"}`}
+              >
                 {f.toUpperCase()}
               </button>
             ))}
@@ -574,30 +821,59 @@ function ExportPage() {
 
         {format === "csv" && selected.has("products") && (
           <label className="mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs cursor-pointer bg-brand/5 border-brand/20">
-            <input type="checkbox" checked={standardHeaders} onChange={(e) => setStandardHeaders(e.target.checked)} className="size-4 mt-0.5" />
+            <input
+              type="checkbox"
+              checked={standardHeaders}
+              onChange={(e) => setStandardHeaders(e.target.checked)}
+              className="size-4 mt-0.5"
+            />
             <span>
-              <span className="font-bold block">استخدم أسماء الأعمدة المعيارية (متوافق مع الاستيراد)</span>
+              <span className="font-bold block">
+                استخدم أسماء الأعمدة المعيارية (متوافق مع الاستيراد)
+              </span>
               <span className="text-muted-foreground">
-                يستبدل أسماء الأعمدة الإنجليزية بالعربية (الاسم، الباركود، سعر الشراء، سعر البيع…) لتتمكّن من إعادة استيراد نفس الملف مباشرةً.
+                يستبدل أسماء الأعمدة الإنجليزية بالعربية (الاسم، الباركود، سعر الشراء، سعر البيع…)
+                لتتمكّن من إعادة استيراد نفس الملف مباشرةً.
               </span>
             </span>
           </label>
         )}
 
-
         {progress && (
           <div className="mt-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs flex items-center justify-between gap-2">
             <span className="flex items-center gap-1 font-bold">
-              <Loader2 className="size-3.5 animate-spin" /> {progress.table} · {formatNumber(progress.done)} سجل
+              <Loader2 className="size-3.5 animate-spin" /> {progress.table} ·{" "}
+              {formatNumber(progress.done)} سجل
             </span>
-            <button onClick={cancelExport} className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-destructive text-white font-bold">
+            <button
+              onClick={cancelExport}
+              className="inline-flex items-center gap-1 px-2 h-7 rounded-md bg-destructive text-white font-bold"
+            >
               <StopCircle className="size-3.5" /> إلغاء
             </button>
           </div>
         )}
-        <button onClick={busy ? cancelExport : runExport} disabled={!busy && selected.size === 0}
-          className={`mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-60 ${busy ? "bg-destructive text-white" : "bg-brand text-brand-foreground"}`}>
-          {busy ? <><StopCircle className="size-4" /> إلغاء العملية</> : <>{format === "csv" ? <FileSpreadsheet className="size-4" /> : format === "pdf" ? <FileText className="size-4" /> : <Download className="size-4" />} تصدير الآن</>}
+        <button
+          onClick={busy ? cancelExport : runExport}
+          disabled={!busy && selected.size === 0}
+          className={`mt-4 w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-60 ${busy ? "bg-destructive text-white" : "bg-brand text-brand-foreground"}`}
+        >
+          {busy ? (
+            <>
+              <StopCircle className="size-4" /> إلغاء العملية
+            </>
+          ) : (
+            <>
+              {format === "csv" ? (
+                <FileSpreadsheet className="size-4" />
+              ) : format === "pdf" ? (
+                <FileText className="size-4" />
+              ) : (
+                <Download className="size-4" />
+              )}{" "}
+              تصدير الآن
+            </>
+          )}
         </button>
       </section>
 
@@ -605,18 +881,28 @@ function ExportPage() {
         <h2 className="text-sm font-bold mb-2 flex items-center gap-2">
           <Database className="size-4" /> نسخة احتياطية كاملة
         </h2>
-        <p className="text-xs text-muted-foreground mb-3">يشمل جميع الجداول بصيغة JSON قابلة للاستيراد لاحقاً.</p>
-        <button onClick={fullBackup} disabled={busy}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-header text-header-foreground px-3 py-2 text-sm font-bold disabled:opacity-60">
+        <p className="text-xs text-muted-foreground mb-3">
+          يشمل جميع الجداول بصيغة JSON قابلة للاستيراد لاحقاً.
+        </p>
+        <button
+          onClick={fullBackup}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 rounded-lg bg-header text-header-foreground px-3 py-2 text-sm font-bold disabled:opacity-60"
+        >
           <Download className="size-4" /> تنزيل النسخة الكاملة
         </button>
       </section>
 
       <section className="rounded-2xl bg-card border p-4 shadow-card">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 className="text-sm font-bold flex items-center gap-2"><Filter className="size-4" /> سجل عمليات التصدير</h2>
-          <select value={logStatus} onChange={(e) => setLogStatus(e.target.value as any)}
-            className="h-8 rounded-md border border-border bg-background px-2 text-xs">
+          <h2 className="text-sm font-bold flex items-center gap-2">
+            <Filter className="size-4" /> سجل عمليات التصدير
+          </h2>
+          <select
+            value={logStatus}
+            onChange={(e) => setLogStatus(e.target.value as any)}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          >
             <option value="all">الكل</option>
             <option value="success">ناجحة</option>
             <option value="failed">فاشلة</option>
@@ -643,33 +929,57 @@ function ExportPage() {
         ) : (
           <ul className="space-y-2">
             {logs.map((l: any) => (
-              <li key={l.id} className="flex items-start justify-between rounded-lg border p-2 text-xs gap-2">
+              <li
+                key={l.id}
+                className="flex items-start justify-between rounded-lg border p-2 text-xs gap-2"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 font-bold">
-                    {l.status === "success" ? <CheckCircle2 className="size-3.5 text-emerald-600" /> : <XCircle className="size-3.5 text-rose-600" />}
-                    {l.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"} · {String(l.format).toUpperCase()}
+                    {l.status === "success" ? (
+                      <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    ) : (
+                      <XCircle className="size-3.5 text-rose-600" />
+                    )}
+                    {l.export_type === "full_backup" ? "نسخة احتياطية" : "تصدير"} ·{" "}
+                    {String(l.format).toUpperCase()}
                     {l.duration_ms != null && (
                       <span className="ms-auto text-muted-foreground font-normal flex items-center gap-0.5">
-                        <Clock className="size-3" />{formatNumber(l.duration_ms)}ms
+                        <Clock className="size-3" />
+                        {formatNumber(l.duration_ms)}ms
                       </span>
                     )}
                   </div>
-                  <div className="text-muted-foreground truncate">{(l.tables ?? []).join(", ")} — {formatNumber(l.row_count)} سجل</div>
-                  {l.error_message && <div className="text-rose-600 truncate">خطأ: {l.error_message}</div>}
+                  <div className="text-muted-foreground truncate">
+                    {(l.tables ?? []).join(", ")} — {formatNumber(l.row_count)} سجل
+                  </div>
+                  {l.error_message && (
+                    <div className="text-rose-600 truncate">خطأ: {l.error_message}</div>
+                  )}
                   {l.notes && <div className="text-muted-foreground text-[10px]">{l.notes}</div>}
-                  <div className="text-muted-foreground nums text-[10px]">{new Date(l.created_at).toLocaleString("ar")}</div>
+                  <div className="text-muted-foreground nums text-[10px]">
+                    {new Date(l.created_at).toLocaleString("ar")}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {l.payload && (
-                    <button onClick={() => retryFromLog(l)} disabled={busy} className="p-1.5 rounded-md hover:bg-muted disabled:opacity-50" aria-label="إعادة المحاولة" title="إعادة المحاولة">
+                    <button
+                      onClick={() => retryFromLog(l)}
+                      disabled={busy}
+                      className="p-1.5 rounded-md hover:bg-muted disabled:opacity-50"
+                      aria-label="إعادة المحاولة"
+                      title="إعادة المحاولة"
+                    >
                       <RefreshCw className="size-3.5 text-brand" />
                     </button>
                   )}
-                  <button onClick={() => deleteLog.mutate(l.id)} className="p-1.5 rounded-md hover:bg-muted" aria-label="حذف">
+                  <button
+                    onClick={() => deleteLog.mutate(l.id)}
+                    className="p-1.5 rounded-md hover:bg-muted"
+                    aria-label="حذف"
+                  >
                     <Trash2 className="size-3.5 text-destructive" />
                   </button>
                 </div>
-
               </li>
             ))}
           </ul>

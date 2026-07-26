@@ -38,7 +38,9 @@ export const listEmployees = createServerFn({ method: "GET" })
     await ensureAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: usersRes, error: uErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+    const { data: usersRes, error: uErr } = await supabaseAdmin.auth.admin.listUsers({
+      perPage: 200,
+    });
     if (uErr) throw uErr;
     const { data: roles, error: rErr } = await supabaseAdmin
       .from("user_roles")

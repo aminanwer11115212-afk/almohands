@@ -88,10 +88,7 @@ export function PartialReturnDialog({
     })();
   }, [open, invoiceId]);
 
-  const eligibleItems = useMemo(
-    () => items.filter((it) => it.product_id),
-    [items],
-  );
+  const eligibleItems = useMemo(() => items.filter((it) => it.product_id), [items]);
 
   const totalRefund = useMemo(() => {
     return eligibleItems.reduce((sum, it) => {
@@ -109,7 +106,7 @@ export function PartialReturnDialog({
   }
 
   function maxReturnable(item: InvoiceItem) {
-    const already = item.product_id ? alreadyReturned[item.product_id] ?? 0 : 0;
+    const already = item.product_id ? (alreadyReturned[item.product_id] ?? 0) : 0;
     return Math.max(0, Number(item.quantity || 0) - already);
   }
 
@@ -208,7 +205,7 @@ export function PartialReturnDialog({
             <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
               {eligibleItems.map((it) => {
                 const max = maxReturnable(it);
-                const already = it.product_id ? alreadyReturned[it.product_id] ?? 0 : 0;
+                const already = it.product_id ? (alreadyReturned[it.product_id] ?? 0) : 0;
                 const val = qtyMap[it.id] || 0;
                 const disabled = max === 0;
                 return (
@@ -267,9 +264,7 @@ export function PartialReturnDialog({
             </ul>
 
             <div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                السبب (اختياري)
-              </label>
+              <label className="text-xs font-semibold text-muted-foreground">السبب (اختياري)</label>
               <input
                 type="text"
                 value={reason}
@@ -307,7 +302,11 @@ export function PartialReturnDialog({
                 disabled={submitting || totalUnits === 0}
                 className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {submitting ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                {submitting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="size-4" />
+                )}
                 تأكيد الإرجاع
               </button>
             </DialogFooter>

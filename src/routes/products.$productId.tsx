@@ -22,7 +22,11 @@ import {
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({ meta: [{ title: "تعديل منتج — المهندس" }] }),
-  component: () => (<PermissionGate perm="products.write"><EditProductPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="products.write">
+      <EditProductPage />
+    </PermissionGate>
+  ),
 });
 
 const UNITS = ["قطعة", "علبة", "كرتون", "لتر", "كجم", "متر"];
@@ -46,7 +50,11 @@ function EditProductPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: product, isLoading: loadingProduct, error: loadError } = useQuery({
+  const {
+    data: product,
+    isLoading: loadingProduct,
+    error: loadError,
+  } = useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
       if (canUseLocalData()) {
@@ -265,7 +273,9 @@ function EditProductPage() {
   if (loadingProduct) {
     return (
       <AppShell title="تعديل منتج" showBack>
-        <div className="py-20 grid place-items-center"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        <div className="py-20 grid place-items-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
       </AppShell>
     );
   }
@@ -275,11 +285,15 @@ function EditProductPage() {
       <AppShell title="تعديل منتج" showBack>
         <div className="py-20 grid place-items-center gap-3 text-center">
           <AlertCircle className="size-8 text-destructive" />
-          <p className="text-sm text-destructive">{getErrorMessage(loadError, "تعذّر تحميل بيانات المنتج")}</p>
+          <p className="text-sm text-destructive">
+            {getErrorMessage(loadError, "تعذّر تحميل بيانات المنتج")}
+          </p>
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ["product", productId] })}
             className="text-xs px-3 py-1.5 rounded-lg border border-border"
-          >إعادة المحاولة</button>
+          >
+            إعادة المحاولة
+          </button>
         </div>
       </AppShell>
     );
@@ -294,12 +308,13 @@ function EditProductPage() {
           <button
             onClick={() => navigate({ to: "/products" })}
             className="text-xs px-3 py-1.5 rounded-lg border border-border"
-          >الرجوع للمنتجات</button>
+          >
+            الرجوع للمنتجات
+          </button>
         </div>
       </AppShell>
     );
   }
-
 
   return (
     <AppShell title="تعديل منتج" showBack>
@@ -309,10 +324,21 @@ function EditProductPage() {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الباركود">
-            <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left" />
+            <input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              dir="ltr"
+              className="ip text-left"
+            />
           </Field>
           <Field label="رقم القطعة (Part No.)">
-            <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="90915-YZZE2" />
+            <input
+              value={partNumber}
+              onChange={(e) => setPartNumber(e.target.value)}
+              dir="ltr"
+              className="ip text-left"
+              placeholder="90915-YZZE2"
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -320,34 +346,72 @@ function EditProductPage() {
             <input value={category} onChange={(e) => setCategory(e.target.value)} className="ip" />
           </Field>
           <Field label="الموقع (الرف)">
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="ip"
+              placeholder="A-12"
+            />
           </Field>
         </div>
         <div>
           <Field label="الوحدة">
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="ip">
-              {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الكمية">
-            <input type="number" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="ip"
+            />
           </Field>
           <Field label="الحد الأدنى">
-            <input type="number" inputMode="numeric" value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minQuantity}
+              onChange={(e) => setMinQuantity(e.target.value)}
+              className="ip"
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="سعر التكلفة (SDG)">
-            <input type="number" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="decimal"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              className="ip"
+            />
           </Field>
           <Field label="سعر البيع (SDG)">
-            <input type="number" inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="decimal"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+              className="ip"
+            />
           </Field>
         </div>
         <Field label="ملاحظات">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="ip py-2 h-auto" />
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className="ip py-2 h-auto"
+          />
         </Field>
 
         {error && <p className="text-xs text-destructive text-center">{error}</p>}
@@ -357,7 +421,13 @@ function EditProductPage() {
           disabled={saving}
           className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
         >
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <><Save className="size-4" /> حفظ التعديلات</>}
+          {saving ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <Save className="size-4" /> حفظ التعديلات
+            </>
+          )}
         </button>
 
         <button
@@ -366,9 +436,14 @@ function EditProductPage() {
           disabled={deleting}
           className={`w-full h-12 rounded-xl border font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 ${confirmDelete ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive text-destructive"}`}
         >
-          {deleting ? <Loader2 className="size-4 animate-spin" /> : <><Trash2 className="size-4" /> {confirmDelete ? "تأكيد الحذف" : "حذف المنتج"}</>}
+          {deleting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <Trash2 className="size-4" /> {confirmDelete ? "تأكيد الحذف" : "حذف المنتج"}
+            </>
+          )}
         </button>
-
       </form>
 
       <style>{`

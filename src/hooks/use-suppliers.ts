@@ -68,7 +68,12 @@ export function useSuppliers(q: string) {
 export function useAddSupplier() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; phone?: string; address?: string; notes?: string }) => {
+    mutationFn: async (input: {
+      name: string;
+      phone?: string;
+      address?: string;
+      notes?: string;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         await localInsert(
@@ -104,7 +109,13 @@ export function useAddSupplier() {
 export function useUpdateSupplier() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name: string; phone?: string; address?: string; notes?: string }) => {
+    mutationFn: async (input: {
+      id: string;
+      name: string;
+      phone?: string;
+      address?: string;
+      notes?: string;
+    }) => {
       if (canUseLocalData()) {
         await localUpdate(
           "suppliers",
@@ -120,12 +131,15 @@ export function useUpdateSupplier() {
         return;
       }
 
-      const { error } = await supabase.from("suppliers").update({
-        name: input.name,
-        phone: input.phone || null,
-        address: input.address || null,
-        notes: input.notes || null,
-      } as never).eq("id", input.id);
+      const { error } = await supabase
+        .from("suppliers")
+        .update({
+          name: input.name,
+          phone: input.phone || null,
+          address: input.address || null,
+          notes: input.notes || null,
+        } as never)
+        .eq("id", input.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["suppliers"] }),

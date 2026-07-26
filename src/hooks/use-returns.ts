@@ -72,7 +72,9 @@ export function useAddReturn() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("returns").insert({
         user_id: user.id,
@@ -91,12 +93,22 @@ export function useAddReturn() {
 export function useUpdateReturnStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status, notes }: { id: string; status: ReturnStatus; notes?: string }) => {
+    mutationFn: async ({
+      id,
+      status,
+      notes,
+    }: {
+      id: string;
+      status: ReturnStatus;
+      notes?: string;
+    }) => {
       if (canUseLocalData()) {
         const now = nowIso();
         await localTransaction(async (tx) => {
           const res = (await tx.execute(`SELECT * FROM returns WHERE id = ?`, [id])) as {
-            rows?: { _array?: { status?: string; product_id?: string | null; quantity?: number }[] };
+            rows?: {
+              _array?: { status?: string; product_id?: string | null; quantity?: number }[];
+            };
           };
           const prev = res.rows?._array?.[0];
 

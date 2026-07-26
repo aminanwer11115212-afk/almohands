@@ -16,10 +16,10 @@ import {
 
 export type Permission =
   | "products.view"
-  | "products.write"    // create / edit / delete / bulk price update
+  | "products.write" // create / edit / delete / bulk price update
   | "cashier.use"
   | "invoices.view"
-  | "invoices.write"    // edit or delete existing invoices
+  | "invoices.write" // edit or delete existing invoices
   | "customers.view"
   | "customers.write"
   | "suppliers.view"
@@ -44,17 +44,20 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
   seller: [
     "cashier.use",
     "products.view",
-    "invoices.view",             // view own invoices (no write/delete)
-    "customers.view", "customers.write",
+    "invoices.view", // view own invoices (no write/delete)
+    "customers.view",
+    "customers.write",
     "payment_methods.view",
-    "special_orders.view", "special_orders.write",
+    "special_orders.view",
+    "special_orders.write",
   ],
   accountant: [
     "products.view",
     "invoices.view",
     "customers.view",
     "suppliers.view",
-    "expenses.view", "expenses.write",
+    "expenses.view",
+    "expenses.write",
     "payment_methods.view",
     "returns.view",
     "reports.view",
@@ -62,14 +65,16 @@ const ROLE_PERMS: Record<Exclude<AppRole, "admin">, Permission[]> = {
     "special_orders.view",
   ],
   warehouse: [
-    "products.view", "products.write",
-    "suppliers.view", "suppliers.write",
-    "returns.view", "returns.write",
+    "products.view",
+    "products.write",
+    "suppliers.view",
+    "suppliers.write",
+    "returns.view",
+    "returns.write",
     "invoices.view",
     "special_orders.view",
   ],
 };
-
 
 export type AppRole = "admin" | "seller" | "accountant" | "warehouse";
 
@@ -79,7 +84,6 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   accountant: "محاسب",
   warehouse: "أمين مخزن",
 };
-
 
 export interface UserRole {
   id: string;
@@ -110,10 +114,9 @@ export function useMyRoles() {
           uid = null;
         }
         if (!uid) return [] as UserRole[];
-        const rows = await localQuery<UserRole>(
-          `SELECT * FROM user_roles WHERE user_id = ?`,
-          [uid],
-        );
+        const rows = await localQuery<UserRole>(`SELECT * FROM user_roles WHERE user_id = ?`, [
+          uid,
+        ]);
         return rows;
       }
 
@@ -122,10 +125,7 @@ export function useMyRoles() {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user?.id;
       if (!uid) return [] as UserRole[];
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("*")
-        .eq("user_id", uid);
+      const { data, error } = await supabase.from("user_roles").select("*").eq("user_id", uid);
       if (error) throw error;
       return data as UserRole[];
     },
@@ -157,7 +157,12 @@ export function useAuditLogs() {
 export function useAddAuditLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { action: string; table_name?: string; record_id?: string; details?: Record<string, unknown> }) => {
+    mutationFn: async (input: {
+      action: string;
+      table_name?: string;
+      record_id?: string;
+      details?: Record<string, unknown>;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         await localInsert("audit_logs", {
@@ -170,7 +175,9 @@ export function useAddAuditLog() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("audit_logs").insert({
         user_id: user.id,
@@ -228,8 +235,15 @@ export function useCan(perm: Permission): boolean {
 }
 
 /** Render `children` only when the current user has `perm`. */
-export function Can({ perm, children, fallback = null }: { perm: Permission; children: ReactNode; fallback?: ReactNode }) {
+export function Can({
+  perm,
+  children,
+  fallback = null,
+}: {
+  perm: Permission;
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   const allowed = useCan(perm);
   return allowed ? <>{children}</> : <>{fallback}</>;
 }
-

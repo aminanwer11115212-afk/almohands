@@ -68,7 +68,10 @@ function NewProductPage() {
     const t = setTimeout(() => setScanOpen(true), 350);
     return () => clearTimeout(t);
   }, []);
-  const saveMutation = useSafeMutation<{ id?: string } | null, ReturnType<typeof productSchema.parse>>({
+  const saveMutation = useSafeMutation<
+    { id?: string } | null,
+    ReturnType<typeof productSchema.parse>
+  >({
     logScope: "products",
     action: "create",
     errorFallback: "تعذّر حفظ المنتج",
@@ -116,20 +119,24 @@ function NewProductPage() {
       if (authErr) throw authErr;
       const userId = userData.user?.id;
       if (!userId) throw new Error("انتهت الجلسة — سجّل الدخول مجدداً");
-      const { data: inserted, error } = await supabase.from("products").insert({
-        user_id: userId,
-        name: p.name,
-        barcode: p.barcode ?? null,
-        part_number: p.partNumber ?? null,
-        category: p.category ?? null,
-        unit: p.unit,
-        location: p.location ?? null,
-        quantity: p.quantity,
-        min_quantity: p.minQuantity,
-        cost_price: p.costPrice,
-        sale_price: p.salePrice,
-        notes: p.notes ?? null,
-      } as never).select("id").single();
+      const { data: inserted, error } = await supabase
+        .from("products")
+        .insert({
+          user_id: userId,
+          name: p.name,
+          barcode: p.barcode ?? null,
+          part_number: p.partNumber ?? null,
+          category: p.category ?? null,
+          unit: p.unit,
+          location: p.location ?? null,
+          quantity: p.quantity,
+          min_quantity: p.minQuantity,
+          cost_price: p.costPrice,
+          sale_price: p.salePrice,
+          notes: p.notes ?? null,
+        } as never)
+        .select("id")
+        .single();
       if (error) throw error;
       return inserted as { id?: string } | null;
     },
@@ -180,18 +187,27 @@ function NewProductPage() {
     saveMutation.mutate(parsed.data);
   }
 
-
-
   return (
     <AppShell title="إضافة منتج" showBack>
       <form onSubmit={onSubmit} className="space-y-3 pb-24">
         <Field label="اسم المنتج *">
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="ip" placeholder="مثال: فلتر زيت تويوتا" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="ip"
+            placeholder="مثال: فلتر زيت تويوتا"
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الباركود">
             <div className="flex gap-2">
-              <input value={barcode} onChange={(e) => setBarcode(e.target.value)} dir="ltr" className="ip text-left flex-1" />
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                dir="ltr"
+                className="ip text-left flex-1"
+              />
               <button
                 type="button"
                 onClick={() => setScanOpen(true)}
@@ -204,42 +220,91 @@ function NewProductPage() {
             </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
-            <input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} dir="ltr" className="ip text-left" placeholder="مثال: 90915-YZZE2" />
+            <input
+              value={partNumber}
+              onChange={(e) => setPartNumber(e.target.value)}
+              dir="ltr"
+              className="ip text-left"
+              placeholder="مثال: 90915-YZZE2"
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الفئة">
-            <input value={category} onChange={(e) => setCategory(e.target.value)} className="ip" placeholder="فلاتر" />
+            <input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="ip"
+              placeholder="فلاتر"
+            />
           </Field>
           <Field label="الموقع (الرف)">
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="ip" placeholder="A-12" />
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="ip"
+              placeholder="A-12"
+            />
           </Field>
         </div>
         <div>
           <Field label="الوحدة">
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="ip">
-              {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الكمية">
-            <input type="number" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="ip"
+            />
           </Field>
           <Field label="الحد الأدنى">
-            <input type="number" inputMode="numeric" value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minQuantity}
+              onChange={(e) => setMinQuantity(e.target.value)}
+              className="ip"
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="سعر التكلفة (SDG)">
-            <input type="number" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="decimal"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              className="ip"
+            />
           </Field>
           <Field label="سعر البيع (SDG)">
-            <input type="number" inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className="ip" />
+            <input
+              type="number"
+              inputMode="decimal"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+              className="ip"
+            />
           </Field>
         </div>
         <Field label="ملاحظات">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="ip py-2 h-auto" />
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className="ip py-2 h-auto"
+          />
         </Field>
 
         {error && <p className="text-xs text-destructive text-center">{error}</p>}
@@ -249,17 +314,25 @@ function NewProductPage() {
           disabled={saving}
           className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
         >
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <><Save className="size-4" /> حفظ المنتج</>}
+          {saving ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <Save className="size-4" /> حفظ المنتج
+            </>
+          )}
         </button>
       </form>
 
       <BarcodeScannerDialog
         open={scanOpen}
         onClose={() => setScanOpen(false)}
-        onDetected={(code) => { setBarcode(code); toast.success("تم قراءة الباركود"); }}
+        onDetected={(code) => {
+          setBarcode(code);
+          toast.success("تم قراءة الباركود");
+        }}
         contextTag="products.new"
       />
-
 
       <style>{`
         .ip {

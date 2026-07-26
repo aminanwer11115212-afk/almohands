@@ -183,7 +183,13 @@ export function useCreatePurchase() {
                         cost_price = CASE WHEN ? > 0 THEN ? ELSE cost_price END,
                         updated_at = ?
                   WHERE id = ?`,
-                [Number(it.quantity), Number(it.cost_price), Number(it.cost_price), now, it.product_id],
+                [
+                  Number(it.quantity),
+                  Number(it.cost_price),
+                  Number(it.cost_price),
+                  now,
+                  it.product_id,
+                ],
               );
             }
           }

@@ -18,12 +18,22 @@ export const Route = createFileRoute("/admin/diagnostics")({
 });
 
 type AuditRow = {
-  id: string; action: string; table_name: string | null;
-  record_id: string | null; created_at: string; details: unknown;
+  id: string;
+  action: string;
+  table_name: string | null;
+  record_id: string | null;
+  created_at: string;
+  details: unknown;
 };
 type NotifRow = {
-  id: string; type: string; title: string; message: string | null;
-  created_at: string; read: boolean; invoice_id: string | null; product_id: string | null;
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  created_at: string;
+  read: boolean;
+  invoice_id: string | null;
+  product_id: string | null;
 };
 
 function DiagnosticsPage() {
@@ -51,17 +61,27 @@ function DiagnosticsPage() {
       }
 
       const [{ data: a }, { data: n }] = await Promise.all([
-        supabase.from("audit_logs").select("id,action,table_name,record_id,created_at,details")
-          .order("created_at", { ascending: false }).limit(10),
-        supabase.from("notifications").select("id,type,title,message,created_at,read,invoice_id,product_id")
-          .order("created_at", { ascending: false }).limit(10),
+        supabase
+          .from("audit_logs")
+          .select("id,action,table_name,record_id,created_at,details")
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("notifications")
+          .select("id,type,title,message,created_at,read,invoice_id,product_id")
+          .order("created_at", { ascending: false })
+          .limit(10),
       ]);
       setAudits((a ?? []) as AuditRow[]);
       setNotifs((n ?? []) as NotifRow[]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   const copy = (v: string) => {
     navigator.clipboard?.writeText(v).then(() => toast.success("تم النسخ"));
@@ -87,17 +107,28 @@ function DiagnosticsPage() {
           </header>
           {status ? (
             <div className="p-4 text-xs space-y-1">
-              <div><span className="text-muted-foreground">الحالة: </span><b>{status.label}</b> <span className="text-muted-foreground">({status.reason})</span></div>
+              <div>
+                <span className="text-muted-foreground">الحالة: </span>
+                <b>{status.label}</b>{" "}
+                <span className="text-muted-foreground">({status.reason})</span>
+              </div>
               <div className="text-muted-foreground">{status.detail}</div>
-              <div className="text-muted-foreground">الوقت: {new Date(status.ts).toLocaleString("ar-EG")}</div>
+              <div className="text-muted-foreground">
+                الوقت: {new Date(status.ts).toLocaleString("ar-EG")}
+              </div>
               {status.context && (
-                <pre className="mt-2 rounded-lg bg-muted/60 p-2 text-[10px] font-mono overflow-auto" dir="ltr">
+                <pre
+                  className="mt-2 rounded-lg bg-muted/60 p-2 text-[10px] font-mono overflow-auto"
+                  dir="ltr"
+                >
                   {JSON.stringify(status.context, null, 2)}
                 </pre>
               )}
             </div>
           ) : (
-            <div className="p-6 text-center text-xs text-muted-foreground">لا توجد حالة مسجّلة بعد.</div>
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              لا توجد حالة مسجّلة بعد.
+            </div>
           )}
         </section>
 
@@ -110,27 +141,40 @@ function DiagnosticsPage() {
             <div className="p-6 text-center text-xs text-muted-foreground">لا توجد أحداث.</div>
           ) : (
             <table className="w-full text-xs">
-              <thead className="bg-muted/30 text-[11px]"><tr>
-                <th className="text-right px-3 py-2">الوقت</th>
-                <th className="text-right px-3 py-2">الحدث</th>
-                <th className="text-right px-3 py-2">الجدول</th>
-                <th className="text-right px-3 py-2">Record ID</th>
-                <th className="text-right px-3 py-2">التفاصيل</th>
-              </tr></thead>
+              <thead className="bg-muted/30 text-[11px]">
+                <tr>
+                  <th className="text-right px-3 py-2">الوقت</th>
+                  <th className="text-right px-3 py-2">الحدث</th>
+                  <th className="text-right px-3 py-2">الجدول</th>
+                  <th className="text-right px-3 py-2">Record ID</th>
+                  <th className="text-right px-3 py-2">التفاصيل</th>
+                </tr>
+              </thead>
               <tbody>
                 {audits.map((r) => (
                   <tr key={r.id} className="border-t border-border align-top">
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{new Date(r.created_at).toLocaleString("ar-EG")}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {new Date(r.created_at).toLocaleString("ar-EG")}
+                    </td>
                     <td className="px-3 py-2 font-bold">{r.action}</td>
                     <td className="px-3 py-2">{r.table_name ?? "—"}</td>
                     <td className="px-3 py-2">
                       {r.record_id ? (
-                        <button onClick={() => copy(r.record_id!)} className="inline-flex items-center gap-1 font-mono text-[10px] hover:text-brand" dir="ltr">
+                        <button
+                          onClick={() => copy(r.record_id!)}
+                          className="inline-flex items-center gap-1 font-mono text-[10px] hover:text-brand"
+                          dir="ltr"
+                        >
                           <Copy className="size-3" /> {r.record_id.slice(0, 8)}…
                         </button>
-                      ) : "—"}
+                      ) : (
+                        "—"
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-[10px] font-mono max-w-[260px] truncate" dir="ltr">
+                    <td
+                      className="px-3 py-2 text-[10px] font-mono max-w-[260px] truncate"
+                      dir="ltr"
+                    >
                       {r.details ? JSON.stringify(r.details) : "—"}
                     </td>
                   </tr>
@@ -149,31 +193,45 @@ function DiagnosticsPage() {
             <div className="p-6 text-center text-xs text-muted-foreground">لا توجد إشعارات.</div>
           ) : (
             <table className="w-full text-xs">
-              <thead className="bg-muted/30 text-[11px]"><tr>
-                <th className="text-right px-3 py-2">الوقت</th>
-                <th className="text-right px-3 py-2">النوع</th>
-                <th className="text-right px-3 py-2">العنوان</th>
-                <th className="text-right px-3 py-2">مقروء</th>
-                <th className="text-right px-3 py-2">مرجع</th>
-              </tr></thead>
+              <thead className="bg-muted/30 text-[11px]">
+                <tr>
+                  <th className="text-right px-3 py-2">الوقت</th>
+                  <th className="text-right px-3 py-2">النوع</th>
+                  <th className="text-right px-3 py-2">العنوان</th>
+                  <th className="text-right px-3 py-2">مقروء</th>
+                  <th className="text-right px-3 py-2">مرجع</th>
+                </tr>
+              </thead>
               <tbody>
                 {notifs.map((r) => {
                   const ref = r.invoice_id || r.product_id;
                   return (
                     <tr key={r.id} className="border-t border-border align-top">
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{new Date(r.created_at).toLocaleString("ar-EG")}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                        {new Date(r.created_at).toLocaleString("ar-EG")}
+                      </td>
                       <td className="px-3 py-2 font-bold">{r.type}</td>
                       <td className="px-3 py-2">
                         {r.title}
-                        {r.message && <div className="text-[10px] text-muted-foreground mt-0.5">{r.message}</div>}
+                        {r.message && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {r.message}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">{r.read ? "نعم" : "لا"}</td>
                       <td className="px-3 py-2">
                         {ref ? (
-                          <button onClick={() => copy(ref)} className="inline-flex items-center gap-1 font-mono text-[10px] hover:text-brand" dir="ltr">
+                          <button
+                            onClick={() => copy(ref)}
+                            className="inline-flex items-center gap-1 font-mono text-[10px] hover:text-brand"
+                            dir="ltr"
+                          >
                             <Copy className="size-3" /> {ref.slice(0, 8)}…
                           </button>
-                        ) : "—"}
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   );

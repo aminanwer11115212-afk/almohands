@@ -27,7 +27,8 @@ function isFatalError(err: unknown): boolean {
 function toPostgresRow(table: string, data: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data };
   for (const col of BOOLEAN_COLUMNS[table] ?? []) {
-    if (col in out && out[col] != null) out[col] = out[col] === 1 || out[col] === "1" || out[col] === true;
+    if (col in out && out[col] != null)
+      out[col] = out[col] === 1 || out[col] === "1" || out[col] === true;
   }
   for (const col of JSON_COLUMNS[table] ?? []) {
     const v = out[col];

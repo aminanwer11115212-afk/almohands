@@ -101,13 +101,17 @@ async function fetchInsights() {
   const [recent, pendingAll, lowStockAll, series] = await Promise.all([
     supabase
       .from("invoices")
-      .select("id, invoice_number, total, paid, remaining, payment_method, customer_name, created_at")
+      .select(
+        "id, invoice_number, total, paid, remaining, payment_method, customer_name, created_at",
+      )
       .order("created_at", { ascending: false })
       .limit(6),
     // FIX: fetch ALL pending invoices so pendingTotal reflects the real remaining balance.
     supabase
       .from("invoices")
-      .select("id, invoice_number, total, paid, remaining, payment_method, customer_name, created_at")
+      .select(
+        "id, invoice_number, total, paid, remaining, payment_method, customer_name, created_at",
+      )
       .gt("remaining", 0)
       .order("created_at", { ascending: false })
       .limit(500),
@@ -119,10 +123,7 @@ async function fetchInsights() {
       .gt("min_quantity", 0)
       .order("quantity", { ascending: true })
       .limit(200),
-    supabase
-      .from("invoices")
-      .select("total, created_at")
-      .gte("created_at", fromLocalIso),
+    supabase.from("invoices").select("total, created_at").gte("created_at", fromLocalIso),
   ]);
 
   const firstErr = recent.error || pendingAll.error || lowStockAll.error || series.error;

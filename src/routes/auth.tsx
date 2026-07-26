@@ -19,8 +19,16 @@ function safeNext(next: string | undefined): string {
   return next;
 }
 
-const emailSchema = z.string().trim().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة").max(255, "البريد طويل جداً");
-const passwordSchema = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72, "كلمة المرور طويلة جداً");
+const emailSchema = z
+  .string()
+  .trim()
+  .min(1, "البريد الإلكتروني مطلوب")
+  .email("صيغة البريد الإلكتروني غير صحيحة")
+  .max(255, "البريد طويل جداً");
+const passwordSchema = z
+  .string()
+  .min(6, "كلمة المرور 6 أحرف على الأقل")
+  .max(72, "كلمة المرور طويلة جداً");
 const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
 
 function AuthPage() {
@@ -34,12 +42,15 @@ function AuthPage() {
 
   useEffect(() => {
     let alive = true;
-    supabase.auth.getSession()
+    supabase.auth
+      .getSession()
       .then(({ data }) => {
         if (alive && data.session) window.location.assign(nextPath);
       })
       .catch((err) => console.error("Session check failed:", err));
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [nextPath]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -53,7 +64,8 @@ function AuthPage() {
     }
 
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      const msg = "تسجيل الدخول يتطلب اتصالاً بالإنترنت لأول مرة. إذا سبق أن سجّلت الدخول على هذا الجهاز فستدخل تلقائياً.";
+      const msg =
+        "تسجيل الدخول يتطلب اتصالاً بالإنترنت لأول مرة. إذا سبق أن سجّلت الدخول على هذا الجهاز فستدخل تلقائياً.";
       setError(msg);
       toast.error(msg);
       return;
@@ -89,9 +101,14 @@ function AuthPage() {
       />
       <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80 pointer-events-none" />
       <div className="relative w-full max-w-sm">
-
         <div className="flex flex-col items-center text-center mb-6">
-          <img src={logo} alt="شعار المهندس" width={80} height={80} className="size-20 object-contain" />
+          <img
+            src={logo}
+            alt="شعار المهندس"
+            width={80}
+            height={80}
+            className="size-20 object-contain"
+          />
           <h1 className="mt-2 text-2xl font-extrabold text-brand">المهندس</h1>
           <p className="text-xs text-muted-foreground">نظام إدارة قطع غيار السيارات</p>
         </div>
@@ -129,7 +146,13 @@ function AuthPage() {
               disabled={loading}
               className="w-full h-12 rounded-xl bg-brand text-brand-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {loading ? <Loader2 className="size-4 animate-spin" /> : (<><LogIn className="size-4" /> تسجيل الدخول</>)}
+              {loading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <>
+                  <LogIn className="size-4" /> تسجيل الدخول
+                </>
+              )}
             </button>
 
             <p className="text-[11px] text-muted-foreground text-center pt-2">
@@ -154,7 +177,6 @@ function AuthPage() {
         .input-base:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 30%, transparent); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 0.4; } }
       `}</style>
-
     </div>
   );
 }

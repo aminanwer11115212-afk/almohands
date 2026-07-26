@@ -12,7 +12,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { formatSDG } from "@/lib/format";
 
-
 import { PartialReturnDialog } from "@/components/PartialReturnDialog";
 import {
   Printer,
@@ -44,9 +43,11 @@ import {
 
 /** Extract plain row objects from a PowerSync tx.execute() query result. */
 function txRows(res: unknown): Record<string, unknown>[] {
-  const rows = (res as {
-    rows?: { _array?: unknown[]; length?: number; item?: (i: number) => unknown };
-  } | null)?.rows;
+  const rows = (
+    res as {
+      rows?: { _array?: unknown[]; length?: number; item?: (i: number) => unknown };
+    } | null
+  )?.rows;
   if (!rows) return [];
   if (Array.isArray(rows._array)) return rows._array as Record<string, unknown>[];
   if (typeof rows.item === "function" && typeof rows.length === "number") {
@@ -89,14 +90,12 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     queryFn: async () => {
       if (canUseLocalData()) {
         const [invRow, itemRows] = await Promise.all([
-          localQueryOne<Record<string, unknown>>(
-            `SELECT * FROM invoices WHERE id = ?`,
-            [invoiceId!],
-          ),
-          localQuery<Record<string, unknown>>(
-            `SELECT * FROM invoice_items WHERE invoice_id = ?`,
-            [invoiceId!],
-          ),
+          localQueryOne<Record<string, unknown>>(`SELECT * FROM invoices WHERE id = ?`, [
+            invoiceId!,
+          ]),
+          localQuery<Record<string, unknown>>(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [
+            invoiceId!,
+          ]),
         ]);
         return {
           inv: invRow ? fromLocalRow<any>("invoices", invRow) : null,
@@ -207,8 +206,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     if (!inv || deleting) return;
 
     // Read any payments linked to this invoice so the confirmation is honest.
-    let linkedPays: Array<{ id: string; amount: number; account_id: string | null }> | null =
-      null;
+    let linkedPays: Array<{ id: string; amount: number; account_id: string | null }> | null = null;
     if (canUseLocalData()) {
       linkedPays = await localQuery<{ id: string; amount: number; account_id: string | null }>(
         `SELECT id, amount, account_id FROM payments WHERE invoice_id = ?`,
@@ -227,18 +225,17 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       0,
     );
 
-    const reason =
-      window.prompt(
-        `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً (عملية ذرية موحّدة)\n\n` +
-          `- سيتم إرجاع ${items.length} صنف/أصناف إلى المخزون\n` +
-          `- خصم الفاتورة من إجمالي المبيعات\n` +
-          (paysCount > 0
-            ? `- حذف ${paysCount} دفعة (بقيمة ${formatSDG(paysTotal)}) من الحسابات\n`
-            : "") +
-          `- تسجيل عملية الحذف كاملة في سجل التدقيق\n` +
-          `- لا يمكن التراجع\n\nاكتب سبب الحذف (اختياري) واضغط موافق للمتابعة، أو إلغاء:`,
-        "",
-      );
+    const reason = window.prompt(
+      `⚠️ حذف الفاتورة #${inv.invoice_number} نهائياً (عملية ذرية موحّدة)\n\n` +
+        `- سيتم إرجاع ${items.length} صنف/أصناف إلى المخزون\n` +
+        `- خصم الفاتورة من إجمالي المبيعات\n` +
+        (paysCount > 0
+          ? `- حذف ${paysCount} دفعة (بقيمة ${formatSDG(paysTotal)}) من الحسابات\n`
+          : "") +
+        `- تسجيل عملية الحذف كاملة في سجل التدقيق\n` +
+        `- لا يمكن التراجع\n\nاكتب سبب الحذف (اختياري) واضغط موافق للمتابعة، أو إلغاء:`,
+      "",
+    );
     if (reason === null) return; // user pressed cancel
 
     setDeleting(true);
@@ -278,15 +275,11 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
             ),
           );
           const payRows = txRows(
-            await tx.execute(
-              `SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at`,
-              [inv.id],
-            ),
+            await tx.execute(`SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at`, [
+              inv.id,
+            ]),
           );
-          const paymentsTotal = payRows.reduce(
-            (s, p) => s + (Number((p as any).amount) || 0),
-            0,
-          );
+          const paymentsTotal = payRows.reduce((s, p) => s + (Number((p as any).amount) || 0), 0);
 
           const accountsImpactMap = new Map<string, number>();
           for (const p of payRows as any[]) {
@@ -410,9 +403,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
           (v.payments_deleted
             ? ` — حُذفت ${v.payments_deleted} دفعة (${formatSDG(Number(v.payments_total || 0))})`
             : "") +
-          (v.stock_restored?.length
-            ? ` وأُرجع ${v.stock_restored.length} صنف/أصناف للمخزون`
-            : ""),
+          (v.stock_restored?.length ? ` وأُرجع ${v.stock_restored.length} صنف/أصناف للمخزون` : ""),
         { duration: 6000 },
       );
       onOpenChange(false);
@@ -422,8 +413,6 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       setDeleting(false);
     }
   }
-
-
 
   function invalidateAll() {
     if (!inv) return;
@@ -438,8 +427,6 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
     qc.invalidateQueries({ queryKey: ["payments"] });
     qc.invalidateQueries({ queryKey: ["customers"] });
   }
-
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -505,8 +492,8 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
                   {inv.payment_method === "bank"
                     ? "تحويل بنكي"
                     : inv.payment_method === "mixed"
-                    ? "مختلط"
-                    : "نقدي"}
+                      ? "مختلط"
+                      : "نقدي"}
                 </span>
               </div>
             </div>
@@ -519,9 +506,7 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
               </div>
               <ul className="max-h-48 overflow-y-auto divide-y divide-border text-sm">
                 {items.length === 0 ? (
-                  <li className="p-3 text-center text-xs text-muted-foreground">
-                    لا توجد أصناف
-                  </li>
+                  <li className="p-3 text-center text-xs text-muted-foreground">لا توجد أصناف</li>
                 ) : (
                   items.map((it: any) => (
                     <li key={it.id} className="p-2.5 flex items-center gap-2">
@@ -590,7 +575,11 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
                   disabled={returning}
                   className="flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 disabled:opacity-60 transition"
                 >
-                  {returning ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                  {returning ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="size-4" />
+                  )}
                   إرجاع الكل
                 </button>
 
@@ -600,7 +589,11 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
                   disabled={deleting}
                   className="col-span-2 flex items-center justify-center gap-2 text-sm font-bold rounded-lg px-3 py-2.5 bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-60 transition"
                 >
-                  {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                  {deleting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
                   حذف الفاتورة + إرجاع كل المخزون
                 </button>
               </div>
@@ -619,7 +612,6 @@ export function InvoiceActionsModal({ invoiceId, open, onOpenChange }: Props) {
       </DialogContent>
     </Dialog>
   );
-
 }
 
 function Row({
@@ -658,8 +650,8 @@ function ActionBtn({
     tone === "primary"
       ? "bg-brand text-brand-foreground hover:opacity-90"
       : tone === "whatsapp"
-      ? "bg-emerald-500 text-white hover:bg-emerald-600"
-      : "bg-card border border-border text-foreground hover:bg-muted";
+        ? "bg-emerald-500 text-white hover:bg-emerald-600"
+        : "bg-card border border-border text-foreground hover:bg-muted";
   return (
     <button
       type="button"

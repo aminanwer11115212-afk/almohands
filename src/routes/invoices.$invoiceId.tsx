@@ -15,11 +15,48 @@ import {
   requireUserId,
 } from "@/lib/data/local";
 import { formatSDG, formatSDGShort } from "@/lib/format";
-import { Printer, ArrowRight, FileText, Receipt, Share2, Loader2, Eye, EyeOff, Edit3, Save, X, AlertTriangle, RotateCw, RotateCcw, ZoomIn, ZoomOut, Maximize2, Plus, Trash2, Wallet, Landmark, CreditCard, Search, Download, Phone } from "lucide-react";
+import {
+  Printer,
+  ArrowRight,
+  FileText,
+  Receipt,
+  Share2,
+  Loader2,
+  Eye,
+  EyeOff,
+  Edit3,
+  Save,
+  X,
+  AlertTriangle,
+  RotateCw,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Plus,
+  Trash2,
+  Wallet,
+  Landmark,
+  CreditCard,
+  Search,
+  Download,
+  Phone,
+} from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useStoreProfile, useSaveStoreProfile } from "@/hooks/use-store-profile";
-import { buildInvoiceText, downloadElementAsPdf, sharePdfFileNative, openWhatsAppShare } from "@/lib/invoice-share";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  buildInvoiceText,
+  downloadElementAsPdf,
+  sharePdfFileNative,
+  openWhatsAppShare,
+} from "@/lib/invoice-share";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { WhatsAppCustomerPickerDialog } from "@/components/WhatsAppCustomerPickerDialog";
 import { toast } from "sonner";
 import { handleError } from "@/lib/errors";
@@ -39,7 +76,11 @@ export const Route = createFileRoute("/invoices/$invoiceId")({
     autopdf: s.autopdf === "1" || s.autopdf === 1 || s.autopdf === true ? 1 : 0,
     autoshare: s.autoshare === "1" || s.autoshare === 1 || s.autoshare === true ? 1 : 0,
   }),
-  component: () => (<PermissionGate perm="invoices.view"><InvoiceDetailPage /></PermissionGate>),
+  component: () => (
+    <PermissionGate perm="invoices.view">
+      <InvoiceDetailPage />
+    </PermissionGate>
+  ),
   errorComponent: InvoiceDetailError,
   notFoundComponent: InvoiceNotFound,
 });
@@ -58,17 +99,24 @@ function InvoiceDetailError({ error, reset }: { error: Error; reset: () => void 
         <AlertTriangle className="mx-auto size-10 text-destructive" />
         <h2 className="text-lg font-bold">تعذّر عرض هذه الفاتورة</h2>
         <p className="text-sm text-muted-foreground">
-          حدث خطأ أثناء تحميل بيانات الفاتورة. قد يكون الاتصال ضعيفاً أو أن الفاتورة تم تعديلها من جهاز آخر.
+          حدث خطأ أثناء تحميل بيانات الفاتورة. قد يكون الاتصال ضعيفاً أو أن الفاتورة تم تعديلها من
+          جهاز آخر.
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => { reset(); router.invalidate(); }}
+            onClick={() => {
+              reset();
+              router.invalidate();
+            }}
             className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-bold inline-flex items-center gap-1"
           >
             <RotateCw className="size-4" /> إعادة المحاولة
           </button>
-          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
-            className="px-4 h-9 rounded-md border border-input bg-background text-sm inline-flex items-center">
+          <Link
+            to="/invoices"
+            search={{ q: "", status: "all", from: "", to: "" }}
+            className="px-4 h-9 rounded-md border border-input bg-background text-sm inline-flex items-center"
+          >
             رجوع للفواتير
           </Link>
         </div>
@@ -84,15 +132,17 @@ function InvoiceNotFound() {
         <Receipt className="mx-auto size-10 text-muted-foreground" />
         <h2 className="text-lg font-bold">الفاتورة غير موجودة</h2>
         <p className="text-sm text-muted-foreground">قد تكون قد حُذفت أو أن الرابط غير صحيح.</p>
-        <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }}
-          className="inline-block px-4 h-9 leading-9 rounded-md bg-primary text-primary-foreground text-sm font-bold">
+        <Link
+          to="/invoices"
+          search={{ q: "", status: "all", from: "", to: "" }}
+          className="inline-block px-4 h-9 leading-9 rounded-md bg-primary text-primary-foreground text-sm font-bold"
+        >
           رجوع للفواتير
         </Link>
       </div>
     </AppShell>
   );
 }
-
 
 type PrintFormat = "a4" | "thermal";
 
@@ -120,7 +170,6 @@ function InvoiceDetailPage() {
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  
 
   // Robust Fit-to-page: accounts for viewport, device pixel ratio, container padding,
   // scrollbars, and mobile browser quirks. Computes zoom based on both width & height
@@ -138,7 +187,8 @@ function InvoiceDetailPage() {
     const availW = Math.max(120, rect.width - 40);
     const availH = Math.max(120, rect.height - 40);
     // On very small viewports, don't allow the sheet to overflow horizontally.
-    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+    const isMobile =
+      typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
     const wZoom = availW / paperW;
     const hZoom = availH / paperH;
     // Mobile: prioritize width fit; desktop: use the smaller of the two so nothing clips.
@@ -202,7 +252,11 @@ function InvoiceDetailPage() {
     setFormat(next);
     // Save per-user preference immediately
     if (userId) {
-      try { localStorage.setItem(`invoice_print_format:${userId}`, next); } catch { /* quota */ }
+      try {
+        localStorage.setItem(`invoice_print_format:${userId}`, next);
+      } catch {
+        /* quota */
+      }
     }
     const nextSize = next === "thermal" ? "80mm" : "A4";
     if (storeProfile && storeProfile.print_size !== nextSize) {
@@ -215,10 +269,9 @@ function InvoiceDetailPage() {
     queryFn: async () => {
       if (canUseLocalData()) {
         const inv = await localQueryOne<any>(`SELECT * FROM invoices WHERE id = ?`, [invoiceId]);
-        const items = await localQuery<any>(
-          `SELECT * FROM invoice_items WHERE invoice_id = ?`,
-          [invoiceId],
-        );
+        const items = await localQuery<any>(`SELECT * FROM invoice_items WHERE invoice_id = ?`, [
+          invoiceId,
+        ]);
         let paymentMethod: any = null;
         if (inv?.payment_method_id) {
           const pm = await localQueryOne<Record<string, unknown>>(
@@ -276,7 +329,16 @@ function InvoiceDetailPage() {
   });
 
   // Editable rows: [{ id, product_id, product_name, quantity, unit_price }]
-  type EditRow = { id: string; product_id: string | null; product_name: string; unit: string; quantity: number; unit_price: number; _origQty: number; _isNew?: boolean };
+  type EditRow = {
+    id: string;
+    product_id: string | null;
+    product_name: string;
+    unit: string;
+    quantity: number;
+    unit_price: number;
+    _origQty: number;
+    _isNew?: boolean;
+  };
   const [editRows, setEditRows] = useState<EditRow[]>([]);
   const [deletedRowIds, setDeletedRowIds] = useState<Set<string>>(new Set());
   const [addQuery, setAddQuery] = useState("");
@@ -320,10 +382,14 @@ function InvoiceDetailPage() {
                 localStorage.removeItem(draftKey);
                 setEditRows(
                   data.items.map((it: any) => ({
-                    id: it.id, product_id: it.product_id, product_name: it.product_name,
+                    id: it.id,
+                    product_id: it.product_id,
+                    product_name: it.product_name,
                     unit: it.unit ?? "قطعة",
-                    quantity: Number(it.quantity) || 0, unit_price: Number(it.unit_price) || 0,
-                    _origQty: Number(it.quantity) || 0, _isNew: false,
+                    quantity: Number(it.quantity) || 0,
+                    unit_price: Number(it.unit_price) || 0,
+                    _origQty: Number(it.quantity) || 0,
+                    _isNew: false,
                   })),
                 );
               },
@@ -331,7 +397,9 @@ function InvoiceDetailPage() {
           });
         }
       }
-    } catch { /* ignore corrupted draft */ }
+    } catch {
+      /* ignore corrupted draft */
+    }
     setDraftRestored(true);
   }, [editMode, draftRestored, data?.items, draftKey]);
 
@@ -340,7 +408,9 @@ function InvoiceDetailPage() {
     if (!editMode || editRows.length === 0) return;
     try {
       localStorage.setItem(draftKey, JSON.stringify({ rows: editRows, savedAt: Date.now() }));
-    } catch { /* quota / private mode — ignore */ }
+    } catch {
+      /* quota / private mode — ignore */
+    }
   }, [editMode, editRows, draftKey]);
 
   // Stock availability lookup for edit mode: for each product used, fetch current stock.
@@ -361,15 +431,19 @@ function InvoiceDetailPage() {
           editProductIds,
         );
         const map = new Map<string, { id: string; name: string; quantity: number }>();
-        for (const p of prods) map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
+        for (const p of prods)
+          map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
         return map;
       }
 
       const { data: prods, error } = await supabase
-        .from("products").select("id, name, quantity").in("id", editProductIds);
+        .from("products")
+        .select("id, name, quantity")
+        .in("id", editProductIds);
       if (error) throw error;
       const map = new Map<string, { id: string; name: string; quantity: number }>();
-      for (const p of prods ?? []) map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
+      for (const p of prods ?? [])
+        map.set(p.id, { id: p.id, name: p.name, quantity: Number(p.quantity) || 0 });
       return map;
     },
     staleTime: 5_000,
@@ -395,7 +469,9 @@ function InvoiceDetailPage() {
       const key = String(r.product_id ?? `name:${r.product_name ?? ""}`);
       returnedQty.set(key, (returnedQty.get(key) ?? 0) + (Number(r.quantity) || 0));
     }
-    let revenue = 0, cost = 0, returnedProfit = 0;
+    let revenue = 0,
+      cost = 0,
+      returnedProfit = 0;
     const perLine = items.map((it) => {
       const qty = Number(it.quantity) || 0;
       const unit = Number(it.unit_price) || 0;
@@ -404,10 +480,21 @@ function InvoiceDetailPage() {
       const rq = Math.min(returnedQty.get(key) ?? 0, qty);
       if (rq > 0) returnedQty.set(key, (returnedQty.get(key) ?? 0) - rq);
       const netQty = qty - rq;
-      const r = unit * netQty, k = c * netQty, p = r - k;
-      revenue += r; cost += k;
+      const r = unit * netQty,
+        k = c * netQty,
+        p = r - k;
+      revenue += r;
+      cost += k;
       returnedProfit += (unit - c) * rq;
-      return { id: it.id, name: it.product_name as string, qty: netQty, unit, cost: c, profit: p, returnedQty: rq };
+      return {
+        id: it.id,
+        name: it.product_name as string,
+        qty: netQty,
+        unit,
+        cost: c,
+        profit: p,
+        returnedQty: rq,
+      };
     });
     const discount = Number(data?.inv?.discount) || 0;
     const grossProfit = revenue - cost;
@@ -415,7 +502,6 @@ function InvoiceDetailPage() {
     const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
     return { perLine, revenue, cost, discount, grossProfit, netProfit, margin, returnedProfit };
   }, [data?.items, data?.inv?.discount, acceptedReturns]);
-
 
   const maxAllowedFor = (row: EditRow): number | null => {
     if (!row.product_id || !stockMap) return null;
@@ -425,7 +511,9 @@ function InvoiceDetailPage() {
   };
 
   // Per-row inline validation errors — {rowId: {quantity?, unit_price?}}
-  const [rowErrors, setRowErrors] = useState<Record<string, { quantity?: string; unit_price?: string }>>({});
+  const [rowErrors, setRowErrors] = useState<
+    Record<string, { quantity?: string; unit_price?: string }>
+  >({});
   const hasFieldErrors = useMemo(
     () => Object.values(rowErrors).some((e) => e.quantity || e.unit_price),
     [rowErrors],
@@ -452,7 +540,14 @@ function InvoiceDetailPage() {
       const visible = editRows.filter((r) => !deletedRowIds.has(r.id));
       const deletedRows = (data.items ?? []).filter((it: any) => deletedRowIds.has(it.id));
       logger.info("invoice_edit_save_start", {
-        context: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, rows: visible.length, added: visible.filter((r) => r._isNew).length, deleted: deletedRows.length, reqId },
+        context: {
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoice_number,
+          rows: visible.length,
+          added: visible.filter((r) => r._isNew).length,
+          deleted: deletedRows.length,
+          reqId,
+        },
       });
 
       if (canUseLocalData()) {
@@ -460,13 +555,18 @@ function InvoiceDetailPage() {
         const parsed = invoiceEditRowsSchema.safeParse(visible);
         if (!parsed.success) {
           const firstIssue = parsed.error.issues[0];
-          const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
+          const rowIdx =
+            typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
           const field = firstIssue?.path?.[1];
-          const label = field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
+          const label =
+            field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
           const msg = rowIdx
             ? `الصف ${rowIdx} — ${label}: ${firstIssue?.message ?? "قيمة غير صالحة"}`
-            : firstIssue?.message ?? "بيانات غير صالحة";
-          logger.warn("invoice_edit_validation_failed", { message: msg, context: { reqId, invoiceId: inv.id } });
+            : (firstIssue?.message ?? "بيانات غير صالحة");
+          logger.warn("invoice_edit_validation_failed", {
+            message: msg,
+            context: { reqId, invoiceId: inv.id },
+          });
           throw new Error(msg);
         }
         const rowsWithFlags = parsed.data.map((r, i) => ({
@@ -516,7 +616,10 @@ function InvoiceDetailPage() {
         }
         for (const it of deletedRows as any[]) {
           if (it.product_id) {
-            stockChanges.set(it.product_id, (stockChanges.get(it.product_id) ?? 0) + (Number(it.quantity) || 0));
+            stockChanges.set(
+              it.product_id,
+              (stockChanges.get(it.product_id) ?? 0) + (Number(it.quantity) || 0),
+            );
           }
         }
         // Re-check current stock so no product goes negative (mirrors remote race guard).
@@ -536,7 +639,10 @@ function InvoiceDetailPage() {
             }
             if ((current.get(pid) ?? 0) + change < 0) {
               const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
-              logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: pid, currentQty: current.get(pid), delta: -change } });
+              logger.warn("invoice_edit_stock_race", {
+                message: msg,
+                context: { reqId, productId: pid, currentQty: current.get(pid), delta: -change },
+              });
               throw new Error(msg);
             }
           }
@@ -558,7 +664,9 @@ function InvoiceDetailPage() {
           added: !!r._isNew,
         }));
         const deletions = deletedRows.map((it: any) => ({
-          item_id: it.id, product_id: it.product_id, product_name: it.product_name,
+          item_id: it.id,
+          product_id: it.product_id,
+          product_name: it.product_name,
           qty_removed: Number(it.quantity) || 0,
         }));
         const now = nowIso();
@@ -570,11 +678,23 @@ function InvoiceDetailPage() {
             if (!row._isNew) continue;
             const lineTotal = row.quantity * row.unit_price;
             const p = row.product_id ? stockMapLocal.get(row.product_id) : null;
-            const costPrice = p ? (Number(p.cost_price) || 0) : 0;
+            const costPrice = p ? Number(p.cost_price) || 0 : 0;
             await tx.execute(
               `INSERT INTO invoice_items (id, invoice_id, user_id, product_id, product_name, unit, quantity, unit_price, cost_price, line_total, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [genId(), inv.id, uid, row.product_id ?? null, row.product_name, row.unit ?? "قطعة", row.quantity, row.unit_price, costPrice, lineTotal, now],
+              [
+                genId(),
+                inv.id,
+                uid,
+                row.product_id ?? null,
+                row.product_name,
+                row.unit ?? "قطعة",
+                row.quantity,
+                row.unit_price,
+                costPrice,
+                lineTotal,
+                now,
+              ],
             );
           }
           // Update existing rows
@@ -608,8 +728,21 @@ function InvoiceDetailPage() {
             `INSERT INTO audit_logs (id, user_id, action, table_name, record_id, details, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
-              genId(), uid, "invoice.items.updated", "invoices", inv.id,
-              JSON.stringify({ req_id: reqId, invoice_number: inv.invoice_number, changes, deletions, new_total: newTotal, paid, remaining, status }),
+              genId(),
+              uid,
+              "invoice.items.updated",
+              "invoices",
+              inv.id,
+              JSON.stringify({
+                req_id: reqId,
+                invoice_number: inv.invoice_number,
+                changes,
+                deletions,
+                new_total: newTotal,
+                paid,
+                remaining,
+                status,
+              }),
               now,
             ],
           );
@@ -625,13 +758,18 @@ function InvoiceDetailPage() {
       const parsed = invoiceEditRowsSchema.safeParse(visible);
       if (!parsed.success) {
         const firstIssue = parsed.error.issues[0];
-        const rowIdx = typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
+        const rowIdx =
+          typeof firstIssue?.path?.[0] === "number" ? (firstIssue.path[0] as number) + 1 : 0;
         const field = firstIssue?.path?.[1];
-        const label = field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
+        const label =
+          field === "quantity" ? "الكمية" : field === "unit_price" ? "سعر الوحدة" : "الحقل";
         const msg = rowIdx
           ? `الصف ${rowIdx} — ${label}: ${firstIssue?.message ?? "قيمة غير صالحة"}`
-          : firstIssue?.message ?? "بيانات غير صالحة";
-        logger.warn("invoice_edit_validation_failed", { message: msg, context: { reqId, invoiceId: inv.id } });
+          : (firstIssue?.message ?? "بيانات غير صالحة");
+        logger.warn("invoice_edit_validation_failed", {
+          message: msg,
+          context: { reqId, invoiceId: inv.id },
+        });
         throw new Error(msg);
       }
 
@@ -680,7 +818,7 @@ function InvoiceDetailPage() {
         if (!row._isNew) continue;
         const lineTotal = row.quantity * row.unit_price;
         const p = row.product_id ? stockMapLocal.get(row.product_id) : null;
-        const costPrice = p ? (Number(p.cost_price) || 0) : 0;
+        const costPrice = p ? Number(p.cost_price) || 0 : 0;
         const { error: insErr } = await supabase.from("invoice_items").insert({
           invoice_id: inv.id,
           user_id: uid,
@@ -712,7 +850,10 @@ function InvoiceDetailPage() {
         if (delErr) throw delErr;
         if (it.product_id) {
           const { data: prod } = await supabase
-            .from("products").select("quantity").eq("id", it.product_id).maybeSingle();
+            .from("products")
+            .select("quantity")
+            .eq("id", it.product_id)
+            .maybeSingle();
           if (prod) {
             const restored = (Number(prod.quantity) || 0) + (Number(it.quantity) || 0);
             await supabase.from("products").update({ quantity: restored }).eq("id", it.product_id);
@@ -725,18 +866,26 @@ function InvoiceDetailPage() {
         const delta = row.quantity - row._origQty;
         if (delta === 0 || !row.product_id) continue;
         const { data: prod, error: prodErr } = await supabase
-          .from("products").select("quantity").eq("id", row.product_id).maybeSingle();
+          .from("products")
+          .select("quantity")
+          .eq("id", row.product_id)
+          .maybeSingle();
         if (prodErr) throw prodErr;
         if (!prod) continue;
         const currentQty = Number(prod.quantity) || 0;
         const newQty = currentQty - delta;
         if (newQty < 0) {
           const msg = `تعذّر تحديث المخزون — تغيّر رصيد الصنف قبل الحفظ. أعد المحاولة.`;
-          logger.warn("invoice_edit_stock_race", { message: msg, context: { reqId, productId: row.product_id, currentQty, delta } });
+          logger.warn("invoice_edit_stock_race", {
+            message: msg,
+            context: { reqId, productId: row.product_id, currentQty, delta },
+          });
           throw new Error(msg);
         }
         const { error: stockErr } = await supabase
-          .from("products").update({ quantity: newQty }).eq("id", row.product_id);
+          .from("products")
+          .update({ quantity: newQty })
+          .eq("id", row.product_id);
         if (stockErr) throw stockErr;
       }
 
@@ -764,7 +913,9 @@ function InvoiceDetailPage() {
           added: !!r._isNew,
         }));
         const deletions = deletedRows.map((it: any) => ({
-          item_id: it.id, product_id: it.product_id, product_name: it.product_name,
+          item_id: it.id,
+          product_id: it.product_id,
+          product_name: it.product_name,
           qty_removed: Number(it.quantity) || 0,
         }));
         await supabase.from("audit_logs").insert({
@@ -772,10 +923,22 @@ function InvoiceDetailPage() {
           action: "invoice.items.updated",
           table_name: "invoices",
           record_id: inv.id,
-          details: { req_id: reqId, invoice_number: inv.invoice_number, changes, deletions, new_total: newTotal, paid, remaining, status },
+          details: {
+            req_id: reqId,
+            invoice_number: inv.invoice_number,
+            changes,
+            deletions,
+            new_total: newTotal,
+            paid,
+            remaining,
+            status,
+          },
         });
       } catch (auditErr) {
-        logger.warn("audit_log_write_failed", { message: (auditErr as Error)?.message, context: { reqId } });
+        logger.warn("audit_log_write_failed", {
+          message: (auditErr as Error)?.message,
+          context: { reqId },
+        });
       }
 
       logger.info("invoice_edit_save_success", {
@@ -791,17 +954,22 @@ function InvoiceDetailPage() {
       setRowErrors({});
       setDraftRestored(false);
       setDeletedRowIds(new Set());
-      try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        /* ignore */
+      }
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["account-balances"] });
     },
-    onError: (e) => handleError(e, "تعذّر حفظ التعديلات", {
-      event: "invoice_edit_save_failed",
-      context: { invoiceId, rows: editRows.length },
-      action: { label: "إعادة المحاولة", onClick: () => saveMutation.mutate() },
-    }),
+    onError: (e) =>
+      handleError(e, "تعذّر حفظ التعديلات", {
+        event: "invoice_edit_save_failed",
+        context: { invoiceId, rows: editRows.length },
+        action: { label: "إعادة المحاولة", onClick: () => saveMutation.mutate() },
+      }),
   });
 
   // ============ Product search for "Add item" in edit mode ============
@@ -815,7 +983,7 @@ function InvoiceDetailPage() {
     setEditRows((rows) => [
       ...rows,
       {
-        id: (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
+        id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
         product_id: p.id,
         product_name: p.name,
         unit: p.unit || "قطعة",
@@ -847,7 +1015,7 @@ function InvoiceDetailPage() {
     }
     setPayReference("");
     setPayNotes("");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payDialogOpen]);
 
   // Live derived values for the add-payment dialog
@@ -876,14 +1044,16 @@ function InvoiceDetailPage() {
       const amount = Number(payAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("أدخل مبلغاً صحيحاً");
       const remaining = Math.max(0, Number(inv.remaining) || 0);
-      if (amount > remaining + 0.001) throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
+      if (amount > remaining + 0.001)
+        throw new Error(`المبلغ يتجاوز المتبقي (${formatSDG(remaining)})`);
       const method = paymentMethods.find((m) => m.id === payMethodId);
       if (!method) throw new Error("اختر حساب الدفع");
 
       if (canUseLocalData()) {
         const uid = await requireUserId();
         const notesParts: string[] = [];
-        if (method.type === "bank" && payReference.trim()) notesParts.push(`رقم العملية: ${payReference.trim()}`);
+        if (method.type === "bank" && payReference.trim())
+          notesParts.push(`رقم العملية: ${payReference.trim()}`);
         if (payNotes.trim()) notesParts.push(payNotes.trim());
         const newPaid = (Number(inv.paid) || 0) + amount;
         const newRemaining = Math.max(0, (Number(inv.total) || 0) - newPaid);
@@ -895,10 +1065,14 @@ function InvoiceDetailPage() {
             `INSERT INTO payments (id, user_id, party_type, party_id, amount, method, account_id, invoice_id, notes, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-              genId(), uid,
+              genId(),
+              uid,
               inv.customer_id ? "customer" : null,
               inv.customer_id ?? null,
-              amount, method.type, method.id, inv.id,
+              amount,
+              method.type,
+              method.id,
+              inv.id,
               notesParts.join(" — ") || null,
               now,
             ],
@@ -916,7 +1090,8 @@ function InvoiceDetailPage() {
       if (!uid) throw new Error("يجب تسجيل الدخول");
 
       const notesParts: string[] = [];
-      if (method.type === "bank" && payReference.trim()) notesParts.push(`رقم العملية: ${payReference.trim()}`);
+      if (method.type === "bank" && payReference.trim())
+        notesParts.push(`رقم العملية: ${payReference.trim()}`);
       if (payNotes.trim()) notesParts.push(payNotes.trim());
 
       const { error: payErr } = await supabase.from("payments").insert({
@@ -958,8 +1133,12 @@ function InvoiceDetailPage() {
 
   // ============ Payments list + edit/delete ============
   type InvPayment = {
-    id: string; amount: number; method: string | null; account_id: string | null;
-    notes: string | null; created_at: string;
+    id: string;
+    amount: number;
+    method: string | null;
+    account_id: string | null;
+    notes: string | null;
+    created_at: string;
   };
   const { data: invoicePayments = [] } = useQuery({
     queryKey: ["invoice-payments", invoiceId],
@@ -986,7 +1165,9 @@ function InvoiceDetailPage() {
   const [confirmDeletePayment, setConfirmDeletePayment] = useState<InvPayment | null>(null);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<EditRow | null>(null);
 
-  const editingOtherPaid = editingPayment ? Math.max(0, invPaidNum - Number(editingPayment.amount)) : 0;
+  const editingOtherPaid = editingPayment
+    ? Math.max(0, invPaidNum - Number(editingPayment.amount))
+    : 0;
   const editMaxAllowed = Math.max(0, invTotalNum - editingOtherPaid);
   const editPayNum = editPayAmount === "" ? 0 : Math.max(0, Number(editPayAmount) || 0);
   const editPayExceeds = editPayNum > editMaxAllowed + 0.001;
@@ -1021,8 +1202,10 @@ function InvoiceDetailPage() {
       const newRemaining = Math.max(0, total - newPaid);
       const status: "paid" | "partial" | "pending" =
         total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
-      const { error: e2 } = await supabase.from("invoices")
-        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      const { error: e2 } = await supabase
+        .from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status })
+        .eq("id", inv.id);
       if (e2) throw e2;
       return { status, newRemaining };
     },
@@ -1046,7 +1229,8 @@ function InvoiceDetailPage() {
       const total = Number(inv.total) || 0;
       const otherPaid = Math.max(0, (Number(inv.paid) || 0) - Number(editingPayment.amount));
       const maxAllowed = Math.max(0, total - otherPaid);
-      if (newAmt > maxAllowed + 0.001) throw new Error(`المبلغ يتجاوز الحد الأقصى (${formatSDG(maxAllowed)})`);
+      if (newAmt > maxAllowed + 0.001)
+        throw new Error(`المبلغ يتجاوز الحد الأقصى (${formatSDG(maxAllowed)})`);
 
       if (canUseLocalData()) {
         const newPaid = otherPaid + newAmt;
@@ -1055,7 +1239,10 @@ function InvoiceDetailPage() {
           total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
         const now = nowIso();
         await localTransaction(async (tx) => {
-          await tx.execute(`UPDATE payments SET amount = ? WHERE id = ?`, [newAmt, editingPayment.id]);
+          await tx.execute(`UPDATE payments SET amount = ? WHERE id = ?`, [
+            newAmt,
+            editingPayment.id,
+          ]);
           await tx.execute(
             `UPDATE invoices SET paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
             [newPaid, newRemaining, status, now, inv.id],
@@ -1064,14 +1251,19 @@ function InvoiceDetailPage() {
         return { status, newRemaining };
       }
 
-      const { error } = await supabase.from("payments").update({ amount: newAmt }).eq("id", editingPayment.id);
+      const { error } = await supabase
+        .from("payments")
+        .update({ amount: newAmt })
+        .eq("id", editingPayment.id);
       if (error) throw error;
       const newPaid = otherPaid + newAmt;
       const newRemaining = Math.max(0, total - newPaid);
       const status: "paid" | "partial" | "pending" =
         total > 0 && newRemaining === 0 ? "paid" : newPaid > 0 ? "partial" : "pending";
-      const { error: e2 } = await supabase.from("invoices")
-        .update({ paid: newPaid, remaining: newRemaining, status }).eq("id", inv.id);
+      const { error: e2 } = await supabase
+        .from("invoices")
+        .update({ paid: newPaid, remaining: newRemaining, status })
+        .eq("id", inv.id);
       if (e2) throw e2;
       return { status, newRemaining };
     },
@@ -1092,8 +1284,6 @@ function InvoiceDetailPage() {
     return p.method === "bank" ? "بنكي" : p.method === "cash" ? "نقدي" : (p.method ?? "—");
   };
 
-
-
   const cancelMutation = useMutation({
     mutationFn: async (reason: string) => {
       const trimmed = reason.trim();
@@ -1101,7 +1291,11 @@ function InvoiceDetailPage() {
 
       if (canUseLocalData()) {
         let cancelUid: string | null = null;
-        try { cancelUid = await requireUserId(); } catch { cancelUid = null; }
+        try {
+          cancelUid = await requireUserId();
+        } catch {
+          cancelUid = null;
+        }
         const now = new Date().toISOString();
         await localTransaction(async (tx) => {
           await tx.execute(
@@ -1113,8 +1307,15 @@ function InvoiceDetailPage() {
               `INSERT INTO audit_logs (id, user_id, action, table_name, record_id, details, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)`,
               [
-                genId(), cancelUid, "invoice.cancelled", "invoices", invoiceId,
-                JSON.stringify({ reason: trimmed, invoice_number: data?.inv?.invoice_number ?? null }),
+                genId(),
+                cancelUid,
+                "invoice.cancelled",
+                "invoices",
+                invoiceId,
+                JSON.stringify({
+                  reason: trimmed,
+                  invoice_number: data?.inv?.invoice_number ?? null,
+                }),
                 now,
               ],
             );
@@ -1155,7 +1356,6 @@ function InvoiceDetailPage() {
     },
     onError: (e) => handleError(e, "تعذّر إلغاء الفاتورة"),
   });
-
 
   // Auto-open print dialog only ONCE per page visit; background refetches
   // must not retrigger window.print(). Wrapped in try/catch since some
@@ -1229,11 +1429,19 @@ function InvoiceDetailPage() {
     if (!formatReady || !hasInv) return;
     if (autopdf && !pdfTriggeredRef.current) {
       pdfTriggeredRef.current = true;
-      setTimeout(() => { handleDownloadPdf().catch(() => {}); }, 400);
+      setTimeout(() => {
+        handleDownloadPdf().catch(() => {});
+      }, 400);
     }
     if (autoshare && !shareTriggeredRef.current) {
       shareTriggeredRef.current = true;
-      setTimeout(() => { try { handleWhatsAppShare(); } catch { /* noop */ } }, 400);
+      setTimeout(() => {
+        try {
+          handleWhatsAppShare();
+        } catch {
+          /* noop */
+        }
+      }, 400);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autopdf, autoshare, formatReady, hasInv]);
@@ -1259,7 +1467,12 @@ function InvoiceDetailPage() {
   const storeAddress = store?.address || "";
   const invoiceFooter = store?.invoice_footer || "";
   const showLogo = store?.show_logo !== false;
-  const baseLabel = inv.payment_method === "bank" ? "تحويل بنكي" : inv.payment_method === "mixed" ? "مختلط" : "نقدي";
+  const baseLabel =
+    inv.payment_method === "bank"
+      ? "تحويل بنكي"
+      : inv.payment_method === "mixed"
+        ? "مختلط"
+        : "نقدي";
   const paymentLabel = paymentMethod?.name ? `${baseLabel} — ${paymentMethod.name}` : baseLabel;
 
   /** Try to safely trigger the browser print dialog. */
@@ -1319,7 +1532,10 @@ function InvoiceDetailPage() {
    */
   async function handleSharePdfNative(attempt = 1) {
     const el = printRef.current ?? previewRef.current;
-    if (!el) { toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة"); return; }
+    if (!el) {
+      toast.error("لم يتم تجهيز محتوى الفاتورة بعد — أعد المحاولة");
+      return;
+    }
     if (pdfBusy) return;
     setPdfBusy(true);
     setBusyPhase("جارٍ توليد ملف PDF…");
@@ -1359,9 +1575,10 @@ function InvoiceDetailPage() {
       toast.error(attempt < 2 ? "❌ فشلت مشاركة PDF" : "❌ فشلت المشاركة مرتين — جرّب الطباعة", {
         description,
         duration: 12000,
-        action: attempt < 2
-          ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
-          : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
+        action:
+          attempt < 2
+            ? { label: "إعادة المحاولة", onClick: () => handleSharePdfNative(2) }
+            : { label: "طباعة بدلاً من ذلك", onClick: () => tryPrint() },
         cancel: {
           label: "نسخ الخطأ",
           onClick: () => {
@@ -1374,7 +1591,9 @@ function InvoiceDetailPage() {
           },
         },
       });
-      logger.error("pdf_share_native_failed", { context: { reqId, invoiceId: inv.id, attempt, errName, errCode, errMsg } });
+      logger.error("pdf_share_native_failed", {
+        context: { reqId, invoiceId: inv.id, attempt, errName, errCode, errMsg },
+      });
     } finally {
       setBusyPhase("");
       setPdfBusy(false);
@@ -1403,7 +1622,9 @@ function InvoiceDetailPage() {
       });
       openWhatsAppShare(phone, text);
       toast.success(phone ? "تم فتح واتساب مع نص الفاتورة" : "اختر جهة الاتصال في واتساب");
-      logger.info("whatsapp_share_success", { context: { reqId, invoiceId: inv.id, hadPhone: !!phone } });
+      logger.info("whatsapp_share_success", {
+        context: { reqId, invoiceId: inv.id, hadPhone: !!phone },
+      });
     } catch (e) {
       handleError(e, "تعذّر فتح واتساب", {
         event: "whatsapp_share_failed",
@@ -1415,20 +1636,23 @@ function InvoiceDetailPage() {
   }
 
   function handleWhatsAppShare(opts: { pickContact?: boolean } = {}) {
-    if (opts.pickContact) { setPickerOpen(true); return; }
+    if (opts.pickContact) {
+      setPickerOpen(true);
+      return;
+    }
     // Direct send to invoice customer's phone; if none, wa.me opens contact picker.
     sendWhatsAppText(inv.customer_phone ?? null);
   }
-
-
-
-
 
   return (
     <div className="min-h-dvh bg-muted/30 print:bg-white">
       {/* Global progress bar while generating/sharing PDF */}
       {(pdfBusy || shareBusy) && (
-        <div className="fixed top-0 inset-x-0 z-50 print:hidden" role="progressbar" aria-label="جارٍ المعالجة">
+        <div
+          className="fixed top-0 inset-x-0 z-50 print:hidden"
+          role="progressbar"
+          aria-label="جارٍ المعالجة"
+        >
           <div className="h-1 bg-primary/20 overflow-hidden">
             <div className="h-full w-1/3 bg-primary animate-[progress_1.2s_ease-in-out_infinite]" />
           </div>
@@ -1442,10 +1666,16 @@ function InvoiceDetailPage() {
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
         <div className="mx-auto max-w-4xl px-2 sm:px-4 h-12 sm:h-14 flex items-center gap-1 sm:gap-1.5 flex-wrap">
-          <Link to="/invoices" search={{ q: "", status: "all", from: "", to: "" }} className="p-1.5 rounded-md hover:bg-white/10">
+          <Link
+            to="/invoices"
+            search={{ q: "", status: "all", from: "", to: "" }}
+            className="p-1.5 rounded-md hover:bg-white/10"
+          >
             <ArrowRight className="size-4" />
           </Link>
-          <h1 className="text-sm sm:text-base font-bold flex-1 min-w-[90px] truncate">فاتورة #{inv.invoice_number}</h1>
+          <h1 className="text-sm sm:text-base font-bold flex-1 min-w-[90px] truncate">
+            فاتورة #{inv.invoice_number}
+          </h1>
 
           <div className="flex items-center rounded-md bg-white/10 p-0.5 text-xs">
             <button
@@ -1478,7 +1708,11 @@ function InvoiceDetailPage() {
             title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
             aria-label="مشاركة PDF"
           >
-            {pdfBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Share2 className="size-3.5 sm:size-4" />}
+            {pdfBusy ? (
+              <Loader2 className="size-3.5 sm:size-4 animate-spin" />
+            ) : (
+              <Share2 className="size-3.5 sm:size-4" />
+            )}
             <span className="hidden lg:inline">مشاركة PDF</span>
           </button>
 
@@ -1489,7 +1723,11 @@ function InvoiceDetailPage() {
             title="تنزيل الفاتورة كملف PDF بنفس تصميم A4"
             aria-label="تنزيل PDF"
           >
-            {pdfBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Download className="size-3.5 sm:size-4" />}
+            {pdfBusy ? (
+              <Loader2 className="size-3.5 sm:size-4 animate-spin" />
+            ) : (
+              <Download className="size-3.5 sm:size-4" />
+            )}
             <span className="hidden lg:inline">تصدير PDF</span>
           </button>
 
@@ -1499,17 +1737,26 @@ function InvoiceDetailPage() {
             title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
             aria-label="طباعة"
           >
-            <Printer className="size-3.5 sm:size-4" /> <span className="hidden lg:inline">طباعة</span>
+            <Printer className="size-3.5 sm:size-4" />{" "}
+            <span className="hidden lg:inline">طباعة</span>
           </button>
 
           <button
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
             className="flex items-center gap-1 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
-            title={inv.customer_phone ? "إرسال نص الفاتورة إلى رقم العميل" : "إرسال نص الفاتورة — اختر جهة الاتصال"}
+            title={
+              inv.customer_phone
+                ? "إرسال نص الفاتورة إلى رقم العميل"
+                : "إرسال نص الفاتورة — اختر جهة الاتصال"
+            }
             aria-label="واتساب"
           >
-            {shareBusy ? <Loader2 className="size-3.5 sm:size-4 animate-spin" /> : <Share2 className="size-3.5 sm:size-4" />}
+            {shareBusy ? (
+              <Loader2 className="size-3.5 sm:size-4 animate-spin" />
+            ) : (
+              <Share2 className="size-3.5 sm:size-4" />
+            )}
             <span className="hidden lg:inline">واتساب</span>
           </button>
 
@@ -1519,7 +1766,8 @@ function InvoiceDetailPage() {
             className="hidden md:flex items-center gap-1 text-xs sm:text-sm bg-emerald-600/90 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title="اختر جهة اتصال من واتساب وأرسل نص الفاتورة"
           >
-            <Share2 className="size-3.5 sm:size-4" /> <span className="hidden xl:inline">اختر جهة اتصال</span>
+            <Share2 className="size-3.5 sm:size-4" />{" "}
+            <span className="hidden xl:inline">اختر جهة اتصال</span>
           </button>
 
           {inv.status !== "cancelled" && Number(inv.remaining) > 0 && (
@@ -1540,7 +1788,11 @@ function InvoiceDetailPage() {
             title={editMode ? "إلغاء التعديل" : "تعديل بنود الفاتورة"}
             aria-label={editMode ? "إلغاء" : "تعديل"}
           >
-            {editMode ? <X className="size-3.5 sm:size-4" /> : <Edit3 className="size-3.5 sm:size-4" />}
+            {editMode ? (
+              <X className="size-3.5 sm:size-4" />
+            ) : (
+              <Edit3 className="size-3.5 sm:size-4" />
+            )}
             <span className="hidden lg:inline">{editMode ? "إلغاء" : "تعديل"}</span>
           </button>
 
@@ -1551,11 +1803,11 @@ function InvoiceDetailPage() {
               title="إلغاء الفاتورة مع إدخال سبب"
               aria-label="إلغاء الفاتورة"
             >
-              <X className="size-3.5 sm:size-4" /> <span className="hidden lg:inline">إلغاء الفاتورة</span>
+              <X className="size-3.5 sm:size-4" />{" "}
+              <span className="hidden lg:inline">إلغاء الفاتورة</span>
             </button>
           )}
         </div>
-
       </header>
 
       {inv.status === "cancelled" && (
@@ -1602,7 +1854,11 @@ function InvoiceDetailPage() {
               disabled={cancelMutation.isPending || cancelReason.trim().length < 3}
               className="px-4 h-9 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
-              {cancelMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              {cancelMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <X className="size-4" />
+              )}
               تأكيد الإلغاء
             </button>
           </DialogFooter>
@@ -1623,7 +1879,8 @@ function InvoiceDetailPage() {
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wallet className="size-5 text-emerald-600" /> تسجيل دفعة على الفاتورة #{inv.invoice_number}
+              <Wallet className="size-5 text-emerald-600" /> تسجيل دفعة على الفاتورة #
+              {inv.invoice_number}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -1639,7 +1896,9 @@ function InvoiceDetailPage() {
               </div>
               <div className="text-center">
                 <div className="text-muted-foreground">المتبقي</div>
-                <div className="nums font-bold text-sm text-emerald-700">{formatSDG(invRemainingNum)}</div>
+                <div className="nums font-bold text-sm text-emerald-700">
+                  {formatSDG(invRemainingNum)}
+                </div>
               </div>
             </div>
 
@@ -1662,18 +1921,24 @@ function InvoiceDetailPage() {
                   type="button"
                   onClick={() => setPayAmount(String(invRemainingNum))}
                   className="text-xs underline text-emerald-700"
-                >دفع المتبقي</button>
+                >
+                  دفع المتبقي
+                </button>
                 <button
                   type="button"
                   onClick={() => setPayAmount(String(+(invRemainingNum / 2).toFixed(2)))}
                   className="text-xs underline text-muted-foreground"
-                >النصف</button>
+                >
+                  النصف
+                </button>
                 {payExceeds && (
                   <button
                     type="button"
                     onClick={clampPayToRemaining}
                     className="ms-auto text-xs underline text-destructive font-semibold"
-                  >ضبط تلقائي</button>
+                  >
+                    ضبط تلقائي
+                  </button>
                 )}
               </div>
               {payExceeds && (
@@ -1687,7 +1952,9 @@ function InvoiceDetailPage() {
             <div>
               <label className="text-xs font-semibold mb-1 block">حساب الدفع</label>
               {paymentMethods.length === 0 ? (
-                <p className="text-xs text-muted-foreground">لا توجد حسابات مفعّلة — أضف حساباً من صفحة الحسابات.</p>
+                <p className="text-xs text-muted-foreground">
+                  لا توجد حسابات مفعّلة — أضف حساباً من صفحة الحسابات.
+                </p>
               ) : (
                 <div className="grid grid-cols-1 gap-1.5">
                   {paymentMethods.map((m) => {
@@ -1697,12 +1964,20 @@ function InvoiceDetailPage() {
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => { setPayMethodId(m.id); clampPayToRemaining(); }}
+                        onClick={() => {
+                          setPayMethodId(m.id);
+                          clampPayToRemaining();
+                        }}
                         className={`flex items-center gap-2 rounded-md border p-2 text-sm text-right ${active ? "border-brand bg-brand/5 ring-1 ring-brand" : "border-input hover:bg-muted"}`}
                       >
-                        <Icon className={`size-4 ${m.type === "bank" ? "text-blue-600" : "text-emerald-600"}`} />
+                        <Icon
+                          className={`size-4 ${m.type === "bank" ? "text-blue-600" : "text-emerald-600"}`}
+                        />
                         <span className="font-medium">{m.name}</span>
-                        <span className="text-[11px] text-muted-foreground me-auto">{m.type === "bank" ? "بنكي" : "نقدي"}{m.bank_name ? ` — ${m.bank_name}` : ""}</span>
+                        <span className="text-[11px] text-muted-foreground me-auto">
+                          {m.type === "bank" ? "بنكي" : "نقدي"}
+                          {m.bank_name ? ` — ${m.bank_name}` : ""}
+                        </span>
                       </button>
                     );
                   })}
@@ -1743,20 +2018,32 @@ function InvoiceDetailPage() {
 
             {/* Live preview — after payment */}
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2">
-              <div className="text-[11px] font-semibold text-emerald-900 mb-1">بعد تسجيل هذه الدفعة:</div>
+              <div className="text-[11px] font-semibold text-emerald-900 mb-1">
+                بعد تسجيل هذه الدفعة:
+              </div>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="text-center">
                   <div className="text-muted-foreground">المدفوع</div>
-                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterPaid)}</div>
+                  <div className="nums font-bold text-sm text-emerald-800">
+                    {formatSDG(payAfterPaid)}
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-muted-foreground">المتبقي</div>
-                  <div className="nums font-bold text-sm text-emerald-800">{formatSDG(payAfterRemaining)}</div>
+                  <div className="nums font-bold text-sm text-emerald-800">
+                    {formatSDG(payAfterRemaining)}
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-muted-foreground">الحالة</div>
-                  <div className={`font-bold text-sm ${payAfterStatus === "paid" ? "text-emerald-700" : payAfterStatus === "partial" ? "text-amber-700" : "text-muted-foreground"}`}>
-                    {payAfterStatus === "paid" ? "مدفوعة بالكامل" : payAfterStatus === "partial" ? "مدفوعة جزئياً" : "معلّقة"}
+                  <div
+                    className={`font-bold text-sm ${payAfterStatus === "paid" ? "text-emerald-700" : payAfterStatus === "partial" ? "text-amber-700" : "text-muted-foreground"}`}
+                  >
+                    {payAfterStatus === "paid"
+                      ? "مدفوعة بالكامل"
+                      : payAfterStatus === "partial"
+                        ? "مدفوعة جزئياً"
+                        : "معلّقة"}
                   </div>
                 </div>
               </div>
@@ -1766,14 +2053,26 @@ function InvoiceDetailPage() {
             <button
               onClick={() => setPayDialogOpen(false)}
               className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
-            >إلغاء</button>
+            >
+              إلغاء
+            </button>
             <button
               onClick={() => addPaymentMutation.mutate()}
-              disabled={addPaymentMutation.isPending || !payMethodId || !payAmount || payExceeds || payAmountNum <= 0}
+              disabled={
+                addPaymentMutation.isPending ||
+                !payMethodId ||
+                !payAmount ||
+                payExceeds ||
+                payAmountNum <= 0
+              }
               className="px-4 h-10 rounded-md bg-emerald-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
               title={payExceeds ? "المبلغ يتجاوز المتبقي" : undefined}
             >
-              {addPaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {addPaymentMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
               تسجيل الدفعة
             </button>
           </DialogFooter>
@@ -1781,7 +2080,12 @@ function InvoiceDetailPage() {
       </Dialog>
 
       {/* Edit payment dialog */}
-      <Dialog open={!!editingPayment} onOpenChange={(o) => { if (!o) setEditingPayment(null); }}>
+      <Dialog
+        open={!!editingPayment}
+        onOpenChange={(o) => {
+          if (!o) setEditingPayment(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1801,7 +2105,9 @@ function InvoiceDetailPage() {
                 </div>
                 <div className="text-center">
                   <div className="text-muted-foreground">الحد الأقصى</div>
-                  <div className="nums font-bold text-sm text-emerald-700">{formatSDG(editMaxAllowed)}</div>
+                  <div className="nums font-bold text-sm text-emerald-700">
+                    {formatSDG(editMaxAllowed)}
+                  </div>
                 </div>
               </div>
               <div>
@@ -1831,7 +2137,8 @@ function InvoiceDetailPage() {
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                طريقة الدفع: {paymentMethodLabel(editingPayment)} — {new Date(editingPayment.created_at).toLocaleString("ar-EG")}
+                طريقة الدفع: {paymentMethodLabel(editingPayment)} —{" "}
+                {new Date(editingPayment.created_at).toLocaleString("ar-EG")}
               </p>
             </div>
           )}
@@ -1839,13 +2146,19 @@ function InvoiceDetailPage() {
             <button
               onClick={() => setEditingPayment(null)}
               className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
-            >إلغاء</button>
+            >
+              إلغاء
+            </button>
             <button
               onClick={() => updatePaymentMutation.mutate()}
               disabled={updatePaymentMutation.isPending || editPayExceeds || editPayNum <= 0}
               className="px-4 h-10 rounded-md bg-amber-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
-              {updatePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {updatePaymentMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
               حفظ التعديل
             </button>
           </DialogFooter>
@@ -1853,7 +2166,12 @@ function InvoiceDetailPage() {
       </Dialog>
 
       {/* Confirm delete PAYMENT dialog */}
-      <Dialog open={!!confirmDeletePayment} onOpenChange={(o) => { if (!o) setConfirmDeletePayment(null); }}>
+      <Dialog
+        open={!!confirmDeletePayment}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDeletePayment(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -1862,9 +2180,16 @@ function InvoiceDetailPage() {
           </DialogHeader>
           {confirmDeletePayment && (
             <div className="space-y-2 py-2 text-sm">
-              <p>سيتم حذف دفعة بقيمة <span className="nums font-bold">{formatSDG(Number(confirmDeletePayment.amount))}</span> ({paymentMethodLabel(confirmDeletePayment)}).</p>
+              <p>
+                سيتم حذف دفعة بقيمة{" "}
+                <span className="nums font-bold">
+                  {formatSDG(Number(confirmDeletePayment.amount))}
+                </span>{" "}
+                ({paymentMethodLabel(confirmDeletePayment)}).
+              </p>
               <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                سيتم تحديث المدفوع والمتبقي وحالة الفاتورة تلقائياً بعد الحذف — قد تعود الفاتورة إلى حالة "جزئية" أو "معلّقة".
+                سيتم تحديث المدفوع والمتبقي وحالة الفاتورة تلقائياً بعد الحذف — قد تعود الفاتورة إلى
+                حالة "جزئية" أو "معلّقة".
               </div>
             </div>
           )}
@@ -1872,13 +2197,21 @@ function InvoiceDetailPage() {
             <button
               onClick={() => setConfirmDeletePayment(null)}
               className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
-            >تراجع</button>
+            >
+              تراجع
+            </button>
             <button
-              onClick={() => confirmDeletePayment && deletePaymentMutation.mutate(confirmDeletePayment)}
+              onClick={() =>
+                confirmDeletePayment && deletePaymentMutation.mutate(confirmDeletePayment)
+              }
               disabled={deletePaymentMutation.isPending}
               className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60"
             >
-              {deletePaymentMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {deletePaymentMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
               تأكيد الحذف
             </button>
           </DialogFooter>
@@ -1886,7 +2219,12 @@ function InvoiceDetailPage() {
       </Dialog>
 
       {/* Confirm delete ITEM dialog (marks for deletion; stock restored at save) */}
-      <Dialog open={!!confirmDeleteItem} onOpenChange={(o) => { if (!o) setConfirmDeleteItem(null); }}>
+      <Dialog
+        open={!!confirmDeleteItem}
+        onOpenChange={(o) => {
+          if (!o) setConfirmDeleteItem(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -1895,9 +2233,14 @@ function InvoiceDetailPage() {
           </DialogHeader>
           {confirmDeleteItem && (
             <div className="space-y-2 py-2 text-sm">
-              <p>هل تريد حذف <span className="font-bold">{confirmDeleteItem.product_name}</span> (الكمية {confirmDeleteItem._origQty}) من الفاتورة؟</p>
+              <p>
+                هل تريد حذف <span className="font-bold">{confirmDeleteItem.product_name}</span>{" "}
+                (الكمية {confirmDeleteItem._origQty}) من الفاتورة؟
+              </p>
               <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                سيتم إرجاع الكمية <span className="nums font-bold">{confirmDeleteItem._origQty}</span> إلى المخزون عند حفظ التعديلات، وتحديث إجمالي الفاتورة تلقائياً.
+                سيتم إرجاع الكمية{" "}
+                <span className="nums font-bold">{confirmDeleteItem._origQty}</span> إلى المخزون عند
+                حفظ التعديلات، وتحديث إجمالي الفاتورة تلقائياً.
               </div>
             </div>
           )}
@@ -1905,13 +2248,17 @@ function InvoiceDetailPage() {
             <button
               onClick={() => setConfirmDeleteItem(null)}
               className="px-4 h-10 rounded-md border border-input bg-background text-sm hover:bg-muted"
-            >تراجع</button>
+            >
+              تراجع
+            </button>
             <button
               onClick={() => {
                 if (confirmDeleteItem) {
                   setDeletedRowIds((s) => new Set(s).add(confirmDeleteItem.id));
                   setConfirmDeleteItem(null);
-                  toast.info("تم وضع علامة حذف على الصنف — سيتم تنفيذ الحذف وإرجاع المخزون عند الحفظ");
+                  toast.info(
+                    "تم وضع علامة حذف على الصنف — سيتم تنفيذ الحذف وإرجاع المخزون عند الحفظ",
+                  );
                 }
               }}
               className="px-4 h-10 rounded-md bg-red-600 text-white text-sm font-bold flex items-center gap-1"
@@ -1950,104 +2297,137 @@ function InvoiceDetailPage() {
                     const max = maxAllowedFor(row);
                     const over = max !== null && row.quantity > max;
                     return (
-                    <tr key={row.id} className={row._isNew ? "bg-emerald-50/70" : undefined}>
-                      <td className="p-2 align-top">
-                        {row.product_name}
-                        {row._isNew && <span className="ms-2 text-[10px] rounded bg-emerald-600 text-white px-1.5 py-0.5">جديد</span>}
-                      </td>
-                      <td className="p-2 align-top">
-                        <input
-                          type="number"
-                          min={1}
-                          step="1"
-                          inputMode="numeric"
-                          value={row.quantity}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
-                            setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
-                            const msg = validateItemField("quantity", v);
-                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: msg ?? undefined } }));
-                          }}
-                          aria-invalid={!!err.quantity || over}
-                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity || over ? "border-destructive" : "border-input"}`}
-                        />
-                        {err.quantity && <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>}
-                        {over && (
-                          <div className="mt-1 space-y-1">
-                            <div className="text-[11px] text-destructive font-semibold flex items-center gap-1">
-                              <AlertTriangle className="size-3" /> تتجاوز المتاح (الأقصى {max})
+                      <tr key={row.id} className={row._isNew ? "bg-emerald-50/70" : undefined}>
+                        <td className="p-2 align-top">
+                          {row.product_name}
+                          {row._isNew && (
+                            <span className="ms-2 text-[10px] rounded bg-emerald-600 text-white px-1.5 py-0.5">
+                              جديد
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 align-top">
+                          <input
+                            type="number"
+                            min={1}
+                            step="1"
+                            inputMode="numeric"
+                            value={row.quantity}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
+                              setEditRows((rows) =>
+                                rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)),
+                              );
+                              const msg = validateItemField("quantity", v);
+                              setRowErrors((prev) => ({
+                                ...prev,
+                                [row.id]: { ...prev[row.id], quantity: msg ?? undefined },
+                              }));
+                            }}
+                            aria-invalid={!!err.quantity || over}
+                            className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.quantity || over ? "border-destructive" : "border-input"}`}
+                          />
+                          {err.quantity && (
+                            <div className="text-[11px] text-destructive mt-1">{err.quantity}</div>
+                          )}
+                          {over && (
+                            <div className="mt-1 space-y-1">
+                              <div className="text-[11px] text-destructive font-semibold flex items-center gap-1">
+                                <AlertTriangle className="size-3" /> تتجاوز المتاح (الأقصى {max})
+                              </div>
+                              <input
+                                type="range"
+                                min={1}
+                                max={Math.max(1, max!)}
+                                value={Math.min(row.quantity, max!)}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value) || 1;
+                                  setEditRows((rows) =>
+                                    rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)),
+                                  );
+                                  setRowErrors((prev) => ({
+                                    ...prev,
+                                    [row.id]: { ...prev[row.id], quantity: undefined },
+                                  }));
+                                }}
+                                className="w-full accent-brand"
+                                aria-label="اختر كمية بديلة ضمن المتاح"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditRows((rows) =>
+                                    rows.map((r, idx) =>
+                                      idx === i ? { ...r, quantity: max! } : r,
+                                    ),
+                                  );
+                                }}
+                                className="text-[11px] underline text-amber-900"
+                              >
+                                استخدم الحد الأقصى ({max})
+                              </button>
                             </div>
-                            <input
-                              type="range"
-                              min={1}
-                              max={Math.max(1, max!)}
-                              value={Math.min(row.quantity, max!)}
-                              onChange={(e) => {
-                                const v = Number(e.target.value) || 1;
-                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: v } : r)));
-                                setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], quantity: undefined } }));
-                              }}
-                              className="w-full accent-brand"
-                              aria-label="اختر كمية بديلة ضمن المتاح"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, quantity: max! } : r)));
-                              }}
-                              className="text-[11px] underline text-amber-900"
-                            >
-                              استخدم الحد الأقصى ({max})
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-2 align-top">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          inputMode="decimal"
-                          value={row.unit_price}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
-                            setEditRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, unit_price: v } : r)));
-                            const msg = validateItemField("unit_price", v);
-                            setRowErrors((prev) => ({ ...prev, [row.id]: { ...prev[row.id], unit_price: msg ?? undefined } }));
-                          }}
-                          aria-invalid={!!err.unit_price}
-                          className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.unit_price ? "border-destructive" : "border-input"}`}
-                        />
-                        {err.unit_price && <div className="text-[11px] text-destructive mt-1">{err.unit_price}</div>}
-                      </td>
-                      <td className="p-2 text-center font-semibold nums align-top">
-                        {formatSDG(row.quantity * row.unit_price)}
-                      </td>
-                      <td className="p-2 align-top text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (row._isNew) {
-                              // New unsaved row — remove immediately, no stock impact yet.
-                              setEditRows((rows) => rows.filter((r) => r.id !== row.id));
-                            } else {
-                              setConfirmDeleteItem(row);
-                            }
-                          }}
-                          className="text-red-600 hover:bg-red-50 rounded p-1"
-                          title="حذف هذا الصنف من الفاتورة"
-                          aria-label="حذف الصنف"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </td>
-                    </tr>
+                          )}
+                        </td>
+                        <td className="p-2 align-top">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            value={row.unit_price}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const v = raw === "" ? 0 : Math.max(0, Number(raw) || 0);
+                              setEditRows((rows) =>
+                                rows.map((r, idx) => (idx === i ? { ...r, unit_price: v } : r)),
+                              );
+                              const msg = validateItemField("unit_price", v);
+                              setRowErrors((prev) => ({
+                                ...prev,
+                                [row.id]: { ...prev[row.id], unit_price: msg ?? undefined },
+                              }));
+                            }}
+                            aria-invalid={!!err.unit_price}
+                            className={`w-full text-center h-9 rounded-md border bg-background px-2 nums ${err.unit_price ? "border-destructive" : "border-input"}`}
+                          />
+                          {err.unit_price && (
+                            <div className="text-[11px] text-destructive mt-1">
+                              {err.unit_price}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-2 text-center font-semibold nums align-top">
+                          {formatSDG(row.quantity * row.unit_price)}
+                        </td>
+                        <td className="p-2 align-top text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (row._isNew) {
+                                // New unsaved row — remove immediately, no stock impact yet.
+                                setEditRows((rows) => rows.filter((r) => r.id !== row.id));
+                              } else {
+                                setConfirmDeleteItem(row);
+                              }
+                            }}
+                            className="text-red-600 hover:bg-red-50 rounded p-1"
+                            title="حذف هذا الصنف من الفاتورة"
+                            aria-label="حذف الصنف"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </td>
+                      </tr>
                     );
                   })}
                   {visibleEditRows.length === 0 && (
-                    <tr><td colSpan={5} className="p-4 text-center text-muted-foreground text-sm">لا توجد أصناف — أضف صنفاً من الأسفل.</td></tr>
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-muted-foreground text-sm">
+                        لا توجد أصناف — أضف صنفاً من الأسفل.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -2056,12 +2436,16 @@ function InvoiceDetailPage() {
             {/* Deleted rows summary + undo */}
             {deletedRowIds.size > 0 && (
               <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-800 flex items-center justify-between">
-                <span>سيتم حذف {deletedRowIds.size} صنف عند الحفظ (تُعاد الكميات إلى المخزون).</span>
+                <span>
+                  سيتم حذف {deletedRowIds.size} صنف عند الحفظ (تُعاد الكميات إلى المخزون).
+                </span>
                 <button
                   type="button"
                   className="underline"
                   onClick={() => setDeletedRowIds(new Set())}
-                >تراجع</button>
+                >
+                  تراجع
+                </button>
               </div>
             )}
 
@@ -2075,7 +2459,10 @@ function InvoiceDetailPage() {
                 <input
                   type="text"
                   value={addQuery}
-                  onChange={(e) => { setAddQuery(e.target.value); setAddPickerOpen(true); }}
+                  onChange={(e) => {
+                    setAddQuery(e.target.value);
+                    setAddPickerOpen(true);
+                  }}
                   onFocus={() => setAddPickerOpen(true)}
                   placeholder="ابحث بالاسم أو الباركود..."
                   className="w-full h-10 rounded-md border border-input bg-background ps-8 pe-3 text-sm"
@@ -2118,7 +2505,8 @@ function InvoiceDetailPage() {
                 <ul className="list-disc pr-5 space-y-0.5 text-xs">
                   {overstockRows.map(({ row, max }) => (
                     <li key={row.id}>
-                      <span className="font-semibold">{row.product_name}</span> — طُلب {row.quantity}، الأقصى المتاح {max}. استخدم المنزلقة أعلاه لاختيار كمية بديلة.
+                      <span className="font-semibold">{row.product_name}</span> — طُلب{" "}
+                      {row.quantity}، الأقصى المتاح {max}. استخدم المنزلقة أعلاه لاختيار كمية بديلة.
                     </li>
                   ))}
                 </ul>
@@ -2139,14 +2527,25 @@ function InvoiceDetailPage() {
                 onClick={() => saveMutation.mutate()}
                 disabled={saveMutation.isPending || hasFieldErrors || hasOverstock}
                 className="px-4 h-9 rounded-md bg-brand text-white text-sm font-bold flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                title={hasOverstock ? "صحّح الكميات المتجاوزة للمخزون" : hasFieldErrors ? "صحّح الأخطاء قبل الحفظ" : undefined}
+                title={
+                  hasOverstock
+                    ? "صحّح الكميات المتجاوزة للمخزون"
+                    : hasFieldErrors
+                      ? "صحّح الأخطاء قبل الحفظ"
+                      : undefined
+                }
               >
-                {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {saveMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="size-4" />
+                )}
                 حفظ التعديلات
               </button>
             </div>
             <p className="text-xs text-amber-800 mt-2">
-              ملاحظة: زيادة الكمية تخصم من المخزون تلقائياً — إذا كان المخزون غير كافٍ سيتم رفض الحفظ ورسالة الخطأ ستوضّح الصنف والكمية المتاحة.
+              ملاحظة: زيادة الكمية تخصم من المخزون تلقائياً — إذا كان المخزون غير كافٍ سيتم رفض
+              الحفظ ورسالة الخطأ ستوضّح الصنف والكمية المتاحة.
             </p>
           </div>
         </section>
@@ -2165,13 +2564,19 @@ function InvoiceDetailPage() {
                   <span className="text-xs text-muted-foreground ms-1">هامش:</span>
                   <span className="nums font-bold">{profitInfo.margin.toFixed(1)}%</span>
                 </div>
-                <div className={`nums font-extrabold text-lg ${profitInfo.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                <div
+                  className={`nums font-extrabold text-lg ${profitInfo.netProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}
+                >
                   {formatSDG(profitInfo.netProfit)}
                 </div>
               </div>
             </div>
             <div className="px-4 pb-3 text-[11px] text-muted-foreground">
-              التفصيل الكامل لكل صنف متاح في <a href="/reports" className="text-emerald-700 underline">صفحة التقارير</a> — لا يظهر في الطباعة أو ملف PDF.
+              التفصيل الكامل لكل صنف متاح في{" "}
+              <a href="/reports" className="text-emerald-700 underline">
+                صفحة التقارير
+              </a>{" "}
+              — لا يظهر في الطباعة أو ملف PDF.
             </div>
           </div>
         </section>
@@ -2185,12 +2590,21 @@ function InvoiceDetailPage() {
               <Wallet className="size-4 text-emerald-600" /> سجل الدفعات ({invoicePayments.length})
             </h3>
             <div className="text-xs text-muted-foreground">
-              المدفوع: <span className="nums font-bold text-emerald-700">{formatSDG(invPaidNum)}</span>
+              المدفوع:{" "}
+              <span className="nums font-bold text-emerald-700">{formatSDG(invPaidNum)}</span>
               <span className="mx-2">•</span>
               المتبقي: <span className="nums font-bold">{formatSDG(invRemainingNum)}</span>
               <span className="mx-2">•</span>
-              <span className={`font-bold ${inv.status === "paid" ? "text-emerald-700" : inv.status === "partial" ? "text-amber-700" : inv.status === "cancelled" ? "text-red-600" : "text-muted-foreground"}`}>
-                {inv.status === "paid" ? "مدفوعة بالكامل" : inv.status === "partial" ? "مدفوعة جزئياً" : inv.status === "cancelled" ? "ملغاة" : "معلّقة"}
+              <span
+                className={`font-bold ${inv.status === "paid" ? "text-emerald-700" : inv.status === "partial" ? "text-amber-700" : inv.status === "cancelled" ? "text-red-600" : "text-muted-foreground"}`}
+              >
+                {inv.status === "paid"
+                  ? "مدفوعة بالكامل"
+                  : inv.status === "partial"
+                    ? "مدفوعة جزئياً"
+                    : inv.status === "cancelled"
+                      ? "ملغاة"
+                      : "معلّقة"}
               </span>
             </div>
           </div>
@@ -2213,20 +2627,36 @@ function InvoiceDetailPage() {
                 <tbody className="divide-y divide-border">
                   {invoicePayments.map((p) => (
                     <tr key={p.id} className="hover:bg-muted/20">
-                      <td className="p-2 nums text-xs whitespace-nowrap">{new Date(p.created_at).toLocaleString("ar-EG")}</td>
+                      <td className="p-2 nums text-xs whitespace-nowrap">
+                        {new Date(p.created_at).toLocaleString("ar-EG")}
+                      </td>
                       <td className="p-2">
                         <span className="inline-flex items-center gap-1">
-                          {p.method === "bank" ? <Landmark className="size-3.5 text-blue-600" /> : <Wallet className="size-3.5 text-emerald-600" />}
+                          {p.method === "bank" ? (
+                            <Landmark className="size-3.5 text-blue-600" />
+                          ) : (
+                            <Wallet className="size-3.5 text-emerald-600" />
+                          )}
                           {paymentMethodLabel(p)}
                         </span>
                       </td>
-                      <td className="p-2 nums font-semibold text-emerald-700">{formatSDG(Number(p.amount))}</td>
-                      <td className="p-2 text-xs text-muted-foreground max-w-[240px] truncate" title={p.notes ?? ""}>{p.notes || "—"}</td>
+                      <td className="p-2 nums font-semibold text-emerald-700">
+                        {formatSDG(Number(p.amount))}
+                      </td>
+                      <td
+                        className="p-2 text-xs text-muted-foreground max-w-[240px] truncate"
+                        title={p.notes ?? ""}
+                      >
+                        {p.notes || "—"}
+                      </td>
                       <td className="p-2 text-center">
                         <div className="inline-flex gap-1">
                           <button
                             type="button"
-                            onClick={() => { setEditingPayment(p); setEditPayAmount(String(Number(p.amount))); }}
+                            onClick={() => {
+                              setEditingPayment(p);
+                              setEditPayAmount(String(Number(p.amount)));
+                            }}
                             className="p-1.5 rounded hover:bg-amber-50 text-amber-700"
                             title="تعديل الدفعة"
                             aria-label="تعديل الدفعة"
@@ -2253,36 +2683,35 @@ function InvoiceDetailPage() {
         </div>
       </section>
 
-
       <main className="py-6 px-4 print:p-0">
         <div ref={printRef} id="invoice-print-root">
-        {format === "a4" ? (
-          <A4Invoice
-            inv={inv}
-            items={items}
-            paymentMethod={paymentMethod}
-            storeName={storeName}
-            storeSubtitle={storeSubtitle}
-            storePhone={storePhone}
-            invoiceFooter={invoiceFooter}
-            showLogo={showLogo}
-            paymentLabel={paymentLabel}
-          />
-        ) : (
-          <ThermalInvoice
-            inv={inv}
-            items={items}
-            paymentMethod={paymentMethod}
-            storeName={storeName}
-            storeSubtitle={storeSubtitle}
-            storePhone={storePhone}
-            storeAddress={storeAddress}
-            invoiceFooter={invoiceFooter}
-            showLogo={showLogo}
-            paymentLabel={paymentLabel}
-          />
-        )}
-        {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
+          {format === "a4" ? (
+            <A4Invoice
+              inv={inv}
+              items={items}
+              paymentMethod={paymentMethod}
+              storeName={storeName}
+              storeSubtitle={storeSubtitle}
+              storePhone={storePhone}
+              invoiceFooter={invoiceFooter}
+              showLogo={showLogo}
+              paymentLabel={paymentLabel}
+            />
+          ) : (
+            <ThermalInvoice
+              inv={inv}
+              items={items}
+              paymentMethod={paymentMethod}
+              storeName={storeName}
+              storeSubtitle={storeSubtitle}
+              storePhone={storePhone}
+              storeAddress={storeAddress}
+              invoiceFooter={invoiceFooter}
+              showLogo={showLogo}
+              paymentLabel={paymentLabel}
+            />
+          )}
+          {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
         </div>
       </main>
 
@@ -2319,14 +2748,25 @@ function InvoiceDetailPage() {
       {formatReady && <div className="sm:hidden h-16 print:hidden" aria-hidden />}
 
       {/* Preview dialog — Facebook-style, with margin guides + Fit-to-page. */}
-      <Dialog open={previewOpen} onOpenChange={(o) => { setPreviewOpen(o); if (!o) setPreviewZoom(1); }}>
+      <Dialog
+        open={previewOpen}
+        onOpenChange={(o) => {
+          setPreviewOpen(o);
+          if (!o) setPreviewZoom(1);
+        }}
+      >
         <DialogContent className="max-w-5xl w-full max-h-[95vh] h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
           <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3 border-b border-border bg-[#F0F2F5]">
-            <DialogTitle className="text-base sm:text-lg font-semibold text-[#050505]">معاينة الطباعة</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg font-semibold text-[#050505]">
+              معاينة الطباعة
+            </DialogTitle>
             <div className="flex items-center gap-1 rounded-full bg-white border border-[#CED0D4] px-1 py-0.5 shadow-sm flex-wrap">
               <button
                 type="button"
-                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(2))); }}
+                onClick={() => {
+                  setPreviewFitMode("100");
+                  setPreviewZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(2)));
+                }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
                 disabled={previewZoom <= 0.2}
                 aria-label="تصغير"
@@ -2334,10 +2774,15 @@ function InvoiceDetailPage() {
               >
                 <ZoomOut className="size-4" />
               </button>
-              <span className="text-xs tabular-nums w-10 text-center font-mono text-[#050505]">{Math.round(previewZoom * 100)}%</span>
+              <span className="text-xs tabular-nums w-10 text-center font-mono text-[#050505]">
+                {Math.round(previewZoom * 100)}%
+              </span>
               <button
                 type="button"
-                onClick={() => { setPreviewFitMode("100"); setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2))); }}
+                onClick={() => {
+                  setPreviewFitMode("100");
+                  setPreviewZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)));
+                }}
                 className="p-1.5 rounded-full hover:bg-[#E4E6EB] disabled:opacity-40"
                 disabled={previewZoom >= 3}
                 aria-label="تكبير"
@@ -2355,7 +2800,10 @@ function InvoiceDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setPreviewFitMode("100"); setPreviewZoom(1); }}
+                onClick={() => {
+                  setPreviewFitMode("100");
+                  setPreviewZoom(1);
+                }}
                 className="text-xs px-2 py-1 rounded-full hover:bg-[#E4E6EB] text-[#65676B]"
                 title="حجم طبيعي"
               >
@@ -2461,7 +2909,11 @@ function InvoiceDetailPage() {
               disabled={pdfBusy}
               className="px-4 h-10 rounded-full bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60 transition-colors"
             >
-              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+              {pdfBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Share2 className="size-4" />
+              )}
               مشاركة PDF
             </button>
             <button
@@ -2469,7 +2921,11 @@ function InvoiceDetailPage() {
               disabled={shareBusy}
               className="px-4 h-10 rounded-full bg-[#42B72A] hover:bg-[#36A420] text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60 transition-colors"
             >
-              {shareBusy ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+              {shareBusy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Share2 className="size-4" />
+              )}
               واتساب + PDF
             </button>
           </DialogFooter>
@@ -2528,9 +2984,11 @@ function InvoiceDetailPage() {
             transform-origin: top center;
             width: calc(285mm / var(--print-fit, 1));
           }
-          ${format === "thermal"
-            ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-            : "@page { size: A4 landscape; margin: 6mm; } @page :first { size: A4 landscape; margin: 6mm; } @page :left { size: A4 landscape; margin: 6mm; } @page :right { size: A4 landscape; margin: 6mm; }"}
+          ${
+            format === "thermal"
+              ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
+              : "@page { size: A4 landscape; margin: 6mm; } @page :first { size: A4 landscape; margin: 6mm; } @page :left { size: A4 landscape; margin: 6mm; } @page :right { size: A4 landscape; margin: 6mm; }"
+          }
         }
       `}</style>
     </div>
@@ -2540,12 +2998,28 @@ function InvoiceDetailPage() {
 /* ============= A4 CLASSIC INVOICE ============= */
 
 type A4Props = {
-  inv: any; items: any[]; paymentMethod: any;
-  storeName: string; storeSubtitle: string; storePhone: string;
-  invoiceFooter: string; showLogo: boolean; paymentLabel: string;
+  inv: any;
+  items: any[];
+  paymentMethod: any;
+  storeName: string;
+  storeSubtitle: string;
+  storePhone: string;
+  invoiceFooter: string;
+  showLogo: boolean;
+  paymentLabel: string;
 };
 
-function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, invoiceFooter, showLogo, paymentLabel }: A4Props) {
+function A4Invoice({
+  inv,
+  items,
+  paymentMethod,
+  storeName,
+  storeSubtitle,
+  storePhone,
+  invoiceFooter,
+  showLogo,
+  paymentLabel,
+}: A4Props) {
   // Pad short invoices only when they fit on one page. Beyond ~18 rows we rely on
   // native pagination + `break-inside: avoid` per row (see print CSS at the bottom).
   const MIN_ROWS = 14;
@@ -2559,7 +3033,10 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
   const isPaid = Number(inv.remaining) <= 0;
 
   return (
-    <div className="print-a4 w-full bg-white text-black shadow-lg border p-6 print:shadow-none print:border-0" dir="rtl">
+    <div
+      className="print-a4 w-full bg-white text-black shadow-lg border p-6 print:shadow-none print:border-0"
+      dir="rtl"
+    >
       {/* ===== HEADER (kept together with meta strip) ===== */}
       <div className="a4-head keep-together">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-6 pb-4 border-b-2 border-black">
@@ -2568,10 +3045,15 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           </div>
           <div className="text-center min-w-0">
             <h1 className="text-4xl font-extrabold tracking-wide">فاتورة مبدئية</h1>
-            <p className="text-lg font-semibold mt-1 text-black/80 truncate">{storeSubtitle || storeName}</p>
+            <p className="text-lg font-semibold mt-1 text-black/80 truncate">
+              {storeSubtitle || storeName}
+            </p>
             {storePhone && (
               <div className="mt-1.5 max-w-full overflow-x-auto scrollbar-thin">
-                <p className="inline-flex items-center gap-1.5 text-sm nums whitespace-nowrap" dir="ltr">
+                <p
+                  className="inline-flex items-center gap-1.5 text-sm nums whitespace-nowrap"
+                  dir="ltr"
+                >
                   <Phone className="size-3.5 shrink-0" aria-hidden="true" />
                   <span>{storePhone}</span>
                 </p>
@@ -2581,7 +3063,9 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           <div className="text-left">
             <div className="inline-block border-2 border-black px-4 py-2 rounded">
               <div className="text-xs font-semibold text-black/70">فاتورة رقم</div>
-              <div className="text-2xl font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+              <div className="text-2xl font-extrabold nums" dir="ltr">
+                #{inv.invoice_number}
+              </div>
             </div>
           </div>
         </div>
@@ -2627,20 +3111,37 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
         </thead>
         <tbody>
           {paddedRows.map((it, i) => (
-            <tr key={i} className={`h-8 keep-together ${it && i % 2 === 1 ? "bg-black/[0.03]" : ""}`}>
-              <td className="border border-black text-center nums font-semibold align-middle">{it ? i + 1 : ""}</td>
+            <tr
+              key={i}
+              className={`h-8 keep-together ${it && i % 2 === 1 ? "bg-black/[0.03]" : ""}`}
+            >
+              <td className="border border-black text-center nums font-semibold align-middle">
+                {it ? i + 1 : ""}
+              </td>
               {/* Long names wrap cleanly instead of overflowing the cell */}
-              <td className="border border-black px-3 align-middle break-words whitespace-normal leading-snug">{it?.product_name ?? ""}</td>
-              <td className="border border-black text-center nums px-1 align-middle">{it ? formatSDG(Number(it.unit_price)) : ""}</td>
-              <td className="border border-black text-center nums font-semibold align-middle">{it?.quantity ?? ""}</td>
-              <td className="border border-black text-center nums px-1 font-semibold align-middle">{it ? formatSDG(Number(it.line_total)) : ""}</td>
+              <td className="border border-black px-3 align-middle break-words whitespace-normal leading-snug">
+                {it?.product_name ?? ""}
+              </td>
+              <td className="border border-black text-center nums px-1 align-middle">
+                {it ? formatSDG(Number(it.unit_price)) : ""}
+              </td>
+              <td className="border border-black text-center nums font-semibold align-middle">
+                {it?.quantity ?? ""}
+              </td>
+              <td className="border border-black text-center nums px-1 font-semibold align-middle">
+                {it ? formatSDG(Number(it.line_total)) : ""}
+              </td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="h-10 font-bold text-base bg-black/[0.06] keep-together">
-            <td colSpan={4} className="border-2 border-black text-left px-4">المجموع الكلي</td>
-            <td className="border-2 border-black text-center nums px-2">{formatSDG(Number(inv.total))}</td>
+            <td colSpan={4} className="border-2 border-black text-left px-4">
+              المجموع الكلي
+            </td>
+            <td className="border-2 border-black text-center nums px-2">
+              {formatSDG(Number(inv.total))}
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -2654,13 +3155,21 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           </div>
           <div className="border-2 border-emerald-700 rounded px-3 py-2 bg-emerald-50">
             <div className="text-[11px] font-semibold text-emerald-800">المدفوع</div>
-            <div className="text-lg font-extrabold nums text-emerald-800">{formatSDG(Number(inv.paid))}</div>
+            <div className="text-lg font-extrabold nums text-emerald-800">
+              {formatSDG(Number(inv.paid))}
+            </div>
           </div>
-          <div className={`border-2 rounded px-3 py-2 ${isPaid ? "border-emerald-700 bg-emerald-50" : "border-rose-700 bg-rose-50"}`}>
-            <div className={`text-[11px] font-semibold ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
+          <div
+            className={`border-2 rounded px-3 py-2 ${isPaid ? "border-emerald-700 bg-emerald-50" : "border-rose-700 bg-rose-50"}`}
+          >
+            <div
+              className={`text-[11px] font-semibold ${isPaid ? "text-emerald-800" : "text-rose-800"}`}
+            >
               {isPaid ? "الحالة" : "المتبقي"}
             </div>
-            <div className={`text-lg font-extrabold nums ${isPaid ? "text-emerald-800" : "text-rose-800"}`}>
+            <div
+              className={`text-lg font-extrabold nums ${isPaid ? "text-emerald-800" : "text-rose-800"}`}
+            >
               {isPaid ? "مدفوعة بالكامل ✓" : formatSDG(Number(inv.remaining))}
             </div>
           </div>
@@ -2671,11 +3180,31 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
           <div className="mt-3 border-2 border-black/60 rounded p-3 text-xs bg-black/[0.02]">
             <div className="font-bold mb-1.5 text-sm">تفاصيل التحويل البنكي</div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-              {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
-              {paymentMethod.account_holder && <div>صاحب الحساب: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
-              {paymentMethod.account_number && <div dir="ltr" className="text-right">حساب: <span className="font-semibold nums">{paymentMethod.account_number}</span></div>}
-              {paymentMethod.iban && <div dir="ltr" className="text-right">IBAN: <span className="font-semibold nums">{paymentMethod.iban}</span></div>}
-              {inv.reference_number && <div className="col-span-2">رقم العملية: <span className="font-bold nums">{inv.reference_number}</span></div>}
+              {paymentMethod.bank_name && (
+                <div>
+                  البنك: <span className="font-semibold">{paymentMethod.bank_name}</span>
+                </div>
+              )}
+              {paymentMethod.account_holder && (
+                <div>
+                  صاحب الحساب: <span className="font-semibold">{paymentMethod.account_holder}</span>
+                </div>
+              )}
+              {paymentMethod.account_number && (
+                <div dir="ltr" className="text-right">
+                  حساب: <span className="font-semibold nums">{paymentMethod.account_number}</span>
+                </div>
+              )}
+              {paymentMethod.iban && (
+                <div dir="ltr" className="text-right">
+                  IBAN: <span className="font-semibold nums">{paymentMethod.iban}</span>
+                </div>
+              )}
+              {inv.reference_number && (
+                <div className="col-span-2">
+                  رقم العملية: <span className="font-bold nums">{inv.reference_number}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2693,7 +3222,9 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
         </div>
 
         {invoiceFooter && (
-          <p className="text-center text-xs mt-6 pt-3 border-t border-black/30 whitespace-pre-line text-black/70">{invoiceFooter}</p>
+          <p className="text-center text-xs mt-6 pt-3 border-t border-black/30 whitespace-pre-line text-black/70">
+            {invoiceFooter}
+          </p>
         )}
       </div>
     </div>
@@ -2704,19 +3235,42 @@ function A4Invoice({ inv, items, paymentMethod, storeName, storeSubtitle, storeP
 
 type ThermalProps = A4Props & { storeAddress: string };
 
-function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, storePhone, storeAddress, invoiceFooter, showLogo, paymentLabel }: ThermalProps) {
+function ThermalInvoice({
+  inv,
+  items,
+  paymentMethod,
+  storeName,
+  storeSubtitle,
+  storePhone,
+  storeAddress,
+  invoiceFooter,
+  showLogo,
+  paymentLabel,
+}: ThermalProps) {
   const isPaid = Number(inv.remaining) <= 0;
   return (
-    <div className="print-thermal mx-auto w-[80mm] bg-white text-black shadow-lg border p-3 text-[12px] leading-tight print:shadow-none print:border-0" dir="rtl">
+    <div
+      className="print-thermal mx-auto w-[80mm] bg-white text-black shadow-lg border p-3 text-[12px] leading-tight print:shadow-none print:border-0"
+      dir="rtl"
+    >
       {/* ===== HEADER — matches A4 tone ===== */}
       <div className="text-center pb-2 border-b-2 border-black">
-        {showLogo && <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />}
+        {showLogo && (
+          <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />
+        )}
         <div className="font-extrabold text-base mt-1 tracking-wide">فاتورة مبدئية</div>
-        <div className="text-[11px] font-semibold text-black/80 truncate px-1">{storeSubtitle || storeName}</div>
-        {storeAddress && <div className="text-[10.5px] text-black/70 truncate px-1">{storeAddress}</div>}
+        <div className="text-[11px] font-semibold text-black/80 truncate px-1">
+          {storeSubtitle || storeName}
+        </div>
+        {storeAddress && (
+          <div className="text-[10.5px] text-black/70 truncate px-1">{storeAddress}</div>
+        )}
         {storePhone && (
           <div className="mt-0.5 max-w-full overflow-x-auto scrollbar-thin">
-            <div className="inline-flex items-center gap-1 text-[11px] nums whitespace-nowrap" dir="ltr">
+            <div
+              className="inline-flex items-center gap-1 text-[11px] nums whitespace-nowrap"
+              dir="ltr"
+            >
               <Phone className="size-3 shrink-0" aria-hidden="true" />
               <span>{storePhone}</span>
             </div>
@@ -2727,19 +3281,32 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
       {/* ===== INVOICE NUMBER (bordered, matches A4) ===== */}
       <div className="mt-2 border-2 border-black rounded px-2 py-1 text-center">
         <div className="text-[10px] font-semibold text-black/70">فاتورة رقم</div>
-        <div className="text-lg font-extrabold nums" dir="ltr">#{inv.invoice_number}</div>
+        <div className="text-lg font-extrabold nums" dir="ltr">
+          #{inv.invoice_number}
+        </div>
       </div>
 
       {/* ===== META ===== */}
       <div className="py-2 mt-2 border-b border-dashed border-black text-[11px] space-y-0.5">
         <div className="flex justify-between">
           <span className="text-black/70">التاريخ</span>
-          <span className="nums">{new Date(inv.created_at).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" })}</span>
+          <span className="nums">
+            {new Date(inv.created_at).toLocaleString("ar-EG", {
+              dateStyle: "short",
+              timeStyle: "short",
+            })}
+          </span>
         </div>
         {inv.customer_name && (
-          <div className="flex justify-between"><span className="text-black/70">العميل</span><span className="font-semibold">{inv.customer_name}</span></div>
+          <div className="flex justify-between">
+            <span className="text-black/70">العميل</span>
+            <span className="font-semibold">{inv.customer_name}</span>
+          </div>
         )}
-        <div className="flex justify-between"><span className="text-black/70">الدفع</span><span className="font-semibold">{paymentLabel}</span></div>
+        <div className="flex justify-between">
+          <span className="text-black/70">الدفع</span>
+          <span className="font-semibold">{paymentLabel}</span>
+        </div>
       </div>
 
       {/* ===== ITEMS (long-name friendly) ===== */}
@@ -2756,12 +3323,19 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="align-top border-b border-dashed border-black/30 keep-together">
+            <tr
+              key={it.id}
+              className="align-top border-b border-dashed border-black/30 keep-together"
+            >
               <td className="py-1 px-1 break-words whitespace-normal">
                 <div className="font-semibold leading-snug">{it.product_name}</div>
-                <div className="text-[10px] text-black/60 nums">{formatSDGShort(Number(it.unit_price))} × {it.quantity}</div>
+                <div className="text-[10px] text-black/60 nums">
+                  {formatSDGShort(Number(it.unit_price))} × {it.quantity}
+                </div>
               </td>
-              <td className="text-left py-1 px-1 nums font-bold">{formatSDGShort(Number(it.line_total))}</td>
+              <td className="text-left py-1 px-1 nums font-bold">
+                {formatSDGShort(Number(it.line_total))}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -2792,11 +3366,31 @@ function ThermalInvoice({ inv, items, paymentMethod, storeName, storeSubtitle, s
       {paymentMethod && paymentMethod.type === "bank" && (
         <div className="mt-2 border-t border-dashed border-black pt-2 text-[10.5px] space-y-0.5 keep-together">
           <div className="font-bold text-center">تفاصيل التحويل البنكي</div>
-          {paymentMethod.bank_name && <div>البنك: <span className="font-semibold">{paymentMethod.bank_name}</span></div>}
-          {paymentMethod.account_holder && <div>الحساب باسم: <span className="font-semibold">{paymentMethod.account_holder}</span></div>}
-          {paymentMethod.account_number && <div dir="ltr" className="text-right nums">Acc: {paymentMethod.account_number}</div>}
-          {paymentMethod.iban && <div dir="ltr" className="text-right nums">IBAN: {paymentMethod.iban}</div>}
-          {inv.reference_number && <div className="font-bold">رقم العملية: <span className="nums">{inv.reference_number}</span></div>}
+          {paymentMethod.bank_name && (
+            <div>
+              البنك: <span className="font-semibold">{paymentMethod.bank_name}</span>
+            </div>
+          )}
+          {paymentMethod.account_holder && (
+            <div>
+              الحساب باسم: <span className="font-semibold">{paymentMethod.account_holder}</span>
+            </div>
+          )}
+          {paymentMethod.account_number && (
+            <div dir="ltr" className="text-right nums">
+              Acc: {paymentMethod.account_number}
+            </div>
+          )}
+          {paymentMethod.iban && (
+            <div dir="ltr" className="text-right nums">
+              IBAN: {paymentMethod.iban}
+            </div>
+          )}
+          {inv.reference_number && (
+            <div className="font-bold">
+              رقم العملية: <span className="nums">{inv.reference_number}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -2824,17 +3418,18 @@ function MiniKpi({
     tone === "good"
       ? "text-emerald-700"
       : tone === "bad"
-      ? "text-rose-600"
-      : tone === "muted"
-      ? "text-muted-foreground"
-      : "text-foreground";
+        ? "text-rose-600"
+        : tone === "muted"
+          ? "text-muted-foreground"
+          : "text-foreground";
   return (
     <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
       <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className={`nums ${strong ? "text-base font-extrabold" : "text-sm font-bold"} ${valueClass}`}>
+      <div
+        className={`nums ${strong ? "text-base font-extrabold" : "text-sm font-bold"} ${valueClass}`}
+      >
         {value}
       </div>
     </div>
   );
 }
-

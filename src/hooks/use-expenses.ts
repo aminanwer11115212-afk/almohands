@@ -34,10 +34,7 @@ export function useExpenses(opts?: { accountId?: string | null }) {
         return (await localQuery<Expense>(sql, args)) as Expense[];
       }
 
-      let q = supabase
-        .from("expenses")
-        .select("*")
-        .order("date", { ascending: false });
+      let q = supabase.from("expenses").select("*").order("date", { ascending: false });
       if (opts?.accountId) q = q.eq("account_id", opts.accountId);
       const { data, error } = await q;
       if (error) throw error;
@@ -49,7 +46,13 @@ export function useExpenses(opts?: { accountId?: string | null }) {
 export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { target: string; amount: number; date: string; notes?: string; account_id?: string | null }) => {
+    mutationFn: async (input: {
+      target: string;
+      amount: number;
+      date: string;
+      notes?: string;
+      account_id?: string | null;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         await localInsert(
@@ -67,7 +70,9 @@ export function useAddExpense() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const { error } = await supabase.from("expenses").insert({
         user_id: user.id,
@@ -85,7 +90,6 @@ export function useAddExpense() {
     },
   });
 }
-
 
 export function useDeleteExpense() {
   const qc = useQueryClient();
@@ -105,4 +109,3 @@ export function useDeleteExpense() {
     },
   });
 }
-

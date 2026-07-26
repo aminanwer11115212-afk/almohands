@@ -11,11 +11,11 @@ export type AccountBalance = {
   is_default: boolean;
   is_active: boolean;
   opening_balance: number;
-  incoming: number;            // customer payments + invoice paid
-  customer_payments: number;   // payments table (party=customer)
-  invoice_paid: number;        // invoices.paid where payment_method_id = pm.id
-  outgoing_supplier: number;   // supplier payments out
-  outgoing_expense: number;    // expenses out
+  incoming: number; // customer payments + invoice paid
+  customer_payments: number; // payments table (party=customer)
+  invoice_paid: number; // invoices.paid where payment_method_id = pm.id
+  outgoing_supplier: number; // supplier payments out
+  outgoing_expense: number; // expenses out
   balance: number;
 };
 
@@ -99,7 +99,7 @@ export function useAccountBalances() {
         .select("*")
         .order("is_default", { ascending: false });
       if (error) throw error;
-      return ((data as unknown) as AccountBalance[]) ?? [];
+      return (data as unknown as AccountBalance[]) ?? [];
     },
     staleTime: 20_000,
   });

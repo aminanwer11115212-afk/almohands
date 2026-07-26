@@ -26,7 +26,10 @@ export interface Customer {
   totalRemaining: number;
 }
 
-function toCustomer(row: any, agg?: { count: number; total: number; paid: number; remaining: number }): Customer {
+function toCustomer(
+  row: any,
+  agg?: { count: number; total: number; paid: number; remaining: number },
+): Customer {
   return {
     id: row.id,
     name: row.name,
@@ -110,7 +113,10 @@ export function useCustomers(q: string) {
         .in("customer_id", ids);
       if (iErr) throw iErr;
 
-      const agg = new Map<string, { count: number; total: number; paid: number; remaining: number }>();
+      const agg = new Map<
+        string,
+        { count: number; total: number; paid: number; remaining: number }
+      >();
       for (const inv of invs ?? []) {
         const cid = (inv as any).customer_id as string | null;
         if (!cid) continue;
@@ -127,11 +133,17 @@ export function useCustomers(q: string) {
   });
 }
 
-
 export function useAddCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; phone?: string; workshop?: string; address?: string; creditLimit?: number; notes?: string }) => {
+    mutationFn: async (input: {
+      name: string;
+      phone?: string;
+      workshop?: string;
+      address?: string;
+      creditLimit?: number;
+      notes?: string;
+    }) => {
       if (canUseLocalData()) {
         const userId = await requireUserId();
         await localInsert(
@@ -171,7 +183,15 @@ export function useAddCustomer() {
 export function useUpdateCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name: string; phone?: string; workshop?: string; address?: string; creditLimit?: number; notes?: string }) => {
+    mutationFn: async (input: {
+      id: string;
+      name: string;
+      phone?: string;
+      workshop?: string;
+      address?: string;
+      creditLimit?: number;
+      notes?: string;
+    }) => {
       if (canUseLocalData()) {
         await localUpdate(
           "customers",
@@ -189,14 +209,17 @@ export function useUpdateCustomer() {
         return;
       }
 
-      const { error } = await supabase.from("customers").update({
-        name: input.name,
-        phone: input.phone || null,
-        workshop: input.workshop || null,
-        address: input.address || null,
-        credit_limit: input.creditLimit ?? 0,
-        notes: input.notes || null,
-      } as never).eq("id", input.id);
+      const { error } = await supabase
+        .from("customers")
+        .update({
+          name: input.name,
+          phone: input.phone || null,
+          workshop: input.workshop || null,
+          address: input.address || null,
+          credit_limit: input.creditLimit ?? 0,
+          notes: input.notes || null,
+        } as never)
+        .eq("id", input.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),

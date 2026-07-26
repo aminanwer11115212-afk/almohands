@@ -15,7 +15,12 @@ export const getRouter = () => {
           if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
           const msg = String((error as { message?: string })?.message ?? "").toLowerCase();
           // Don't retry auth/permission errors
-          if (msg.includes("jwt") || msg.includes("unauthorized") || msg.includes("permission") || msg.includes("row-level")) {
+          if (
+            msg.includes("jwt") ||
+            msg.includes("unauthorized") ||
+            msg.includes("permission") ||
+            msg.includes("row-level")
+          ) {
             return false;
           }
           return failureCount < 2;
@@ -56,10 +61,16 @@ export const getRouter = () => {
             {error?.message || "تعذّر عرض هذا القسم — حاول مجدداً."}
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            <button onClick={reset} className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-bold">
+            <button
+              onClick={reset}
+              className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-bold"
+            >
               حاول مجدداً
             </button>
-            <button onClick={() => window.location.reload()} className="px-4 h-9 rounded-md border border-input bg-background text-sm">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 h-9 rounded-md border border-input bg-background text-sm"
+            >
               إعادة تحميل
             </button>
           </div>
@@ -67,7 +78,6 @@ export const getRouter = () => {
       </div>
     ),
   });
-
 
   return router;
 };

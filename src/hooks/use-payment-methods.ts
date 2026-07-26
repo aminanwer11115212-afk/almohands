@@ -55,7 +55,11 @@ export function usePaymentMethods(activeOnly = false) {
         return rows.map((r) => fromLocalRow<PaymentMethod>("payment_methods", r));
       }
 
-      let q = supabase.from("payment_methods").select("*").order("is_default", { ascending: false }).order("created_at", { ascending: true });
+      let q = supabase
+        .from("payment_methods")
+        .select("*")
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true });
       if (activeOnly) q = q.eq("is_active", true);
       const { data, error } = await q;
       if (error) throw error;
@@ -93,7 +97,11 @@ async function getPaymentMethodLocal(id: string): Promise<PaymentMethod> {
 }
 
 async function clearOtherDefaults(uid: string, exceptId?: string) {
-  let q = supabase.from("payment_methods").update({ is_default: false }).eq("user_id", uid).eq("is_default", true);
+  let q = supabase
+    .from("payment_methods")
+    .update({ is_default: false })
+    .eq("user_id", uid)
+    .eq("is_default", true);
   if (exceptId) q = q.neq("id", exceptId);
   const { error } = await q;
   if (error) throw error;

@@ -1441,19 +1441,33 @@ function InvoiceDetailPage() {
     const NATURAL_W = 793.7;
     const compute = () => {
       const avail = outer.clientWidth;
+      // If the container hasn't been laid out yet, don't scale — leaving the
+      // sheet at natural size (auto height) keeps it visible instead of
+      // collapsing to a hidden 0-height box.
+      if (!avail || avail <= 0) {
+        setScreenScale(1);
+        setScreenFitH(null);
+        return;
+      }
       const s = Math.min(1, avail / NATURAL_W);
       setScreenScale(s);
       // offsetHeight is the untransformed layout height, so multiply by the
       // scale to reserve exactly the visible height (no dead whitespace).
-      setScreenFitH(inner.offsetHeight * s);
+      // Only pin a pixel height when we have a real positive measurement,
+      // otherwise fall back to auto so the invoice is never hidden.
+      const naturalH = inner.offsetHeight;
+      setScreenFitH(naturalH > 0 ? naturalH * s : null);
     };
     compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(outer);
-    ro.observe(inner);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(compute);
+      ro.observe(outer);
+      ro.observe(inner);
+    }
     window.addEventListener("resize", compute);
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
       window.removeEventListener("resize", compute);
     };
   }, [format, formatReady, hasInv, invoiceId]);
@@ -2730,7 +2744,7 @@ function InvoiceDetailPage() {
           <div
             ref={fitOuterRef}
             className="a4-fit-outer flex justify-center overflow-hidden print:block print:overflow-visible"
-            style={{ height: screenFitH ?? undefined }}
+            style={{ height: screenScale < 1 && screenFitH ? screenFitH : undefined }}
           >
             <div
               ref={fitInnerRef}

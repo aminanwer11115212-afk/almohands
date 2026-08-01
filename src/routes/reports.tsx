@@ -652,14 +652,24 @@ function OverviewTab({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
+      {/* ===== Sales & collection — kept separate from profit ===== */}
+      <StatSection title="المبيعات والتحصيل" icon={Receipt}>
         <StatCard icon={Receipt} label="المبيعات" value={formatSDG(stats.totalSales)} trend="up" />
+        <StatCard icon={CreditCard} label="مدفوع" value={formatSDG(stats.totalPaid)} />
         <StatCard
-          icon={Wallet}
-          label="المصروفات"
-          value={formatSDG(stats.totalExpenses)}
-          trend="down"
+          icon={CreditCard}
+          label="متبقٍ (آجل)"
+          value={formatSDG(stats.totalRemaining)}
+          trend={stats.totalRemaining > 0 ? "down" : "up"}
         />
+        <StatCard icon={Receipt} label="عدد الفواتير" value={formatNumber(stats.invoiceCount)} />
+        <StatCard icon={Receipt} label="متوسط الفاتورة" value={formatSDG(stats.avgTicket)} />
+        <StatCard icon={Wallet} label="خصومات" value={formatSDG(stats.totalDiscount)} />
+      </StatSection>
+
+      {/* ===== Profits & costs — a distinct section so profit is never mixed
+              up with sales figures ===== */}
+      <StatSection title="الأرباح والتكاليف" icon={TrendingUp}>
         {isAdmin && (
           <>
             <StatCard
@@ -674,17 +684,19 @@ function OverviewTab({
               value={formatSDG(stats.grossProfit)}
               trend={stats.grossProfit >= 0 ? "up" : "down"}
             />
+            <StatCard icon={Package} label="تكلفة البضاعة" value={formatSDG(stats.cogs)} trend="down" />
           </>
         )}
-        <StatCard icon={Receipt} label="عدد الفواتير" value={formatNumber(stats.invoiceCount)} />
-        <StatCard icon={Receipt} label="متوسط الفاتورة" value={formatSDG(stats.avgTicket)} />
-        <StatCard icon={CreditCard} label="مدفوع" value={formatSDG(stats.totalPaid)} />
         <StatCard
-          icon={CreditCard}
-          label="متبقٍ (آجل)"
-          value={formatSDG(stats.totalRemaining)}
-          trend={stats.totalRemaining > 0 ? "down" : "up"}
+          icon={Wallet}
+          label="المصروفات"
+          value={formatSDG(stats.totalExpenses)}
+          trend="down"
         />
+      </StatSection>
+
+      {/* ===== Inventory & customers ===== */}
+      <StatSection title="المخزون والعملاء" icon={Users}>
         <StatCard icon={Users} label="العملاء" value={formatNumber(stats.customerCount)} />
         <StatCard
           icon={Package}
@@ -693,8 +705,7 @@ function OverviewTab({
           trend={stats.lowStock > 0 ? "down" : "up"}
         />
         <StatCard icon={RotateCcw} label="مرتجعات" value={formatNumber(stats.returnsCount)} />
-        <StatCard icon={Wallet} label="خصومات" value={formatSDG(stats.totalDiscount)} />
-      </div>
+      </StatSection>
 
       {/* Sales chart */}
       <Card title="المبيعات اليومية" icon={Calendar}>
@@ -1076,6 +1087,26 @@ function useComputed() {
     acceptedReturns: number;
     profitByInvoice: Map<string, number>;
   };
+}
+
+function StatSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: any;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-muted/20 p-2.5">
+      <div className="flex items-center gap-1.5 mb-2 px-1">
+        <Icon className="size-3.5 text-brand" />
+        <h3 className="text-xs font-bold text-muted-foreground">{title}</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-2">{children}</div>
+    </section>
+  );
 }
 
 function StatCard({

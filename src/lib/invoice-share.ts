@@ -123,19 +123,20 @@ async function renderElementToPdf(
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const isThermal = format === "thermal";
-  // A4 invoices print in landscape (297mm × 210mm) with 6mm margins to match
-  // the on-screen print CSS exactly.
-  const pageWidth = isThermal ? 80 : 297;
-  const pageHeight = isThermal ? Math.max(297, 0) : 210;
+  // A4 invoices print in standard portrait (210mm × 297mm) with 6mm margins to
+  // match the on-screen print CSS exactly — this is the internationally
+  // printable A4 size (21 × 29.7 cm) every office printer supports.
+  const pageWidth = isThermal ? 80 : 210;
+  const pageHeight = isThermal ? Math.max(297, 0) : 297;
   const marginX = isThermal ? 2 : 6;
   const marginY = isThermal ? 2 : 6;
   const contentWidth = pageWidth - marginX * 2;
-  let imgHeight = (canvas.height * contentWidth) / canvas.width;
+  const imgHeight = (canvas.height * contentWidth) / canvas.width;
 
   const pdf = new jsPDF({
     unit: "mm",
     format: isThermal ? [pageWidth, Math.max(297, imgHeight + marginY * 2)] : "a4",
-    orientation: isThermal ? "portrait" : "landscape",
+    orientation: "portrait",
   });
 
   if (isThermal) {

@@ -78,8 +78,31 @@ export function BarcodeScannerDialog({ open, onClose, onDetected, cashierMode = 
 
       try {
         const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const { DecodeHintType, BarcodeFormat } = await import("@zxing/library");
         if (cancelled) return;
-        const reader = new BrowserMultiFormatReader();
+        // Decode hints: TRY_HARDER improves reads on low-contrast / angled labels,
+        // and an explicit format list ensures alphanumeric 1D symbologies
+        // (Code 128 / Code 39 / Code 93 — e.g. auto-parts boxes like "A-103K")
+        // are attempted, not just numeric EAN/UPC. Without these, alphanumeric
+        // barcodes often failed or errored while numeric ones read fine.
+        const hints = new Map<number, unknown>();
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.CODE_93,
+          BarcodeFormat.CODABAR,
+          BarcodeFormat.ITF,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.DATA_MATRIX,
+          BarcodeFormat.AZTEC,
+          BarcodeFormat.PDF_417,
+        ]);
+        const reader = new BrowserMultiFormatReader(hints as never);
 
         let cams: MediaDeviceInfo[] = [];
         try {

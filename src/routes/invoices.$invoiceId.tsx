@@ -167,13 +167,9 @@ function InvoiceDetailPage() {
   const printRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
-  // Screen-only fit-to-width: the A4 sheet is a fixed ~A4-wide document, so on
-  // narrow phones it must be scaled down to fit the viewport (otherwise digits
-  // get clipped at the edge). Print/PDF are unaffected — see the print CSS reset.
-  const fitOuterRef = useRef<HTMLDivElement>(null);
-  const fitInnerRef = useRef<HTMLDivElement>(null);
-  const [screenScale, setScreenScale] = useState(1);
-  const [screenFitH, setScreenFitH] = useState<number | null>(null);
+  // On phones the fixed-width A4 sheet is shown at its natural, readable size
+  // inside a horizontal-scroll container (see the render below) — no scaling,
+  // so it can never collapse, clip, or blur. Nothing to measure here.
   const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -1424,53 +1420,6 @@ function InvoiceDetailPage() {
       window.removeEventListener("afterprint", clear);
     };
   }, [format, invoiceId]);
-
-  // Screen-only: scale the fixed-width A4 sheet down to fit the viewport width
-  // on narrow screens so nothing is clipped. Recomputes on container/content
-  // resize. Only affects on-screen display; print/PDF use the real A4 size.
-  useEffect(() => {
-    if (format !== "a4") {
-      setScreenScale(1);
-      setScreenFitH(null);
-      return;
-    }
-    const outer = fitOuterRef.current;
-    const inner = fitInnerRef.current;
-    if (!outer || !inner) return;
-    // A4 width in CSS px at 96 DPI: 210mm ≈ 793.7px.
-    const NATURAL_W = 793.7;
-    const compute = () => {
-      const avail = outer.clientWidth;
-      // If the container hasn't been laid out yet, don't scale — leaving the
-      // sheet at natural size (auto height) keeps it visible instead of
-      // collapsing to a hidden 0-height box.
-      if (!avail || avail <= 0) {
-        setScreenScale(1);
-        setScreenFitH(null);
-        return;
-      }
-      const s = Math.min(1, avail / NATURAL_W);
-      setScreenScale(s);
-      // offsetHeight is the untransformed layout height, so multiply by the
-      // scale to reserve exactly the visible height (no dead whitespace).
-      // Only pin a pixel height when we have a real positive measurement,
-      // otherwise fall back to auto so the invoice is never hidden.
-      const naturalH = inner.offsetHeight;
-      setScreenFitH(naturalH > 0 ? naturalH * s : null);
-    };
-    compute();
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(compute);
-      ro.observe(outer);
-      ro.observe(inner);
-    }
-    window.addEventListener("resize", compute);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", compute);
-    };
-  }, [format, formatReady, hasInv, invoiceId]);
 
   // Auto-trigger PDF/WhatsApp actions if requested via search params (once).
   const pdfTriggeredRef = useRef(false);
@@ -2739,36 +2688,29 @@ function InvoiceDetailPage() {
 
       <main className="py-6 px-4 print:p-0">
         {format === "a4" ? (
-          // Fit-to-width wrapper (screen only): centers the fixed-width A4 sheet
-          // and scales it down on narrow phones so no digits are clipped.
-          <div
-            ref={fitOuterRef}
-            className="a4-fit-outer flex justify-center overflow-hidden print:block print:overflow-visible"
-            style={{ height: screenScale < 1 && screenFitH ? screenFitH : undefined }}
-          >
+          // Natural-size A4 shown inside a horizontal-scroll container. The sheet
+          // keeps its true A4 width (793.7px @ 96 DPI) so it's always readable and
+          // never clipped; on narrow phones the user scrolls sideways. It centers
+          // itself on wide screens (mx-auto). Print/PDF reset width — see print CSS.
+          <div className="a4-scroll overflow-x-auto print:overflow-visible">
             <div
-              ref={fitInnerRef}
-              className="a4-fit-inner"
-              style={{
-                width: "793.7px",
-                transform: screenScale < 1 ? `scale(${screenScale})` : undefined,
-                transformOrigin: "top center",
-              }}
+              ref={printRef}
+              id="invoice-print-root"
+              className="a4-natural mx-auto"
+              style={{ width: "793.7px" }}
             >
-              <div ref={printRef} id="invoice-print-root">
-                <A4Invoice
-                  inv={inv}
-                  items={items}
-                  paymentMethod={paymentMethod}
-                  storeName={storeName}
-                  storeSubtitle={storeSubtitle}
-                  storePhone={storePhone}
-                  invoiceFooter={invoiceFooter}
-                  showLogo={showLogo}
-                  paymentLabel={paymentLabel}
-                />
-                {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
-              </div>
+              <A4Invoice
+                inv={inv}
+                items={items}
+                paymentMethod={paymentMethod}
+                storeName={storeName}
+                storeSubtitle={storeSubtitle}
+                storePhone={storePhone}
+                invoiceFooter={invoiceFooter}
+                showLogo={showLogo}
+                paymentLabel={paymentLabel}
+              />
+              {/* Profit intentionally excluded from print/PDF — see Reports for details. */}
             </div>
           </div>
         ) : (
@@ -3018,9 +2960,9 @@ function InvoiceDetailPage() {
           html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
           body * { visibility: hidden !important; }
           #invoice-print-root, #invoice-print-root * { visibility: visible !important; }
-          /* Neutralize the on-screen fit-to-width scaling so print uses true A4. */
-          .a4-fit-outer { height: auto !important; overflow: visible !important; display: block !important; }
-          .a4-fit-inner { width: auto !important; transform: none !important; }
+          /* Neutralize the on-screen natural-size/scroll wrapper for print. */
+          .a4-scroll { overflow: visible !important; }
+          .a4-natural { width: auto !important; margin: 0 !important; }
           #invoice-print-root {
             position: absolute !important;
             inset: 0 !important;

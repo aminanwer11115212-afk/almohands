@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PermissionGate } from "@/components/PermissionGate";
 import { useState, useEffect } from "react";
-import { Loader2, Save, Trash2, AlertCircle } from "lucide-react";
+import { Loader2, Save, Trash2, AlertCircle, ScanBarcode } from "lucide-react";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toProduct, type ProductRow } from "@/types/product";
@@ -93,6 +94,7 @@ function EditProductPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -324,12 +326,23 @@ function EditProductPage() {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الباركود">
-            <input
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              dir="ltr"
-              className="ip text-left"
-            />
+            <div className="flex gap-2">
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                dir="ltr"
+                className="ip text-left flex-1"
+              />
+              <button
+                type="button"
+                onClick={() => setScanOpen(true)}
+                className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
+                aria-label="مسح الباركود بالكاميرا"
+                title="مسح بالكاميرا"
+              >
+                <ScanBarcode className="size-5" />
+              </button>
+            </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
             <input
@@ -445,6 +458,16 @@ function EditProductPage() {
           )}
         </button>
       </form>
+
+      <BarcodeScannerDialog
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetected={(code) => {
+          setBarcode(code);
+          toast.success("تم قراءة الباركود");
+        }}
+        contextTag="products.edit"
+      />
 
       <style>{`
         .ip {

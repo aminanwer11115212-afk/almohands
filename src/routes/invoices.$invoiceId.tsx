@@ -178,8 +178,8 @@ function InvoiceDetailPage() {
     const scroller = previewScrollRef.current;
     if (!scroller) return 1;
     const mmToPx = 96 / 25.4;
-    const paperWmm = format === "thermal" ? 80 : 297;
-    const paperHmm = format === "thermal" ? 200 : 210;
+    const paperWmm = format === "thermal" ? 80 : 210;
+    const paperHmm = format === "thermal" ? 200 : 297;
     const paperW = paperWmm * mmToPx;
     const paperH = paperHmm * mmToPx;
     // Reserve padding + small safety gutter for scrollbar/rounding differences across browsers.
@@ -1384,13 +1384,13 @@ function InvoiceDetailPage() {
   }, [autoprint, formatReady, hasInv, invoiceId]);
 
   // Fit-to-page: measure invoice height right before print; if it slightly
-  // overflows a single A4 landscape sheet (up to 30%), scale it down so the
+  // overflows a single A4 portrait sheet (up to 30%), scale it down so the
   // whole invoice fits without clipping. Only applies to A4 format.
   useEffect(() => {
     if (format !== "a4") return;
-    // A4 landscape printable area at 96 DPI ≈ (297-12)mm × (210-12)mm.
+    // A4 portrait printable area at 96 DPI ≈ (210-12)mm × (297-12)mm.
     // Convert mm→px at 96dpi: 1mm ≈ 3.7795px.
-    const PAGE_H_PX = (210 - 12) * 3.7795; // ~748px
+    const PAGE_H_PX = (297 - 12) * 3.7795; // ~1077px
     function apply() {
       const root = document.getElementById("invoice-print-root");
       const paper = root?.querySelector<HTMLElement>(".print-a4");
@@ -2831,11 +2831,11 @@ function InvoiceDetailPage() {
             </div>
           </DialogHeader>
           <div ref={previewScrollRef} className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
-            {/* Paper wrapper: keeps A4 landscape aspect + margin guide overlay */}
+            {/* Paper wrapper: keeps A4 portrait aspect + margin guide overlay */}
             <div
               className="mx-auto origin-top transition-transform"
               style={{
-                width: format === "thermal" ? "80mm" : "297mm",
+                width: format === "thermal" ? "80mm" : "210mm",
                 transform: `scale(${previewZoom})`,
                 transformOrigin: "top center",
               }}
@@ -2844,8 +2844,8 @@ function InvoiceDetailPage() {
                 ref={previewRef}
                 className="relative bg-white shadow-md"
                 style={{
-                  width: format === "thermal" ? "80mm" : "297mm",
-                  minHeight: format === "thermal" ? "auto" : "210mm",
+                  width: format === "thermal" ? "80mm" : "210mm",
+                  minHeight: format === "thermal" ? "auto" : "297mm",
                 }}
               >
                 {/* Margin guide (dashed inner box shows printable safe area) — toggleable */}
@@ -2886,7 +2886,7 @@ function InvoiceDetailPage() {
                 )}
               </div>
               <div className="text-center text-[10px] text-[#65676B] mt-1 print:hidden">
-                {format === "a4" ? "A4 أفقي · 297×210mm · هامش 8mm" : "حراري · 80mm · هامش 2mm"}
+                {format === "a4" ? "A4 عمودي · 210×297mm · هامش 8mm" : "حراري · 80mm · هامش 2mm"}
               </div>
             </div>
           </div>
@@ -2957,7 +2957,7 @@ function InvoiceDetailPage() {
           .print\\:hidden { display: none !important; }
           .print-a4, .print-thermal { box-shadow: none !important; border: none !important; max-width: none !important; }
           .print-a4 {
-            width: 285mm; /* A4 landscape 297mm - 2×6mm margins */
+            width: 198mm; /* A4 portrait 210mm - 2×6mm margins */
             margin: 0 auto !important;
             padding: 4mm !important;
             font-size: 10.5pt !important;
@@ -2982,12 +2982,12 @@ function InvoiceDetailPage() {
           #invoice-print-root.fit-to-page .print-a4 {
             transform: scale(var(--print-fit, 1));
             transform-origin: top center;
-            width: calc(285mm / var(--print-fit, 1));
+            width: calc(198mm / var(--print-fit, 1));
           }
           ${
             format === "thermal"
               ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-              : "@page { size: A4 landscape; margin: 6mm; } @page :first { size: A4 landscape; margin: 6mm; } @page :left { size: A4 landscape; margin: 6mm; } @page :right { size: A4 landscape; margin: 6mm; }"
+              : "@page { size: A4 portrait; margin: 6mm; } @page :first { size: A4 portrait; margin: 6mm; } @page :left { size: A4 portrait; margin: 6mm; } @page :right { size: A4 portrait; margin: 6mm; }"
           }
         }
       `}</style>
@@ -3044,7 +3044,9 @@ function A4Invoice({
             {showLogo && <img src={logo} alt={storeName} className="h-24 w-24 object-contain" />}
           </div>
           <div className="text-center min-w-0">
-            <h1 className="text-4xl font-extrabold tracking-wide">فاتورة مبدئية</h1>
+            {/* No letter-spacing on Arabic: CSS tracking breaks cursive letter-joining
+                when html2canvas rasterizes the invoice for PDF/WhatsApp export. */}
+            <h1 className="text-4xl font-extrabold">فاتورة مبدئية</h1>
             <p className="text-lg font-semibold mt-1 text-black/80 truncate">
               {storeSubtitle || storeName}
             </p>
@@ -3258,7 +3260,7 @@ function ThermalInvoice({
         {showLogo && (
           <img src={logo} alt={storeName} className="mx-auto h-14 w-14 object-contain" />
         )}
-        <div className="font-extrabold text-base mt-1 tracking-wide">فاتورة مبدئية</div>
+        <div className="font-extrabold text-base mt-1">فاتورة مبدئية</div>
         <div className="text-[11px] font-semibold text-black/80 truncate px-1">
           {storeSubtitle || storeName}
         </div>

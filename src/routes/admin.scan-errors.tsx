@@ -47,6 +47,7 @@ function ScanErrorsPage() {
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/50 text-[11px]">
                 <tr>
@@ -79,6 +80,7 @@ function ScanErrorsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

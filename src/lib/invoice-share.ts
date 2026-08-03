@@ -1,4 +1,18 @@
 import { formatSDG } from "@/lib/format";
+import {
+  A4_CAPTURE_HEIGHT_PX,
+  captureWidthPx,
+  computePdfPlacement,
+  type PdfFormat,
+} from "@/lib/pdf-page-size";
+
+export {
+  A4_MM,
+  A4_CAPTURE_WIDTH_PX,
+  THERMAL_CAPTURE_WIDTH_PX,
+  PDF_MARGIN_MM,
+  computePdfPlacement,
+} from "@/lib/pdf-page-size";
 
 /** Normalize a phone number to international format for wa.me (defaults SD +249). */
 export function normalizePhoneForWhatsApp(raw: string | null | undefined, defaultCountry = "249"): string {
@@ -90,6 +104,87 @@ export function openWhatsAppShare(phone: string | null | undefined, text: string
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/** Wait for webfonts + <img> assets inside `root` so text metrics are final. */
+async function waitForAssets(root: HTMLElement, timeoutMs = 3000) {
+  const deadline = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  const images = Array.from(root.querySelectorAll("img")).map(
+    (img) =>
+      new Promise<void>((resolve) => {
+        if (img.complete) return resolve();
+        img.addEventListener("load", () => resolve(), { once: true });
+        img.addEventListener("error", () => resolve(), { once: true });
+      }),
+  );
+  const ready = Promise.all([
+    fonts ? fonts.ready.catch(() => undefined) : Promise.resolve(),
+    ...images,
+  ]).then(() => undefined);
+  await Promise.race([ready, deadline]);
+}
+
+/**
+ * Copy `el` into an off-screen host that is exactly one page wide, run `fn`
+ * against the copy, then clean up.
+ *
+ * Rasterising the live node is what broke the export on phones: the sheet was
+ * measured inside a ~360 px viewport, so cell text overflowed its column and
+ * the too-narrow snapshot was then blown up to 198 mm — giant, overlapping
+ * Arabic text across two pages. Staging at a fixed A4 width makes the output
+ * identical on every device.
+ */
+async function withStagedSheet<T>(
+  el: HTMLElement,
+  format: PdfFormat,
+  fn: (staged: HTMLElement, widthPx: number) => Promise<T>,
+): Promise<T> {
+  const widthPx = captureWidthPx(format);
+  const host = document.createElement("div");
+  host.setAttribute("data-pdf-stage", "");
+  host.setAttribute("dir", "rtl");
+  host.style.cssText = [
+    // Fixed (not absolute) so the off-screen copy never adds scrollable
+    // overflow to the RTL page while it is being rasterised.
+    "position:fixed",
+    "top:0",
+    "left:-10000px",
+    `width:${widthPx}px`,
+    "background:#ffffff",
+    "z-index:-1",
+    "pointer-events:none",
+    // Mobile Safari/Chrome inflate font sizes ("text autosizing") for blocks
+    // wider than the viewport — that is what blew the invoice text past its
+    // table cells in the exported PDF. Pin it to 100%.
+    "-webkit-text-size-adjust:100%",
+    "text-size-adjust:100%",
+  ].join(";");
+
+  const clone = el.cloneNode(true) as HTMLElement;
+  // Duplicate ids would collide with the live invoice (and with the print CSS).
+  clone.removeAttribute("id");
+  clone.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
+  clone.style.width = `${widthPx}px`;
+  clone.style.maxWidth = "none";
+  clone.style.margin = "0";
+  clone.style.transform = "none";
+  // Screen-only chrome (drop shadow / preview border) must not end up in the PDF.
+  clone.querySelectorAll<HTMLElement>(".print-a4, .print-thermal").forEach((sheet) => {
+    sheet.style.boxShadow = "none";
+    sheet.style.border = "0";
+    sheet.style.maxWidth = "none";
+    sheet.style.width = "100%";
+  });
+
+  host.appendChild(clone);
+  document.body.appendChild(host);
+  try {
+    await waitForAssets(host);
+    return await fn(clone, widthPx);
+  } finally {
+    host.remove();
+  }
+}
+
 /**
  * Render an element to a PDF using html2canvas-pro (which natively supports
  * modern CSS color functions such as oklch() — the previous html2pdf.js path
@@ -99,7 +194,7 @@ export function openWhatsAppShare(phone: string | null | undefined, text: string
 async function renderElementToPdf(
   el: HTMLElement,
   filename: string,
-  format: "a4" | "thermal",
+  format: PdfFormat,
 ): Promise<{ blob: Blob; save: () => void }> {
   const [{ default: html2canvas }, jspdfMod] = await Promise.all([
     import("html2canvas-pro"),
@@ -107,65 +202,38 @@ async function renderElementToPdf(
   ]);
   const { jsPDF } = jspdfMod as typeof import("jspdf");
 
-  // Ensure custom fonts (Cairo/Tajawal + Arabic system fallbacks) are fully
-  // loaded before html2canvas snapshots the DOM, otherwise the exported PDF
-  // renders with fallback metrics and Arabic text can overlap or misalign.
-  if (typeof document !== "undefined" && (document as Document & { fonts?: FontFaceSet }).fonts) {
-    try { await (document as Document & { fonts: FontFaceSet }).fonts.ready; } catch { /* ignore */ }
-  }
-
-  const canvas = await html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
+  const canvas = await withStagedSheet(el, format, async (staged, widthPx) => {
+    const heightPx = Math.max(staged.scrollHeight, staged.getBoundingClientRect().height, 1);
+    // Keep the bitmap under ~8 megapixels so low-end phones don't OOM on very
+    // long invoices; 2× stays crisp for everything that fits a page or two.
+    const scale = heightPx * widthPx * 4 > 8_000_000 ? 1.5 : 2;
+    return html2canvas(staged, {
+      scale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      // Lay the clone out in an A4-wide viewport so percentage widths, flex
+      // and any width-based media query resolve exactly as they do on paper.
+      windowWidth: widthPx,
+      windowHeight: Math.max(Math.ceil(heightPx), A4_CAPTURE_HEIGHT_PX),
+    });
   });
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
-  const isThermal = format === "thermal";
-  // A4 invoices print in standard portrait (210mm × 297mm) with 6mm margins to
-  // match the on-screen print CSS exactly — this is the internationally
-  // printable A4 size (21 × 29.7 cm) every office printer supports.
-  const pageWidth = isThermal ? 80 : 210;
-  const pageHeight = isThermal ? Math.max(297, 0) : 297;
-  const marginX = isThermal ? 2 : 6;
-  const marginY = isThermal ? 2 : 6;
-  const contentWidth = pageWidth - marginX * 2;
-  const imgHeight = (canvas.height * contentWidth) / canvas.width;
+  const place = computePdfPlacement(canvas.width, canvas.height, format);
 
   const pdf = new jsPDF({
     unit: "mm",
-    format: isThermal ? [pageWidth, Math.max(297, imgHeight + marginY * 2)] : "a4",
+    // A4 invoices use jsPDF's built-in ISO A4 (210 × 297 mm) so the file
+    // reports the standard page size to every viewer and printer.
+    format: format === "thermal" ? [place.pageWidthMm, place.pageHeightMm] : "a4",
     orientation: "portrait",
   });
 
-  if (isThermal) {
-    pdf.addImage(imgData, "JPEG", marginX, marginY, contentWidth, imgHeight);
-  } else {
-    const contentHeight = pageHeight - marginY * 2;
-    // Fit-to-page: if content is only slightly larger than one page (up to 25%
-    // overflow), scale it down so the whole invoice fits on a single A4 sheet
-    // without clipping the footer or totals.
-    if (imgHeight > contentHeight && imgHeight <= contentHeight * 1.25) {
-      const scale = contentHeight / imgHeight;
-      const scaledWidth = contentWidth * scale;
-      const scaledX = marginX + (contentWidth - scaledWidth) / 2;
-      pdf.addImage(imgData, "JPEG", scaledX, marginY, scaledWidth, contentHeight);
-    } else {
-      // Multi-page slicing for genuinely long documents.
-      let heightLeft = imgHeight;
-      let position = marginY;
-      pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
-      heightLeft -= contentHeight;
-      while (heightLeft > 0) {
-        pdf.addPage();
-        position = marginY - (imgHeight - heightLeft);
-        pdf.addImage(imgData, "JPEG", marginX, position, contentWidth, imgHeight);
-        heightLeft -= contentHeight;
-      }
-    }
-  }
-
+  place.pageOffsetsMm.forEach((offsetY, i) => {
+    if (i > 0) pdf.addPage();
+    pdf.addImage(imgData, "JPEG", place.offsetXMm, offsetY, place.drawWidthMm, place.drawHeightMm);
+  });
 
   const blob = pdf.output("blob");
   return { blob, save: () => pdf.save(filename) };

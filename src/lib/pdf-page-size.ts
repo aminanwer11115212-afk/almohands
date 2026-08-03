@@ -53,6 +53,45 @@ export function captureWidthPx(format: PdfFormat): number {
 }
 
 /**
+ * Print resolution we aim for. The sheet is laid out at 96 DPI, so a capture
+ * scale of 300/96 ≈ 3.125 turns it into a 300 DPI bitmap — the point where
+ * small Arabic glyphs stop looking soft on paper and in PDF viewers.
+ */
+export const TARGET_DPI = 300;
+/** CSS DPI: the resolution the sheet is laid out at before scaling. */
+export const CSS_DPI = 96;
+/**
+ * Ceilings that keep the bitmap inside what phone browsers can actually
+ * allocate: mobile Safari/Chrome refuse canvases past ~4096px on a side, and
+ * a 12 MP canvas already costs ~48 MB of RGBA memory.
+ */
+export const MAX_CANVAS_DIM = 4096;
+export const MAX_CANVAS_PIXELS = 12_000_000;
+
+/**
+ * Largest capture scale that reaches `targetDpi` without exceeding the canvas
+ * limits. Long invoices quietly get a lower DPI instead of failing to render.
+ */
+export function computeCaptureScale(
+  widthPx: number,
+  heightPx: number,
+  opts: { targetDpi?: number; maxDim?: number; maxPixels?: number } = {},
+): number {
+  const { targetDpi = TARGET_DPI, maxDim = MAX_CANVAS_DIM, maxPixels = MAX_CANVAS_PIXELS } = opts;
+  const w = Number.isFinite(widthPx) && widthPx > 0 ? widthPx : 1;
+  const h = Number.isFinite(heightPx) && heightPx > 0 ? heightPx : 1;
+
+  const ideal = targetDpi / CSS_DPI;
+  const byDim = Math.min(maxDim / w, maxDim / h);
+  const byArea = Math.sqrt(maxPixels / (w * h));
+  const scale = Math.min(ideal, byDim, byArea);
+
+  // Never drop below 1× (a downscaled capture would be unreadable); round to
+  // 2 decimals so the same sheet always rasterises identically.
+  return Math.max(1, Math.floor(scale * 100) / 100);
+}
+
+/**
  * Map a rasterised sheet (canvas pixels) onto A4 / thermal pages.
  *
  * A4 is always emitted at exactly 210 × 297 mm — content that overflows by up

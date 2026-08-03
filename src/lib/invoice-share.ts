@@ -2,6 +2,7 @@ import { formatSDG } from "@/lib/format";
 import {
   A4_CAPTURE_HEIGHT_PX,
   captureWidthPx,
+  computeCaptureScale,
   computePdfPlacement,
   type PdfFormat,
 } from "@/lib/pdf-page-size";
@@ -11,6 +12,7 @@ export {
   A4_CAPTURE_WIDTH_PX,
   THERMAL_CAPTURE_WIDTH_PX,
   PDF_MARGIN_MM,
+  computeCaptureScale,
   computePdfPlacement,
 } from "@/lib/pdf-page-size";
 
@@ -204,11 +206,10 @@ async function renderElementToPdf(
 
   const canvas = await withStagedSheet(el, format, async (staged, widthPx) => {
     const heightPx = Math.max(staged.scrollHeight, staged.getBoundingClientRect().height, 1);
-    // Keep the bitmap under ~8 megapixels so low-end phones don't OOM on very
-    // long invoices; 2× stays crisp for everything that fits a page or two.
-    const scale = heightPx * widthPx * 4 > 8_000_000 ? 1.5 : 2;
     return html2canvas(staged, {
-      scale,
+      // ~300 DPI instead of the 2× (192 DPI) that made Arabic text look soft,
+      // automatically reduced for long invoices so the canvas stays allocatable.
+      scale: computeCaptureScale(widthPx, heightPx),
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
@@ -219,6 +220,9 @@ async function renderElementToPdf(
     });
   });
 
+  // High-quality JPEG: at ~300 DPI its artefacts are far below one glyph
+  // stroke, and jsPDF embeds the stream as-is (no JS decode), so big captures
+  // stay fast and the shared file stays small enough for mobile data.
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const place = computePdfPlacement(canvas.width, canvas.height, format);
 

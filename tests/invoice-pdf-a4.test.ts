@@ -15,7 +15,11 @@ import {
   A4_CAPTURE_HEIGHT_PX,
   THERMAL_CAPTURE_WIDTH_PX,
   PDF_MARGIN_MM,
+  CSS_DPI,
+  MAX_CANVAS_DIM,
+  MAX_CANVAS_PIXELS,
   captureWidthPx,
+  computeCaptureScale,
   computePdfPlacement,
 } from "../src/lib/pdf-page-size";
 
@@ -51,6 +55,40 @@ describe("A4 capture geometry", () => {
     // fit-to-page squeeze. This is the shape a normal invoice must produce.
     expect(p.drawHeightMm).toBeCloseTo((A4_HEIGHT_PX * CONTENT_W) / A4_CAPTURE_WIDTH_PX, 5);
     expect(p.drawHeightMm).toBeLessThanOrEqual(CONTENT_H);
+  });
+});
+
+describe("computeCaptureScale", () => {
+  it("rasterises a one-page A4 invoice at ~300 DPI", () => {
+    const scale = computeCaptureScale(A4_CAPTURE_WIDTH_PX, A4_CAPTURE_HEIGHT_PX);
+    // 300 / 96 = 3.125 — the canvas limits must not bite for a single page.
+    expect(scale).toBeGreaterThanOrEqual(3);
+    const dpi = scale * CSS_DPI;
+    expect(dpi).toBeGreaterThanOrEqual(288);
+    expect(A4_CAPTURE_WIDTH_PX * scale).toBeLessThanOrEqual(MAX_CANVAS_DIM);
+    expect(A4_CAPTURE_HEIGHT_PX * scale).toBeLessThanOrEqual(MAX_CANVAS_DIM);
+  });
+
+  it("stays inside the canvas limits for long invoices", () => {
+    for (const h of [1123, 1600, 2400, 4000]) {
+      const scale = computeCaptureScale(A4_CAPTURE_WIDTH_PX, h);
+      expect(A4_CAPTURE_WIDTH_PX * scale).toBeLessThanOrEqual(MAX_CANVAS_DIM);
+      expect(h * scale).toBeLessThanOrEqual(MAX_CANVAS_DIM);
+      expect(A4_CAPTURE_WIDTH_PX * scale * h * scale).toBeLessThanOrEqual(MAX_CANVAS_PIXELS);
+    }
+  });
+
+  it("never downscales below the 96 DPI layout, even for absurd input", () => {
+    // Past ~4096 CSS px the sheet cannot fit the canvas limits at any scale;
+    // capture 1:1 rather than shipping an unreadable, shrunken bitmap.
+    expect(computeCaptureScale(A4_CAPTURE_WIDTH_PX, 9000)).toBe(1);
+    expect(computeCaptureScale(A4_CAPTURE_WIDTH_PX, 50_000)).toBe(1);
+    expect(computeCaptureScale(0, 0)).toBeGreaterThanOrEqual(1);
+    expect(computeCaptureScale(Number.NaN, Number.NaN)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("beats the old fixed 2× capture for a normal invoice", () => {
+    expect(computeCaptureScale(A4_CAPTURE_WIDTH_PX, 1400)).toBeGreaterThan(2);
   });
 });
 

@@ -1605,11 +1605,21 @@ function InvoiceDetailPage() {
 
   /** Show a quick confirmation toast before opening the print dialog. */
   function confirmAndPrint() {
+    // Android's print dialog picks its paper size from the system print
+    // service (often "Letter"), and ignores the page's `@page size` rule —
+    // so tell the user to switch it, or use the PDF export which is always A4.
+    const isMobilePrint =
+      typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     toast("إرسال الفاتورة إلى الطابعة؟", {
-      description: format === "thermal" ? "الحجم: 80mm حراري" : "الحجم: A4",
+      description:
+        format === "thermal"
+          ? "الحجم: 80mm حراري"
+          : isMobilePrint
+            ? "الحجم: A4 (210×297mm) — إذا ظهر «Letter» في نافذة الطباعة غيّره إلى A4، أو استخدم زر PDF فهو A4 دائماً."
+            : "الحجم: A4 (210×297mm)",
       action: { label: "تأكيد الطباعة", onClick: () => tryPrint() },
       cancel: { label: "إلغاء", onClick: () => {} },
-      duration: 6000,
+      duration: isMobilePrint && format !== "thermal" ? 10000 : 6000,
     });
   }
 
@@ -2697,7 +2707,14 @@ function InvoiceDetailPage() {
               ref={printRef}
               id="invoice-print-root"
               className="a4-natural mx-auto"
-              style={{ width: "793.7px" }}
+              style={{
+                width: "793.7px",
+                // Mobile browsers inflate the font size of blocks wider than
+                // the viewport ("text autosizing"), which pushes cell text out
+                // of the A4 table columns and makes it overlap. Pin it.
+                WebkitTextSizeAdjust: "100%",
+                textSizeAdjust: "100%",
+              }}
             >
               <A4Invoice
                 inv={inv}
@@ -2862,6 +2879,9 @@ function InvoiceDetailPage() {
                 style={{
                   width: format === "thermal" ? "80mm" : "210mm",
                   minHeight: format === "thermal" ? "auto" : "297mm",
+                  // Same guard as the main sheet: no mobile font boosting.
+                  WebkitTextSizeAdjust: "100%",
+                  textSizeAdjust: "100%",
                 }}
               >
                 {/* Margin guide (dashed inner box shows printable safe area) — toggleable */}
@@ -3006,7 +3026,9 @@ function InvoiceDetailPage() {
           ${
             format === "thermal"
               ? "@page { size: 80mm auto; margin: 2mm; } @page :first { size: 80mm auto; margin: 2mm; }"
-              : "@page { size: A4 portrait; margin: 6mm; } @page :first { size: A4 portrait; margin: 6mm; } @page :left { size: A4 portrait; margin: 6mm; } @page :right { size: A4 portrait; margin: 6mm; }"
+              // Explicit 210mm × 297mm (identical to `A4 portrait`, but the
+              // literal dimensions are honoured by more print engines).
+              : "@page { size: 210mm 297mm; margin: 6mm; } @page :first { size: 210mm 297mm; margin: 6mm; } @page :left { size: 210mm 297mm; margin: 6mm; } @page :right { size: 210mm 297mm; margin: 6mm; }"
           }
         }
       `}</style>

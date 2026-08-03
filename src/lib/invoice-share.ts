@@ -106,6 +106,22 @@ export function openWhatsAppShare(phone: string | null | undefined, text: string
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/**
+ * Force natural letter spacing on `root` and every descendant.
+ *
+ * html2canvas falls back to drawing text one code point at a time as soon as
+ * an element has a non-zero `letter-spacing`. Arabic is cursive, so that
+ * renders every letter in its isolated form — "فاتورة مبدئية" comes out as
+ * disconnected glyphs. Inline `normal` beats any stylesheet rule (headings
+ * carry -0.01em app-wide) and costs nothing visually at these sizes.
+ */
+export function normalizeLetterSpacing(root: HTMLElement) {
+  root.style.letterSpacing = "normal";
+  root.querySelectorAll<HTMLElement>("*").forEach((node) => {
+    if (node.style) node.style.letterSpacing = "normal";
+  });
+}
+
 /** Wait for webfonts + <img> assets inside `root` so text metrics are final. */
 async function waitForAssets(root: HTMLElement, timeoutMs = 3000) {
   const deadline = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
@@ -169,6 +185,8 @@ async function withStagedSheet<T>(
   clone.style.maxWidth = "none";
   clone.style.margin = "0";
   clone.style.transform = "none";
+  // Keep Arabic letters joined when html2canvas rasterises the sheet.
+  normalizeLetterSpacing(clone);
   // Screen-only chrome (drop shadow / preview border) must not end up in the PDF.
   clone.querySelectorAll<HTMLElement>(".print-a4, .print-thermal").forEach((sheet) => {
     sheet.style.boxShadow = "none";

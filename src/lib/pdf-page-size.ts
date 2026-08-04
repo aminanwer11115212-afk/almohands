@@ -28,6 +28,62 @@ export const THERMAL_CAPTURE_WIDTH_PX = Math.round(THERMAL_WIDTH_MM / MM_PER_PX)
 /** Max overflow (as a ratio of one page) still squeezed onto a single sheet. */
 export const FIT_TO_PAGE_LIMIT = 1.25;
 
+/**
+ * Height, in capture pixels, that maps onto one A4 content box.
+ *
+ * The sheet is captured 794px wide and drawn 198mm wide, so one captured
+ * pixel is 198/794 mm of paper and the 285mm content box holds 1142px.
+ */
+export const A4_PAGE_CONTENT_PX = Math.floor(
+  ((A4_MM.height - PDF_MARGIN_MM.a4 * 2) * A4_CAPTURE_WIDTH_PX) /
+    (A4_MM.width - PDF_MARGIN_MM.a4 * 2),
+); // 1142
+
+/** Slack kept free on every page so measurement rounding cannot overflow it. */
+export const PAGE_SAFETY_PX = 12;
+
+/**
+ * Distribute measured table rows over pages.
+ *
+ * Every page repeats the invoice header and the table head (`chromeHeight`),
+ * and the totals + signature block (`tailHeight`) rides on the last page —
+ * moving to a page of its own if it no longer fits. Returns one array of row
+ * indices per page; the last entry is the page carrying the tail and may be
+ * empty when the tail was pushed onto a fresh page.
+ */
+export function paginateRows(opts: {
+  rowHeights: number[];
+  chromeHeight: number;
+  tailHeight: number;
+  pageHeight: number;
+}): number[][] {
+  const { rowHeights, chromeHeight, tailHeight, pageHeight } = opts;
+  const usable = pageHeight - chromeHeight;
+
+  // Degenerate input (a header taller than the page, no rows): one page.
+  if (!(usable > 0) || rowHeights.length === 0) return [rowHeights.map((_, i) => i)];
+
+  const pages: number[][] = [[]];
+  let used = 0;
+  for (let i = 0; i < rowHeights.length; i++) {
+    const height = rowHeights[i];
+    const current = pages[pages.length - 1];
+    if (current.length > 0 && used + height > usable) {
+      pages.push([]);
+      used = 0;
+    }
+    pages[pages.length - 1].push(i);
+    used += height;
+  }
+
+  // The tail is just one more block: if it does not fit under the rows of the
+  // final page, it starts a page of its own rather than being cut in half.
+  if (tailHeight > 0 && used + tailHeight > usable && pages[pages.length - 1].length > 0) {
+    pages.push([]);
+  }
+  return pages;
+}
+
 export type PdfFormat = "a4" | "thermal";
 
 export type PdfPlacement = {

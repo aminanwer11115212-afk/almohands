@@ -1,9 +1,13 @@
 import { formatSDG } from "@/lib/format";
 import {
   A4_CAPTURE_HEIGHT_PX,
+  A4_PAGE_CONTENT_PX,
+  FIT_TO_PAGE_LIMIT,
+  PAGE_SAFETY_PX,
   captureWidthPx,
   computeCaptureScale,
   computePdfPlacement,
+  paginateRows,
   type PdfFormat,
 } from "@/lib/pdf-page-size";
 
@@ -122,6 +126,93 @@ export function normalizeLetterSpacing(root: HTMLElement) {
   });
 }
 
+/**
+ * Build one standalone A4 page element per page of a long invoice.
+ *
+ * Slicing a single tall bitmap cut rows in half and left later pages without
+ * a header or column titles. Instead each page gets its own copy of the sheet:
+ * the invoice header and table head are repeated, the page carries only the
+ * rows that fit, and the totals + signatures ride on the last page.
+ *
+ * Returns `null` when the invoice belongs on a single page — the caller then
+ * captures the sheet as it stands.
+ */
+export function splitSheetIntoPages(
+  sheet: HTMLElement,
+  opts: {
+    pageHeightPx?: number;
+    /** Injectable for tests; defaults to real layout measurement. */
+    measure?: (el: Element) => number;
+  } = {},
+): HTMLElement[] | null {
+  const {
+    pageHeightPx = A4_PAGE_CONTENT_PX,
+    measure = (el: Element) => el.getBoundingClientRect().height,
+  } = opts;
+
+  const table = sheet.querySelector("table");
+  const tbody = table?.querySelector("tbody");
+  const rows = tbody ? Array.from(tbody.rows) : [];
+  if (!table || !tbody || rows.length === 0) return null;
+
+  const sheetHeight = measure(sheet);
+  // Anything that still fits (or only just overflows) stays a single page and
+  // keeps the existing shrink-to-fit behaviour.
+  if (sheetHeight <= pageHeightPx * FIT_TO_PAGE_LIMIT) return null;
+
+  const rowHeights = rows.map(measure);
+  const tfoot = table.querySelector("tfoot");
+  const summary = sheet.querySelector(".a4-summary");
+  const tailHeight = (tfoot ? measure(tfoot) : 0) + (summary ? measure(summary) : 0);
+  // Whatever is left is the per-page chrome: sheet padding, invoice header,
+  // meta strip and the table head — all of which repeat on every page.
+  const rowsHeight = rowHeights.reduce((sum, h) => sum + h, 0);
+  const chromeHeight = Math.max(0, sheetHeight - rowsHeight - tailHeight);
+
+  const pages = paginateRows({
+    rowHeights,
+    chromeHeight,
+    tailHeight,
+    pageHeight: pageHeightPx - PAGE_SAFETY_PX,
+  });
+  if (pages.length <= 1) return null;
+
+  return pages.map((rowIndices, i) =>
+    buildInvoicePage(sheet, rowIndices, {
+      isLast: i === pages.length - 1,
+      pageNumber: i + 1,
+      pageCount: pages.length,
+    }),
+  );
+}
+
+/** Copy of `sheet` holding only `rowIndices`, plus a "صفحة x من y" footer. */
+function buildInvoicePage(
+  sheet: HTMLElement,
+  rowIndices: number[],
+  meta: { isLast: boolean; pageNumber: number; pageCount: number },
+): HTMLElement {
+  const page = sheet.cloneNode(true) as HTMLElement;
+  const tbody = page.querySelector("tbody");
+  if (tbody) {
+    const keep = new Set(rowIndices);
+    Array.from(tbody.rows).forEach((row, i) => {
+      if (!keep.has(i)) row.remove();
+    });
+  }
+  if (!meta.isLast) {
+    page.querySelector("tfoot")?.remove();
+    page.querySelector(".a4-summary")?.remove();
+  }
+
+  const label = page.ownerDocument.createElement("div");
+  label.className = "a4-page-label";
+  label.textContent = `صفحة ${meta.pageNumber} من ${meta.pageCount}`;
+  label.style.cssText = "margin-top:8px;text-align:center;font-size:11px;color:#404040;";
+  page.appendChild(label);
+  return page;
+}
+
 /** Wait for webfonts + <img> assets inside `root` so text metrics are final. */
 async function waitForAssets(root: HTMLElement, timeoutMs = 3000) {
   const deadline = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
@@ -222,39 +313,65 @@ async function renderElementToPdf(
   ]);
   const { jsPDF } = jspdfMod as typeof import("jspdf");
 
-  const canvas = await withStagedSheet(el, format, async (staged, widthPx) => {
-    const heightPx = Math.max(staged.scrollHeight, staged.getBoundingClientRect().height, 1);
-    return html2canvas(staged, {
-      // ~300 DPI instead of the 2× (192 DPI) that made Arabic text look soft,
-      // automatically reduced for long invoices so the canvas stays allocatable.
-      scale: computeCaptureScale(widthPx, heightPx),
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-      // Lay the clone out in an A4-wide viewport so percentage widths, flex
-      // and any width-based media query resolve exactly as they do on paper.
-      windowWidth: widthPx,
-      windowHeight: Math.max(Math.ceil(heightPx), A4_CAPTURE_HEIGHT_PX),
-    });
+  const shots = await withStagedSheet(el, format, async (staged, widthPx) => {
+    const capture = async (node: HTMLElement) => {
+      const heightPx = Math.max(node.scrollHeight, node.getBoundingClientRect().height, 1);
+      const canvas = await html2canvas(node, {
+        // ~300 DPI instead of the 2× (192 DPI) that made Arabic text look soft,
+        // automatically reduced for long invoices so the canvas stays allocatable.
+        scale: computeCaptureScale(widthPx, heightPx),
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        // Lay the clone out in an A4-wide viewport so percentage widths, flex
+        // and any width-based media query resolve exactly as they do on paper.
+        windowWidth: widthPx,
+        windowHeight: Math.max(Math.ceil(heightPx), A4_CAPTURE_HEIGHT_PX),
+      });
+      // High-quality JPEG: at ~300 DPI its artefacts are far below one glyph
+      // stroke, and jsPDF embeds the stream as-is (no JS decode), so big
+      // captures stay fast and the shared file stays small on mobile data.
+      const shot = {
+        data: canvas.toDataURL("image/jpeg", 0.95),
+        width: canvas.width,
+        height: canvas.height,
+      };
+      // Release the bitmap (~35 MB per A4 page) before rendering the next one.
+      canvas.width = 0;
+      canvas.height = 0;
+      return shot;
+    };
+
+    const sheet = format === "a4" ? staged.querySelector<HTMLElement>(".print-a4") : null;
+    const pages = sheet ? splitSheetIntoPages(sheet) : null;
+    if (!pages) return [await capture(staged)];
+
+    const captured = [];
+    for (const page of pages) {
+      staged.replaceChildren(page);
+      captured.push(await capture(staged));
+    }
+    return captured;
   });
 
-  // High-quality JPEG: at ~300 DPI its artefacts are far below one glyph
-  // stroke, and jsPDF embeds the stream as-is (no JS decode), so big captures
-  // stay fast and the shared file stays small enough for mobile data.
-  const imgData = canvas.toDataURL("image/jpeg", 0.95);
-  const place = computePdfPlacement(canvas.width, canvas.height, format);
+  const places = shots.map((shot) => computePdfPlacement(shot.width, shot.height, format));
 
   const pdf = new jsPDF({
     unit: "mm",
     // A4 invoices use jsPDF's built-in ISO A4 (210 × 297 mm) so the file
     // reports the standard page size to every viewer and printer.
-    format: format === "thermal" ? [place.pageWidthMm, place.pageHeightMm] : "a4",
+    format: format === "thermal" ? [places[0].pageWidthMm, places[0].pageHeightMm] : "a4",
     orientation: "portrait",
   });
 
-  place.pageOffsetsMm.forEach((offsetY, i) => {
-    if (i > 0) pdf.addPage();
-    pdf.addImage(imgData, "JPEG", place.offsetXMm, offsetY, place.drawWidthMm, place.drawHeightMm);
+  let started = false;
+  shots.forEach((shot, i) => {
+    const place = places[i];
+    place.pageOffsetsMm.forEach((offsetY) => {
+      if (started) pdf.addPage();
+      started = true;
+      pdf.addImage(shot.data, "JPEG", place.offsetXMm, offsetY, place.drawWidthMm, place.drawHeightMm);
+    });
   });
 
   const blob = pdf.output("blob");

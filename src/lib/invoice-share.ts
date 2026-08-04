@@ -346,9 +346,13 @@ async function renderElementToPdf(
     const pages = sheet ? splitSheetIntoPages(sheet) : null;
     if (!pages) return [await capture(staged)];
 
-    const captured = [];
+    const captured: Array<{ data: string; width: number; height: number }> = [];
     for (const page of pages) {
-      staged.replaceChildren(page);
+      // Plain DOM calls (not replaceChildren) so old Android WebViews cope.
+      while (staged.firstChild) staged.removeChild(staged.firstChild);
+      staged.appendChild(page);
+      // The logo is a fresh <img> on every page copy — let it decode first.
+      await waitForAssets(staged);
       captured.push(await capture(staged));
     }
     return captured;

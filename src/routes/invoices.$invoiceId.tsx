@@ -49,6 +49,7 @@ import {
   downloadElementAsPdf,
   sharePdfFileNative,
   openWhatsAppShare,
+  splitSheetIntoPages,
 } from "@/lib/invoice-share";
 import {
   Dialog,
@@ -1397,20 +1398,58 @@ function InvoiceDetailPage() {
     return () => clearTimeout(t);
   }, [autoprint, formatReady, hasInv, invoiceId]);
 
-  // Fit-to-page: measure invoice height right before print; if it slightly
-  // overflows a single A4 portrait sheet (up to 30%), scale it down so the
-  // whole invoice fits without clipping. Only applies to A4 format.
+  // Print pagination + fit-to-page, computed right before the print dialog opens.
+  // Long invoices are split into standalone A4 pages — each repeating the full
+  // invoice header and table head, with the totals on the last page — using the
+  // same logic as the PDF export (so the browser Print button matches). A short
+  // invoice that only slightly overflows one sheet is shrunk to fit instead.
   useEffect(() => {
     if (format !== "a4") return;
     // A4 portrait printable area at 96 DPI ≈ (210-12)mm × (297-12)mm.
     // Convert mm→px at 96dpi: 1mm ≈ 3.7795px.
     const PAGE_H_PX = (297 - 12) * 3.7795; // ~1077px
+
+    function cleanupPaged(root: HTMLElement) {
+      root.querySelectorAll(".a4-print-page").forEach((n) => n.remove());
+      root.querySelectorAll<HTMLElement>("[data-orig-sheet]").forEach((el) => {
+        el.style.removeProperty("display");
+        el.removeAttribute("data-orig-sheet");
+      });
+      root.classList.remove("paged-print");
+    }
+
     function apply() {
       const root = document.getElementById("invoice-print-root");
       const paper = root?.querySelector<HTMLElement>(".print-a4");
       if (!root || !paper) return;
+      // Reset any leftover state from a previous print.
       root.style.removeProperty("--print-fit");
       root.classList.remove("fit-to-page");
+      cleanupPaged(root);
+
+      // Multi-page: build one standalone sheet per page (header repeated).
+      let pages: HTMLElement[] | null = null;
+      try {
+        pages = splitSheetIntoPages(paper);
+      } catch {
+        pages = null;
+      }
+      if (pages && pages.length > 1) {
+        paper.setAttribute("data-orig-sheet", "");
+        paper.style.display = "none";
+        pages.forEach((pg, i) => {
+          pg.classList.add("a4-print-page");
+          pg.style.boxShadow = "none";
+          pg.style.border = "0";
+          // Force a page break after every page except the last.
+          if (i < pages!.length - 1) pg.style.breakAfter = "page";
+          root.appendChild(pg);
+        });
+        root.classList.add("paged-print");
+        return;
+      }
+
+      // Single page that slightly overflows: shrink to fit (up to ~30%).
       const h = paper.getBoundingClientRect().height;
       if (h > PAGE_H_PX && h <= PAGE_H_PX * 1.3) {
         const scale = Math.max(0.7, PAGE_H_PX / h);
@@ -1423,6 +1462,7 @@ function InvoiceDetailPage() {
       if (!root) return;
       root.style.removeProperty("--print-fit");
       root.classList.remove("fit-to-page");
+      cleanupPaged(root);
     }
     window.addEventListener("beforeprint", apply);
     window.addEventListener("afterprint", clear);
@@ -1689,7 +1729,7 @@ function InvoiceDetailPage() {
       )}
       {/* Toolbar */}
       <header className="bg-header text-header-foreground shadow print:hidden">
-        <div className="mx-auto max-w-4xl px-2 sm:px-4 h-12 sm:h-14 flex items-center gap-1 sm:gap-1.5 flex-wrap">
+        <div className="mx-auto max-w-4xl px-2 sm:px-4 min-h-12 sm:h-14 py-1.5 sm:py-0 flex items-center gap-1 sm:gap-1.5 flex-wrap">
           <Link
             to="/invoices"
             search={{ q: "", status: "all", from: "", to: "" }}
@@ -1718,7 +1758,7 @@ function InvoiceDetailPage() {
 
           <button
             onClick={() => setPreviewOpen(true)}
-            className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
+            className="hidden sm:flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="معاينة قبل الطباعة أو المشاركة"
             aria-label="معاينة"
           >
@@ -1728,7 +1768,7 @@ function InvoiceDetailPage() {
           <button
             onClick={() => handleSharePdfNative()}
             disabled={pdfBusy}
-            className="flex items-center gap-1 text-xs sm:text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
+            className="hidden sm:flex items-center gap-1 text-xs sm:text-sm bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title="مشاركة ملف PDF عبر تطبيقات الجهاز (واتساب/بريد/تلغرام...)"
             aria-label="مشاركة PDF"
           >
@@ -1743,7 +1783,7 @@ function InvoiceDetailPage() {
           <button
             onClick={() => handleDownloadPdf()}
             disabled={pdfBusy}
-            className="flex items-center gap-1 text-xs sm:text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
+            className="hidden sm:flex items-center gap-1 text-xs sm:text-sm bg-indigo-500 hover:bg-indigo-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title="تنزيل الفاتورة كملف PDF بنفس تصميم A4"
             aria-label="تنزيل PDF"
           >
@@ -1757,7 +1797,7 @@ function InvoiceDetailPage() {
 
           <button
             onClick={confirmAndPrint}
-            className="flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
+            className="hidden sm:flex items-center gap-1 text-xs sm:text-sm bg-white/20 hover:bg-white/30 rounded-md px-2 py-1 sm:py-1.5"
             title="طباعة الفاتورة (يظهر تأكيد سريع أولاً)"
             aria-label="طباعة"
           >
@@ -1768,7 +1808,7 @@ function InvoiceDetailPage() {
           <button
             onClick={() => handleWhatsAppShare()}
             disabled={shareBusy}
-            className="flex items-center gap-1 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
+            className="hidden sm:flex items-center gap-1 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-md px-2 py-1 sm:py-1.5"
             title={
               inv.customer_phone
                 ? "إرسال نص الفاتورة إلى رقم العميل"
@@ -2984,11 +3024,17 @@ function InvoiceDetailPage() {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(400%); }
         }
+        /* Paged-print sheets are built only while the print dialog is open;
+           never let them show on screen (avoids a flash before printing). */
+        .a4-print-page { display: none; }
         @media print {
           /* ---- ISOLATE the invoice from the rest of the app ---- */
           /* Prevents duplicate copies (preview modal + main content), hides
              app chrome, modal overlays/backdrops, toasts, sidebars, etc. */
           html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          /* Show the standalone per-page sheets; each ends with a page break. */
+          .a4-print-page { display: block !important; }
+          .a4-page-label { color: #404040 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body * { visibility: hidden !important; }
           #invoice-print-root, #invoice-print-root * { visibility: visible !important; }
           /* Neutralize the on-screen natural-size/scroll wrapper for print. */

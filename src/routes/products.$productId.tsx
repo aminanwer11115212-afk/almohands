@@ -95,6 +95,8 @@ function EditProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  // Which field the camera scan should fill — barcode or the part number.
+  const [scanTarget, setScanTarget] = useState<"barcode" | "part">("barcode");
 
   useEffect(() => {
     if (product) {
@@ -335,7 +337,7 @@ function EditProductPage() {
               />
               <button
                 type="button"
-                onClick={() => setScanOpen(true)}
+                onClick={() => { setScanTarget("barcode"); setScanOpen(true); }}
                 className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
                 aria-label="مسح الباركود بالكاميرا"
                 title="مسح بالكاميرا"
@@ -345,13 +347,24 @@ function EditProductPage() {
             </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
-            <input
-              value={partNumber}
-              onChange={(e) => setPartNumber(e.target.value)}
-              dir="ltr"
-              className="ip text-left"
-              placeholder="90915-YZZE2"
-            />
+            <div className="flex gap-2">
+              <input
+                value={partNumber}
+                onChange={(e) => setPartNumber(e.target.value)}
+                dir="ltr"
+                className="ip text-left flex-1"
+                placeholder="90915-YZZE2"
+              />
+              <button
+                type="button"
+                onClick={() => { setScanTarget("part"); setScanOpen(true); }}
+                className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
+                aria-label="مسح رقم القطعة بالكاميرا"
+                title="مسح بالكاميرا"
+              >
+                <ScanBarcode className="size-5" />
+              </button>
+            </div>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -463,10 +476,15 @@ function EditProductPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={(code) => {
-          setBarcode(code);
-          toast.success("تم قراءة الباركود");
+          if (scanTarget === "part") {
+            setPartNumber(code);
+            toast.success("تم قراءة رقم القطعة");
+          } else {
+            setBarcode(code);
+            toast.success("تم قراءة الباركود");
+          }
         }}
-        contextTag="products.edit"
+        contextTag={scanTarget === "part" ? "products.edit.part" : "products.edit"}
       />
 
       <style>{`

@@ -58,6 +58,8 @@ function NewProductPage() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  // Which field the camera scan should fill — barcode or the part number.
+  const [scanTarget, setScanTarget] = useState<"barcode" | "part">("barcode");
   // Auto-open the camera scanner on mount so the user can scan immediately.
   // Guarded by a ref so it fires only once per page visit.
   const autoOpenedRef = useRef(false);
@@ -210,7 +212,7 @@ function NewProductPage() {
               />
               <button
                 type="button"
-                onClick={() => setScanOpen(true)}
+                onClick={() => { setScanTarget("barcode"); setScanOpen(true); }}
                 className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
                 aria-label="مسح الباركود بالكاميرا"
                 title="مسح بالكاميرا"
@@ -220,13 +222,24 @@ function NewProductPage() {
             </div>
           </Field>
           <Field label="رقم القطعة (Part No.)">
-            <input
-              value={partNumber}
-              onChange={(e) => setPartNumber(e.target.value)}
-              dir="ltr"
-              className="ip text-left"
-              placeholder="مثال: 90915-YZZE2"
-            />
+            <div className="flex gap-2">
+              <input
+                value={partNumber}
+                onChange={(e) => setPartNumber(e.target.value)}
+                dir="ltr"
+                className="ip text-left flex-1"
+                placeholder="مثال: 90915-YZZE2"
+              />
+              <button
+                type="button"
+                onClick={() => { setScanTarget("part"); setScanOpen(true); }}
+                className="h-11 px-3 rounded-xl bg-brand text-brand-foreground flex items-center justify-center shrink-0"
+                aria-label="مسح رقم القطعة بالكاميرا"
+                title="مسح بالكاميرا"
+              >
+                <ScanBarcode className="size-5" />
+              </button>
+            </div>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -328,10 +341,15 @@ function NewProductPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={(code) => {
-          setBarcode(code);
-          toast.success("تم قراءة الباركود");
+          if (scanTarget === "part") {
+            setPartNumber(code);
+            toast.success("تم قراءة رقم القطعة");
+          } else {
+            setBarcode(code);
+            toast.success("تم قراءة الباركود");
+          }
         }}
-        contextTag="products.new"
+        contextTag={scanTarget === "part" ? "products.new.part" : "products.new"}
       />
 
       <style>{`

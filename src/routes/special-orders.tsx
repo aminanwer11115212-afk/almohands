@@ -215,6 +215,62 @@ function SpecialOrdersPage() {
   }
 
 
+  // Action cluster shared by the desktop table and the mobile card list, so the
+  // two views stay in sync (status menu, convert/view invoice, edit, delete).
+  const renderActions = (o: SpecialOrder) => (
+    <div className="flex items-center justify-end gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground" title="تغيير الحالة">
+            <MoreVertical className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {STATUS_ORDER.map((s) => (
+            <DropdownMenuItem key={s} onClick={() => handleStatusChange(o, s)} disabled={o.status === s}>
+              {o.status === s && <Check className="size-3.5" />}
+              {STATUS_LABELS[s]}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {o.status !== "cancelled" && !o.invoice_id && (
+        <button
+          onClick={() => convertToInvoice(o)}
+          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-emerald-600 hover:text-white text-muted-foreground"
+          title="تحويل إلى فاتورة في الكاشير"
+        >
+          <Receipt className="size-4" />
+        </button>
+      )}
+      {o.invoice_id && (
+        <button
+          onClick={() => navigate({ to: "/invoices/$invoiceId", params: { invoiceId: o.invoice_id! } })}
+          className="grid place-items-center size-8 rounded-lg bg-emerald-500/10 text-emerald-700 hover:bg-emerald-600 hover:text-white"
+          title="عرض الفاتورة المرتبطة"
+        >
+          <Receipt className="size-4" />
+        </button>
+      )}
+      <button
+        onClick={() => setEditing(o)}
+        className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground"
+        title="تعديل"
+      >
+        <Pencil className="size-4" />
+      </button>
+      {isAdmin && (
+        <button
+          onClick={() => setDeleting(o)}
+          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-destructive hover:text-destructive-foreground text-muted-foreground"
+          title="حذف"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <AppShell
       title="طلبات النظام"
@@ -296,7 +352,9 @@ function SpecialOrdersPage() {
           {orders.length === 0 ? "لا توجد طلبات بعد — اضغط «طلب جديد» لإضافة طلب" : "لا توجد نتائج مطابقة"}
         </p>
       ) : (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <>
+        {/* Desktop: full table. Hidden on phones where 11 columns are unreadable. */}
+        <div className="hidden md:block rounded-2xl border border-border bg-card overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -335,64 +393,55 @@ function SpecialOrdersPage() {
                   </TableCell>
                   <TableCell className="text-end nums text-xs">{o.expected_at || "—"}</TableCell>
                   <TableCell className="text-end">
-                    <div className="flex items-center justify-end gap-1">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground" title="تغيير الحالة">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {STATUS_ORDER.map((s) => (
-                            <DropdownMenuItem key={s} onClick={() => handleStatusChange(o, s)} disabled={o.status === s}>
-                              {o.status === s && <Check className="size-3.5" />}
-                              {STATUS_LABELS[s]}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {o.status !== "cancelled" && !o.invoice_id && (
-                        <button
-                          onClick={() => convertToInvoice(o)}
-                          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-emerald-600 hover:text-white text-muted-foreground"
-                          title="تحويل إلى فاتورة في الكاشير"
-                        >
-                          <Receipt className="size-4" />
-                        </button>
-                      )}
-                      {o.invoice_id && (
-                        <button
-                          onClick={() => navigate({ to: "/invoices/$invoiceId", params: { invoiceId: o.invoice_id! } })}
-                          className="grid place-items-center size-8 rounded-lg bg-emerald-500/10 text-emerald-700 hover:bg-emerald-600 hover:text-white"
-                          title="عرض الفاتورة المرتبطة"
-                        >
-                          <Receipt className="size-4" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setEditing(o)}
-                        className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-brand hover:text-brand-foreground text-muted-foreground"
-                        title="تعديل"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      {isAdmin && (
-                        <button
-                          onClick={() => setDeleting(o)}
-                          className="grid place-items-center size-8 rounded-lg bg-muted/60 hover:bg-destructive hover:text-destructive-foreground text-muted-foreground"
-                          title="حذف"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
-                    </div>
+                    {renderActions(o)}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+
+        {/* Mobile: readable stacked cards instead of a cramped, wide table. */}
+        <div className="md:hidden space-y-3">
+          {filtered.map((o) => (
+            <div key={o.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{o.item_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{o.customer_name || "—"}</div>
+                  {o.customer_phone && (
+                    <div className="text-xs text-muted-foreground nums" dir="ltr">{o.customer_phone}</div>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <StatusBadge status={o.status} />
+                  <PriorityBadge priority={o.priority} />
+                </div>
+              </div>
+
+              {o.description && (
+                <div className="mt-2 text-xs text-muted-foreground">{o.description}</div>
+              )}
+
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                <div><span className="text-muted-foreground">الكمية: </span><span className="nums font-medium">{o.quantity}</span></div>
+                <div><span className="text-muted-foreground">السعر المستهدف: </span><span className="nums font-medium">{o.target_price != null ? formatSDG(o.target_price) : "—"}</span></div>
+                <div><span className="text-muted-foreground">المورد: </span><span className="font-medium">{o.supplier_name || "—"}</span></div>
+                <div><span className="text-muted-foreground">التاريخ المتوقع: </span><span className="nums font-medium">{o.expected_at || "—"}</span></div>
+                <div className="col-span-2"><span className="text-muted-foreground">تاريخ الطلب: </span><span className="nums font-medium">{new Date(o.created_at).toLocaleDateString("en-GB")}</span></div>
+              </div>
+
+              {o.status === "cancelled" && o.cancellation_reason && (
+                <div className="mt-2 text-[11px] text-muted-foreground">سبب الإلغاء: {o.cancellation_reason}</div>
+              )}
+
+              <div className="mt-3 pt-3 border-t border-border">
+                {renderActions(o)}
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {(showForm || editing) && (

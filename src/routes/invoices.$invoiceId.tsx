@@ -651,8 +651,15 @@ function InvoiceDetailPage() {
           }
         }
 
-        // ---------- L4) Recompute invoice totals ----------
-        const newTotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+        // ---------- L4) Recompute invoice totals (preserve the discount) ----------
+        // The invoice total is subtotal − discount. Recomputing only the line
+        // sum here used to drop the discount and inflate the stored total, which
+        // then propagated to the printed invoice, the invoice page and reports.
+        const subtotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+        // Keep the existing discount, but never let it exceed the new subtotal
+        // (e.g. after rows were removed) so the total can't go negative.
+        const discount = Math.min(subtotal, Math.max(0, Number(inv.discount) || 0));
+        const newTotal = Math.max(0, subtotal - discount);
         const paid = Math.min(Number(inv.paid) || 0, newTotal);
         const remaining = Math.max(0, newTotal - paid);
         const status: "paid" | "partial" | "pending" =
@@ -721,10 +728,10 @@ function InvoiceDetailPage() {
               [change, now, pid],
             );
           }
-          // Invoice totals
+          // Invoice totals — keep subtotal/discount/total consistent
           await tx.execute(
-            `UPDATE invoices SET total = ?, paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
-            [newTotal, paid, remaining, status, now, inv.id],
+            `UPDATE invoices SET subtotal = ?, discount = ?, total = ?, paid = ?, remaining = ?, status = ?, updated_at = ? WHERE id = ?`,
+            [subtotal, discount, newTotal, paid, remaining, status, now, inv.id],
           );
           // Audit log
           await tx.execute(
@@ -892,15 +899,19 @@ function InvoiceDetailPage() {
         if (stockErr) throw stockErr;
       }
 
-      // ---------- 5) Recompute invoice totals from validated data ----------
-      const newTotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+      // ---------- 5) Recompute invoice totals from validated data (preserve discount) ----------
+      // Total is subtotal − discount; recomputing only the line sum dropped the
+      // discount and inflated the stored total everywhere it is shown.
+      const subtotal = rowsWithFlags.reduce((s, r) => s + r.quantity * r.unit_price, 0);
+      const discount = Math.min(subtotal, Math.max(0, Number(inv.discount) || 0));
+      const newTotal = Math.max(0, subtotal - discount);
       const paid = Math.min(Number(inv.paid) || 0, newTotal);
       const remaining = Math.max(0, newTotal - paid);
       const status: "paid" | "partial" | "pending" =
         newTotal === 0 ? "paid" : remaining === 0 ? "paid" : paid > 0 ? "partial" : "pending";
       const { error: invErr } = await supabase
         .from("invoices")
-        .update({ total: newTotal, paid, remaining, status })
+        .update({ subtotal, discount, total: newTotal, paid, remaining, status })
         .eq("id", inv.id);
       if (invErr) throw invErr;
 
@@ -3072,6 +3083,10 @@ function A4Invoice({
   const dateStr = `${created.getFullYear()} / ${String(created.getMonth() + 1).padStart(2, "0")} / ${String(created.getDate()).padStart(2, "0")}`;
   const timeStr = created.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
   const isPaid = Number(inv.remaining) <= 0;
+  // When a discount applies, the line items sum to the subtotal while the total
+  // is subtotal − discount. Show all three so the printed invoice reconciles.
+  const discountVal = Math.max(0, Number(inv.discount) || 0);
+  const subtotalVal = items.reduce((s, it) => s + Number(it.line_total || 0), 0);
 
   return (
     <div
@@ -3178,6 +3193,26 @@ function A4Invoice({
           ))}
         </tbody>
         <tfoot>
+          {discountVal > 0 && (
+            <>
+              <tr className="h-8 font-semibold text-sm keep-together">
+                <td colSpan={4} className="border border-black text-left px-4">
+                  المجموع الفرعي
+                </td>
+                <td className="border border-black text-center nums px-2">
+                  {formatSDG(subtotalVal)}
+                </td>
+              </tr>
+              <tr className="h-8 font-semibold text-sm keep-together">
+                <td colSpan={4} className="border border-black text-left px-4">
+                  الخصم
+                </td>
+                <td className="border border-black text-center nums px-2">
+                  − {formatSDG(discountVal)}
+                </td>
+              </tr>
+            </>
+          )}
           <tr className="h-10 font-bold text-base bg-black/[0.06] keep-together">
             <td colSpan={4} className="border-2 border-black text-left px-4">
               المجموع الكلي
